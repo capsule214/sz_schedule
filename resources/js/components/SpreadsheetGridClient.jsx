@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import SpreadsheetGrid from './SpreadsheetGrid';
 import DisplaySettingsDrawer from './DisplaySettingsDrawer';
 import { apiArray, apiJson } from '../lib/api';
@@ -15,7 +15,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [locations, setLocations] = useState([]);
   const [displaySettings, setDisplaySettings] = useState({ selectedKisyuIds: [], selectedTeamIds: [], selectedTaskIds: [], selectedTaskTabIds: [], showLocationInDevice: false, showUnassignedWorker: false, showShippingDateInDevice: false, showResponsibleInDevice: false });
   const [showSettings, setShowSettings] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, locations: false });
   const [seeding, setSeeding] = useState(false);
   const [jumpTarget, setJumpTarget] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -37,26 +38,63 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const alertTimerRef = useRef(null);
   const prevTabRef = useRef('device');
 
-  const reloadMasterData = useCallback(async () => {
-    const [s, w, t, ds, loc] = await Promise.all([
-      apiArray('/serial'),
-      apiArray('/worker'),
-      apiArray('/task'),
-      apiJson('/display-settings'),
-      apiArray('/location'),
-    ]);
-    setSerials(s);
-    setWorkers(w);
-    setTasks(t);
+  const masterRequirements = useMemo(() => ({
+    device: ['serials'],
+    worker: displaySettings.showUnassignedWorker ? ['workers', 'serials'] : ['workers'],
+    task: ['tasks'],
+    location: ['locations'],
+  }), [displaySettings.showUnassignedWorker]);
+
+  const hasMastersForMode = useCallback((mode) => (
+    (masterRequirements[mode] || []).every(key => loadedMasters[key])
+  ), [loadedMasters, masterRequirements]);
+
+  const ensureMasters = useCallback(async (keys) => {
+    const dataByKey = { serials, workers, tasks, locations };
+    const missing = keys.filter(key => !loadedMasters[key]);
+    if (missing.length === 0) return dataByKey;
+
+    const entries = await Promise.all(missing.map(async (key) => {
+      if (key === 'serials') return [key, await apiArray('/serial')];
+      if (key === 'workers') return [key, await apiArray('/worker')];
+      if (key === 'tasks') return [key, await apiArray('/task')];
+      if (key === 'locations') return [key, await apiArray('/location')];
+      throw new Error(`Unknown master key: ${key}`);
+    }));
+
+    for (const [key, data] of entries) {
+      dataByKey[key] = data;
+      if (key === 'serials') setSerials(data);
+      else if (key === 'workers') setWorkers(data);
+      else if (key === 'tasks') setTasks(data);
+      else if (key === 'locations') setLocations(data);
+    }
+
+    setLoadedMasters(prev => ({
+      ...prev,
+      ...Object.fromEntries(entries.map(([key]) => [key, true])),
+    }));
+    return dataByKey;
+  }, [loadedMasters, locations, serials, tasks, workers]);
+
+  const ensureMastersForMode = useCallback((mode) => (
+    ensureMasters(masterRequirements[mode] || [])
+  ), [ensureMasters, masterRequirements]);
+
+  const reloadDisplaySettings = useCallback(async () => {
+    const ds = await apiJson('/display-settings');
     setDisplaySettings(ds);
-    setLocations(loc);
+    setSettingsLoaded(true);
   }, []);
 
   useEffect(() => {
-    reloadMasterData().then(() => {
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [reloadMasterData]);
+    reloadDisplaySettings().catch(() => setSettingsLoaded(true));
+  }, [reloadDisplaySettings]);
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    ensureMastersForMode(tab).catch(() => showAlert('マスタデータの取得に失敗しました'));
+  }, [settingsLoaded, tab, ensureMastersForMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLogout() {
     await apiJson('/logout', { method: 'POST' });
@@ -70,22 +108,14 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   async function handleSave() {
-    await Promise.all([
-      deviceGridRef.current?.saveChanges(),
-      workerGridRef.current?.saveChanges(),
-      locationGridRef.current?.saveChanges(),
-      taskGridRef.current?.saveChanges(),
-    ]);
+    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'location' ? locationGridRef : taskGridRef;
+    await activeGridRef.current?.saveChanges();
     setIsDirty(false);
   }
 
   async function handleCancel() {
-    await Promise.all([
-      deviceGridRef.current?.cancelChanges(),
-      workerGridRef.current?.cancelChanges(),
-      locationGridRef.current?.cancelChanges(),
-      taskGridRef.current?.cancelChanges(),
-    ]);
+    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'location' ? locationGridRef : taskGridRef;
+    await activeGridRef.current?.cancelChanges();
     setIsDirty(false);
   }
 
@@ -94,7 +124,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setSeeding(true);
     try {
       await apiJson('/seed/master', { method: 'POST', body: JSON.stringify({}) });
-      await reloadMasterData();
+      setSerials([]);
+      setWorkers([]);
+      setTasks([]);
+      setLocations([]);
+      setLoadedMasters({ serials: false, workers: false, tasks: false, locations: false });
+      await reloadDisplaySettings();
       await handleCancel();
       showAlert('初期データを生成しました');
     } catch (e) {
@@ -150,12 +185,13 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     });
   }
 
-  const handleJumpToOtherTab = useCallback((plan, targetMode) => {
+  const handleJumpToOtherTab = useCallback(async (plan, targetMode) => {
     const { selectedKisyuIds = [], selectedTeamIds = [] } = displaySettings;
 
     // ① 表示設定チェック（機種 / 担当者が表示対象か）
     if (targetMode === 'device') {
-      const serial = serials.find(s => s.serialId === plan.serialId);
+      const { serials: loadedSerials } = await ensureMasters(['serials']);
+      const serial = loadedSerials.find(s => s.serialId === plan.serialId);
       if (!serial) {
         showAlert('表示対象データがありませんでした');
         return;
@@ -165,7 +201,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         return;
       }
     } else {
-      const worker = workers.find(w => w.workerId === plan.workerId);
+      const { workers: loadedWorkers } = await ensureMasters(['workers']);
+      const worker = loadedWorkers.find(w => w.workerId === plan.workerId);
       if (!worker) {
         showAlert('表示対象データがありませんでした');
         return;
@@ -191,7 +228,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     prevTabRef.current = tab;
     setTab(targetMode);
     setJumpTarget({ plan, targetMode });
-  }, [serials, workers, displaySettings, tab]);
+  }, [ensureMasters, displaySettings, tab]);
 
   const handleJumpHandled = useCallback(() => setJumpTarget(null), []);
 
@@ -201,7 +238,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     showAlert('表示対象データがありませんでした');
   }, []);
 
-  if (loading) {
+  if (!settingsLoaded) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#6b7280' }}>
         読み込み中...
@@ -212,6 +249,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const gridProps = {
     serials, workers, tasks, locations, displaySettings,
     onJumpToOtherTab: handleJumpToOtherTab,
+    onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,
     onJumpError: handleJumpError,
   };
@@ -234,55 +272,61 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         onCancel={handleCancel}
       />
 
-      {/* グリッド — 両タブ常時マウント。visibility で表示/非表示を切り替え */}
+      {/* グリッド — アクティブなタブだけマウントし、非表示タブの API 呼び出しを発生させない */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <GridTabPane active={tab === 'device'}>
+        {!hasMastersForMode(tab) ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#6b7280' }}>
+            読み込み中...
+          </div>
+        ) : tab === 'device' ? (
+          <GridTabPane active>
           <SpreadsheetGrid
             {...gridProps}
-            active={tab === 'device'}
+            active
             ref={deviceGridRef}
             mode="device"
-            jumpTarget={tab === 'device' ? jumpTarget : null}
+            jumpTarget={jumpTarget}
             onRangeChange={r => { deviceRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-        </GridTabPane>
-
-        <GridTabPane active={tab === 'worker'}>
+          </GridTabPane>
+        ) : tab === 'worker' ? (
+          <GridTabPane active>
           <SpreadsheetGrid
             {...gridProps}
-            active={tab === 'worker'}
+            active
             ref={workerGridRef}
             mode="worker"
-            jumpTarget={tab === 'worker' ? jumpTarget : null}
+            jumpTarget={jumpTarget}
             onRangeChange={r => { workerRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-        </GridTabPane>
-
-        <GridTabPane active={tab === 'location'}>
+          </GridTabPane>
+        ) : tab === 'location' ? (
+          <GridTabPane active>
           <SpreadsheetGrid
             {...gridProps}
-            active={tab === 'location'}
+            active
             ref={locationGridRef}
             mode="location"
             jumpTarget={null}
             onRangeChange={r => { locationRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-        </GridTabPane>
-
-        <GridTabPane active={tab === 'task'}>
+          </GridTabPane>
+        ) : (
+          <GridTabPane active>
           <SpreadsheetGrid
             {...gridProps}
-            active={tab === 'task'}
+            active
             ref={taskGridRef}
             mode="task"
             jumpTarget={null}
             onRangeChange={r => { taskRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-        </GridTabPane>
+          </GridTabPane>
+        )}
 
         <AlertToast message={alertMessage} onClose={() => setAlertMessage(null)} />
 
@@ -333,6 +377,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         workers={workers}
         tasks={tasks}
         settings={displaySettings}
+        onEnsureMasters={ensureMasters}
         onSave={saveDisplaySettings}
       />
     </div>

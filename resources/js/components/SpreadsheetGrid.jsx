@@ -40,7 +40,7 @@ import {
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
   mode, serials, workers, tasks, locations, displaySettings,
-  onJumpToOtherTab, jumpTarget, onJumpHandled, onJumpError,
+  onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange,
 }, ref) {
   const today = new Date();
@@ -817,7 +817,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         onClick: () => {
           const dateStr = colToDateTime(startDate, col, 'start', viewMode);
           const endStr = colToDateTime(startDate, col + (viewMode === 'slot' ? 5 : 0), 'end', viewMode);
-          setScheduleDialog({
+          openScheduleDialog({
             plan: null,
             initialData: {
               locationId: mode === 'location' ? g?.id : null,
@@ -871,7 +871,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      { label: '編集', onClick: () => setScheduleDialog({ plan }) },
+      { label: '編集', onClick: () => openScheduleDialog({ plan }) },
       { label: 'コピー', onClick: () => setCopied([plan]) },
       'separator',
       { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
@@ -941,6 +941,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(message);
     toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+  }
+
+  async function openScheduleDialog(data) {
+    try {
+      await onEnsureMasters?.(mode === 'location' ? ['serials', 'locations'] : ['serials', 'workers', 'tasks']);
+      setScheduleDialog(data);
+    } catch {
+      showToast('入力に必要なマスタデータの取得に失敗しました');
+    }
   }
 
   async function savePlan(data) {

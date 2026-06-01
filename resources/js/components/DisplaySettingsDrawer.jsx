@@ -17,7 +17,7 @@ function useListHeight(ref) {
   return height;
 }
 
-export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, onSave }) {
+export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, onEnsureMasters, onSave }) {
   // location タブはドロワーにないので device にフォールバック
   const [tab, setTab] = useState(() => activeTab === 'worker' ? 'worker' : activeTab === 'task' ? 'task' : 'device');
   const [selectedKisyuIds, setSelectedKisyuIds] = useState([]);
@@ -53,6 +53,16 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     setKisyuFilter('');
     setTeamFilter('');
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    const requirements = tab === 'device'
+      ? ['serials']
+      : tab === 'worker'
+        ? ['workers', 'tasks']
+        : ['tasks'];
+    onEnsureMasters?.(requirements)?.catch(() => {});
+  }, [open, tab, onEnsureMasters]);
 
   // 機種グループ（kisyu）リスト
   const kisyuList = useMemo(() => {
