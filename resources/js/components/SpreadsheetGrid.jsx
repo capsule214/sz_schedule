@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { apiFetch } from '../lib/api';
+import { apiArray, apiJson } from '../lib/api';
 import ContextMenu from './ContextMenu';
 import BarTooltip from './BarTooltip';
 import ScheduleDialog from './ScheduleDialog';
@@ -320,12 +320,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const filter = buildFilterBody();
     await Promise.all(gaps.map(async (gap) => {
       try {
-        const res = await apiFetch(`${planEndpoint}/search`, {
+        const data = await apiArray(`${planEndpoint}/search`, {
           method: 'POST',
           body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
         });
-        const data = await res.json();
-        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchPlans failed: ${res.status}`);
         setPlans(prev => {
           const existingIds = new Set(prev.map(p => p.planId));
           const newPlans = data.filter(p => !existingIds.has(p.planId));
@@ -357,12 +355,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const filter = selectedKisyuIds.length > 0 ? { kisyu_ids: selectedKisyuIds.map(Number) } : {};
     await Promise.all(gaps.map(async (gap) => {
       try {
-        const res = await apiFetch('/location-plan/search', {
+        const data = await apiArray('/location-plan/search', {
           method: 'POST',
           body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
         });
-        const data = await res.json();
-        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchLocationOverlayPlans failed: ${res.status}`);
         setLocationOverlayPlans(prev => {
           const existingIds = new Set(prev.map(p => p.planId));
           const newPlans = data.filter(p => !existingIds.has(p.planId));
@@ -380,12 +376,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (gaps.length === 0) return;
     await Promise.all(gaps.map(async (gap) => {
       try {
-        const res = await apiFetch('/calendar/search', {
+        const data = await apiArray('/calendar/search', {
           method: 'POST',
           body: JSON.stringify({ from: gap.from, to: gap.to }),
         });
-        const data = await res.json();
-        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchCalendar failed: ${res.status}`);
         setCalendarData(prev => {
           const next = new Map(prev);
           for (const c of data) next.set(c.date, { dayType: c.dayType, memo: c.memo });
@@ -432,11 +426,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 新規作成（貼り付け）：仮IDを DB の本IDで置き換える
       for (const [tempId, payload] of creates) {
         try {
-          const res = await apiFetch(planEndpoint, {
+          const newPlan = await apiJson(planEndpoint, {
             method: 'POST',
-              body: JSON.stringify(payload),
+            body: JSON.stringify(payload),
           });
-          const newPlan = await res.json();
           setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
         } catch (err) { console.error('saveChanges create error', err); }
       }
@@ -444,9 +437,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 削除（DB 上に存在する正のIDのみ）
       if (deletes.size > 0) {
         try {
-          await apiFetch(planEndpoint, {
+          await apiJson(planEndpoint, {
             method: 'DELETE',
-              body: JSON.stringify({ ids: [...deletes].map(String) }),
+            body: JSON.stringify({ ids: [...deletes].map(String) }),
           });
         } catch (err) { console.error('saveChanges delete error', err); }
       }
@@ -455,9 +448,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       for (const [planId, payload] of updates) {
         if (deletes.has(planId)) continue;
         try {
-          await apiFetch(`${planEndpoint}/${planId}`, {
+          await apiJson(`${planEndpoint}/${planId}`, {
             method: 'PUT',
-              body: JSON.stringify(payload),
+            body: JSON.stringify(payload),
           });
         } catch (err) { console.error('saveChanges update error', err); }
       }
@@ -973,12 +966,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const prevPlan = { ...dialog.plan };
       setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...payload } : p));
       try {
-        const res = await apiFetch(`${planEndpoint}/${dialog.plan.planId}`, {
+        const updated = await apiJson(`${planEndpoint}/${dialog.plan.planId}`, {
           method: 'PUT',
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error(res.status);
-        const updated = await res.json();
         setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...updated } : p));
       } catch {
         setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? prevPlan : p));
@@ -989,12 +980,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const tempId = tempIdCounterRef.current--;
       setPlans(prev => [...prev, { planId: tempId, ...payload }]);
       try {
-        const res = await apiFetch(planEndpoint, {
+        const newPlan = await apiJson(planEndpoint, {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error(res.status);
-        const newPlan = await res.json();
         setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
       } catch {
         setPlans(prev => prev.filter(p => p.planId !== tempId));
@@ -1113,9 +1102,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   async function handleSeedApply() {
     fetchedRangesRef.current = [];
     setPlans([]);
-    await apiFetch('/seed', {
+    await apiJson('/seed', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: deviceCount, baseDate: startDate, months: displayMonths }),
     });
     await fetchPlans(startDate, initFetchEndDate());

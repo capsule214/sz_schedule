@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import SpreadsheetGrid from './SpreadsheetGrid';
 import DisplaySettingsDrawer from './DisplaySettingsDrawer';
-import { apiFetch } from '../lib/api';
+import { apiArray, apiJson } from '../lib/api';
 import GridNavBar from './GridNavBar';
 import GridTabBar from './GridTabBar';
 import GridTabPane from './GridTabPane';
@@ -39,11 +39,11 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   const reloadMasterData = useCallback(async () => {
     const [s, w, t, ds, loc] = await Promise.all([
-      apiFetch('/serial').then(r => r.json()),
-      apiFetch('/worker').then(r => r.json()),
-      apiFetch('/task').then(r => r.json()),
-      apiFetch('/display-settings').then(r => r.json()),
-      apiFetch('/location').then(r => r.json()),
+      apiArray('/serial'),
+      apiArray('/worker'),
+      apiArray('/task'),
+      apiJson('/display-settings'),
+      apiArray('/location'),
     ]);
     setSerials(s);
     setWorkers(w);
@@ -59,7 +59,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }, [reloadMasterData]);
 
   async function handleLogout() {
-    await apiFetch('/logout', { method: 'POST' });
+    await apiJson('/logout', { method: 'POST' });
     onLogout();
   }
 
@@ -93,7 +93,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     if (!window.confirm('既存のマスタと予定を削除して初期データを生成します。実行しますか？')) return;
     setSeeding(true);
     try {
-      await apiFetch('/seed/master', { method: 'POST', body: JSON.stringify({}) });
+      await apiJson('/seed/master', { method: 'POST', body: JSON.stringify({}) });
       await reloadMasterData();
       await handleCancel();
       showAlert('初期データを生成しました');
@@ -107,7 +107,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function handleSeedPlans() {
     setSeeding(true);
     try {
-      await apiFetch('/seed/plans', { method: 'POST', body: JSON.stringify({}) });
+      await apiJson('/seed/plans', { method: 'POST', body: JSON.stringify({}) });
       await handleCancel();
       showAlert('予定データを生成しました');
     } catch (e) {
@@ -144,7 +144,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     if (drawerTab === 'device') setTab('device');
     else if (drawerTab === 'worker') setTab('worker');
     else if (drawerTab === 'task') setTab('task');
-    await apiFetch('/display-settings', {
+    await apiJson('/display-settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
     });

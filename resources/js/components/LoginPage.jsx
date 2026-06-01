@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { initCsrf, apiFetch } from '../lib/api';
+import { initCsrf, apiJson } from '../lib/api';
 
 export default function LoginPage({ onLogin }) {
   const [loginId, setLoginId]   = useState('');
@@ -13,19 +13,13 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
     try {
       await initCsrf();
-      const res = await apiFetch('/login', {
+      const data = await apiJson('/login', {
         method: 'POST',
         body: JSON.stringify({ loginId, password }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.message ?? 'ログインに失敗しました');
-        return;
-      }
-      const data = await res.json();
       onLogin(data.user);
-    } catch {
-      setError('サーバーに接続できませんでした');
+    } catch (e) {
+      setError(e?.status === 401 ? e.message : 'サーバーに接続できませんでした');
     } finally {
       setLoading(false);
     }

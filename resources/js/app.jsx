@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import SpreadsheetGridClient from './components/SpreadsheetGridClient';
 import LoginPage from './components/LoginPage';
-import { initCsrf, apiFetch } from './lib/api';
+import { initCsrf, apiJson } from './lib/api';
 import '../css/app.css';
 
 function App() {
@@ -11,15 +11,22 @@ function App() {
 
   // 初期表示時に認証済みセッションがあるか確認
   useEffect(() => {
-    initCsrf().then(() =>
-      apiFetch('/me', { method: 'GET' })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data?.user) setUser(data.user);
-        })
-        .catch(() => {})
-        .finally(() => setChecked(true))
-    );
+    let cancelled = false;
+
+    async function checkSession() {
+      try {
+        await initCsrf();
+        const data = await apiJson('/me', { method: 'GET' });
+        if (!cancelled && data?.user) setUser(data.user);
+      } catch {
+        // 未ログインまたは通信失敗時はログイン画面を表示する。
+      } finally {
+        if (!cancelled) setChecked(true);
+      }
+    }
+
+    checkSession();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 /**
  * Laravel セッション認証用の fetch ラッパー
- * - GET /sanctum/csrf-cookie で XSRF-TOKEN Cookie を取得
+ * - GET /csrf-cookie で XSRF-TOKEN Cookie を取得
  * - 以降の POST/PUT/DELETE に X-XSRF-TOKEN ヘッダーを付与
  */
 
@@ -15,24 +15,43 @@ let csrfInitialized = false;
 
 export async function initCsrf() {
   if (csrfInitialized) return;
-  await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
+  const res = await fetch('/csrf-cookie', {
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`CSRF initialization failed: ${res.status}`);
   csrfInitialized = true;
 }
 
-export async function apiFetch(path, options = {}) {
+function buildHeaders(options = {}) {
   const xsrf = getCookie('XSRF-TOKEN');
-  const headers = {
+  return {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
     ...(options.headers ?? {}),
   };
-  const res = await fetch(`/api${path}`, {
+}
+
+async function sendApiRequest(path, options = {}) {
+  return fetch(`/api${path}`, {
     ...options,
     credentials: 'include',
-    headers,
+    headers: buildHeaders(options),
   });
-  if (res.status === 401) {
+}
+
+export async function apiFetch(path, options = {}) {
+  await initCsrf();
+
+  let res = await sendApiRequest(path, options);
+  if (res.status === 419) {
+    csrfInitialized = false;
+    await initCsrf();
+    res = await sendApiRequest(path, options);
+  }
+
+  if (res.status === 401 || res.status === 419) {
     window.dispatchEvent(new CustomEvent('api:unauthorized'));
   }
   return res;
@@ -46,6 +65,14 @@ export async function apiJson(path, options = {}) {
     error.status = res.status;
     error.data = data;
     throw error;
+  }
+  return data;
+}
+
+export async function apiArray(path, options = {}) {
+  const data = await apiJson(path, options);
+  if (!Array.isArray(data)) {
+    throw new Error(`API response must be an array: ${path}`);
   }
   return data;
 }
