@@ -22,6 +22,12 @@ function App() {
     );
   }, []);
 
+  useEffect(() => {
+    const handleUnauthorized = () => setUser(null);
+    window.addEventListener('api:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('api:unauthorized', handleUnauthorized);
+  }, []);
+
   if (!checked) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 14, color: '#6b7280' }}>

@@ -18,7 +18,7 @@ use App\Http\Controllers\Api\ReserveController;
 Route::post('/login', [AuthController::class, 'login']);
 
 // 認証必須
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:web')->group(function () {
   Route::post('/logout', [AuthController::class, 'logout']);
   Route::get('/me',      [AuthController::class, 'me']);
 

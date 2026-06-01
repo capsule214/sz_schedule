@@ -325,6 +325,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
         });
         const data = await res.json();
+        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchPlans failed: ${res.status}`);
         setPlans(prev => {
           const existingIds = new Set(prev.map(p => p.planId));
           const newPlans = data.filter(p => !existingIds.has(p.planId));
@@ -361,6 +362,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
         });
         const data = await res.json();
+        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchLocationOverlayPlans failed: ${res.status}`);
         setLocationOverlayPlans(prev => {
           const existingIds = new Set(prev.map(p => p.planId));
           const newPlans = data.filter(p => !existingIds.has(p.planId));
@@ -383,6 +385,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           body: JSON.stringify({ from: gap.from, to: gap.to }),
         });
         const data = await res.json();
+        if (!res.ok || !Array.isArray(data)) throw new Error(data?.message ?? `fetchCalendar failed: ${res.status}`);
         setCalendarData(prev => {
           const next = new Map(prev);
           for (const c of data) next.set(c.date, { dayType: c.dayType, memo: c.memo });
