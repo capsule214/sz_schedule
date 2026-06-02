@@ -60,6 +60,10 @@ class LocationPlanController extends Controller
     $data = $request->validate([
       'from'      => 'required|date',
       'to'        => 'required|date|after_or_equal:from',
+      'location_ids' => 'nullable|array',
+      'location_ids.*' => 'integer|min:1',
+      'serial_ids' => 'nullable|array',
+      'serial_ids.*' => 'integer|min:1',
       'kisyu_ids' => 'nullable|array',
       'kisyu_ids.*' => 'integer|min:1',
     ]);
@@ -69,6 +73,12 @@ class LocationPlanController extends Controller
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
 
+    if (!empty($data['location_ids'])) {
+      $query->whereIn('location_id', $data['location_ids']);
+    }
+    if (!empty($data['serial_ids'])) {
+      $query->whereIn('serial_id', $data['serial_ids']);
+    }
     if (!empty($data['kisyu_ids'])) {
       $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
       $query->whereIn('serial_id', $serialIds);

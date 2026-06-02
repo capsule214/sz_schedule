@@ -74,10 +74,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
 
-  const fetchedRangesRef    = useRef([]);
+  const fetchedPlanKeysRef  = useRef(new Set());
   const pendingFetchRef     = useRef(false); // 非アクティブ時の displaySettings 変更を遅延フェッチするフラグ
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
-  const fetchedLocRangesRef = useRef([]);
+  const fetchedLocKeysRef   = useRef(new Set());
   const pendingLocFetchRef  = useRef(false);
   const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType, memo }
   const fetchedCalendarRangesRef = useRef([]);
@@ -87,6 +87,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [scrollLeft, setScrollLeft] = useState(0);
   const [containerH, setContainerH] = useState(600);
   const [containerW, setContainerW] = useState(1200);
+  const [fetchVersion, setFetchVersion] = useState(0);
 
   const dragRef = useRef(null);
   const [rectSelect, setRectSelect] = useState(null); // {absX1,absY1,absX2,absY2} in content coords
@@ -103,6 +104,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
            : (mode === 'worker' || mode === 'task') ? ASGN_HDR_W * 2
            : ASGN_HDR_W;
   const planEndpoint = mode === 'location' ? '/location-plan' : '/plan';
+  const planSearchEndpoint = mode === 'device'
+    ? '/plan/search/device'
+    : mode === 'worker'
+      ? '/plan/search/worker'
+      : mode === 'task'
+        ? '/plan/search/task'
+        : '/location-plan/search';
   const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.showLocationInDevice;
 
@@ -280,23 +288,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     return () => obs.disconnect();
   }, []);
 
-  // スクロール方向への先読み日数。この日数分ビューポート外を事前にフェッチしておくことで
-  // ユーザーがスクロールした瞬間にデータが揃っている状態を作る。
-  const PREFETCH_DAYS = 30;
-
-  // ビューポート幅から可視日数を算出するヘルパー
-  const visibleDayCount = useCallback(() => {
-    return viewMode === 'day'
-      ? Math.ceil(containerW / colW)
-      : Math.ceil(containerW / (colW * SLOT_COUNT));
-  }, [viewMode, containerW, colW]);
-
-  // 初期フェッチ終了日：可視日数 + バッファ（表示期間内に収める）
-  const initFetchEndDate = useCallback(() => {
-    const days = Math.min(visibleDayCount() + PREFETCH_DAYS, daysBetween(startDate, endDate));
-    return addDays(startDate, Math.max(days, 0));
-  }, [visibleDayCount, startDate, endDate]);
-
   // 表示設定から API 検索ボディのフィルタ部分を構築する
   function buildFilterBody() {
     const { selectedKisyuIds = [], selectedTeamIds = [], selectedTaskIds = [], showUnassignedWorker = false } = displaySettings;
@@ -314,62 +305,76 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     return body;
   }
 
-  const fetchPlans = useCallback(async (from, to) => {
-    const gaps = computeGaps(fetchedRangesRef.current, from, to);
-    if (gaps.length === 0) return;
+  const buildVisibleFilterBody = useCallback((groupIds) => {
+    const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
+    if (ids.length === 0) return null;
+    if (mode === 'device') return { serial_ids: ids };
+    if (mode === 'worker') return { worker_ids: ids };
+    if (mode === 'task') return { task_ids: ids };
+    return { location_ids: ids };
+  }, [mode]);
+
+  const makeFetchKey = useCallback((from, to, body) => {
+    return JSON.stringify({ mode, from, to, body });
+  }, [mode]);
+
+  const fetchPlans = useCallback(async (from, to, groupIds = []) => {
+    const visibleFilter = buildVisibleFilterBody(groupIds);
+    if (!visibleFilter) return;
     const filter = buildFilterBody();
-    await Promise.all(gaps.map(async (gap) => {
-      try {
-        const data = await apiArray(`${planEndpoint}/search`, {
-          method: 'POST',
-          body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
-        });
-        setPlans(prev => {
-          const existingIds = new Set(prev.map(p => p.planId));
-          const newPlans = data.filter(p => !existingIds.has(p.planId));
-          return newPlans.length ? [...prev, ...newPlans] : prev;
-        });
-        fetchedRangesRef.current.push(gap);
-      } catch (e) {
-        console.error('fetchPlans error', e);
-      }
-    }));
-  }, [planEndpoint, mode, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+    const body = { ...filter, ...visibleFilter };
+    const key = makeFetchKey(from, to, body);
+    if (fetchedPlanKeysRef.current.has(key)) return;
+    fetchedPlanKeysRef.current.add(key);
+    try {
+      const data = await apiArray(planSearchEndpoint, {
+        method: 'POST',
+        body: JSON.stringify({ from, to, ...body }),
+      });
+      setPlans(prev => {
+        const existingIds = new Set(prev.map(p => p.planId));
+        const newPlans = data.filter(p => !existingIds.has(p.planId));
+        return newPlans.length ? [...prev, ...newPlans] : prev;
+      });
+    } catch (e) {
+      fetchedPlanKeysRef.current.delete(key);
+      console.error('fetchPlans error', e);
+    }
+  }, [buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {
-    fetchedRangesRef.current = [];
+    fetchedPlanKeysRef.current = new Set();
     setPlans([]);
     if (active) {
       pendingFetchRef.current = false;
-      fetchPlans(startDate, initFetchEndDate());
     } else {
       pendingFetchRef.current = true;
     }
   }, [startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchLocationOverlayPlans = useCallback(async (from, to) => {
-    const gaps = computeGaps(fetchedLocRangesRef.current, from, to);
-    if (gaps.length === 0) return;
-    const { selectedKisyuIds = [] } = displaySettings;
-    const filter = selectedKisyuIds.length > 0 ? { kisyu_ids: selectedKisyuIds.map(Number) } : {};
-    await Promise.all(gaps.map(async (gap) => {
-      try {
-        const data = await apiArray('/location-plan/search', {
-          method: 'POST',
-          body: JSON.stringify({ from: gap.from, to: gap.to, ...filter }),
-        });
-        setLocationOverlayPlans(prev => {
-          const existingIds = new Set(prev.map(p => p.planId));
-          const newPlans = data.filter(p => !existingIds.has(p.planId));
-          return newPlans.length ? [...prev, ...newPlans] : prev;
-        });
-        fetchedLocRangesRef.current.push(gap);
-      } catch (e) {
-        console.error('fetchLocationOverlayPlans error', e);
-      }
-    }));
-  }, [displaySettings]);
+  const fetchLocationOverlayPlans = useCallback(async (from, to, serialIds = []) => {
+    const ids = [...new Set(serialIds.map(Number).filter(Number.isFinite))];
+    if (ids.length === 0) return;
+    const body = { serial_ids: ids };
+    const key = JSON.stringify({ mode: 'location-overlay', from, to, body });
+    if (fetchedLocKeysRef.current.has(key)) return;
+    fetchedLocKeysRef.current.add(key);
+    try {
+      const data = await apiArray('/location-plan/search', {
+        method: 'POST',
+        body: JSON.stringify({ from, to, ...body }),
+      });
+      setLocationOverlayPlans(prev => {
+        const existingIds = new Set(prev.map(p => p.planId));
+        const newPlans = data.filter(p => !existingIds.has(p.planId));
+        return newPlans.length ? [...prev, ...newPlans] : prev;
+      });
+    } catch (e) {
+      fetchedLocKeysRef.current.delete(key);
+      console.error('fetchLocationOverlayPlans error', e);
+    }
+  }, []);
 
   const fetchCalendar = useCallback(async (from, to) => {
     const gaps = computeGaps(fetchedCalendarRangesRef.current, from, to);
@@ -396,21 +401,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     fetchedCalendarRangesRef.current = [];
     setCalendarData(new Map());
-    fetchCalendar(startDate, endDate);
   }, [startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // showLocationInDevice の ON/OFF 切り替え、または表示期間・設定変更時に場所予定をフェッチ
   useEffect(() => {
     if (!extraLocationRow) {
       setLocationOverlayPlans([]);
-      fetchedLocRangesRef.current = [];
+      fetchedLocKeysRef.current = new Set();
       pendingLocFetchRef.current = false;
       return;
     }
-    fetchedLocRangesRef.current = [];
+    fetchedLocKeysRef.current = new Set();
     if (active) {
       pendingLocFetchRef.current = false;
-      fetchLocationOverlayPlans(startDate, initFetchEndDate());
     } else {
       pendingLocFetchRef.current = true;
     }
@@ -466,13 +469,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       pendingUpdatesRef.current = new Map();
       pendingDeletesRef.current = new Set();
       tempIdCounterRef.current = -1;
-      fetchedRangesRef.current = [];
+      fetchedPlanKeysRef.current = new Set();
       setPlans([]);
       setIsDirty(false);
       onDirtyChange?.(false);
-      await fetchPlans(startDate, initFetchEndDate());
+      setFetchVersion(v => v + 1);
     },
-  }), [fetchPlans, initFetchEndDate, startDate, endDate, onDirtyChange]);
+  }), [onDirtyChange]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -509,19 +512,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const st = e.currentTarget.scrollTop;
     setScrollTop(st);
     setScrollLeft(sl);
-
-    // 横方向：可視日付 ± PREFETCH_DAYS でフェッチ範囲を算出
-    const visibleFrom = colToDateStr(startDate, Math.floor(sl / colW), viewMode);
-    const visibleTo   = colToDateStr(startDate, Math.ceil((sl + containerW) / colW), viewMode);
-    const rawFrom = addDays(visibleFrom, -PREFETCH_DAYS);
-    const rawTo   = addDays(visibleTo,    PREFETCH_DAYS);
-    const fetchFrom = rawFrom < startDate ? startDate : rawFrom;
-    const fetchTo   = rawTo   > endDate   ? endDate   : rawTo;
-
-    fetchPlans(fetchFrom, fetchTo);
-    if (extraLocationRow) fetchLocationOverlayPlans(fetchFrom, fetchTo);
-    fetchCalendar(fetchFrom, fetchTo);
-  }, [startDate, endDate, colW, containerW, viewMode, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar]);
+  }, []);
 
   const triggerSonar = useCallback((x, y) => {
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
@@ -538,6 +529,39 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const visRowEnd   = Math.min(totalRows - 1, Math.ceil((scrollTop + containerH) / CELL_SIZE) + BUFFER_ROWS);
   const visColStart = Math.max(0, Math.floor(scrollLeft / colW) - 2);
   const visColEnd   = Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW) + 2);
+
+  const visibleGroupIds = useMemo(() => {
+    const ids = [];
+    for (const g of layoutGroups) {
+      const groupEndRow = g.startRow + g.numRows - 1;
+      if (g.startRow <= visRowEnd && groupEndRow >= visRowStart && !g.isUnassigned) {
+        ids.push(g.id);
+      }
+    }
+    return ids;
+  }, [layoutGroups, visRowStart, visRowEnd]);
+
+  const visibleFetchRange = useMemo(() => {
+    const from = colToDateStr(startDate, Math.max(0, Math.floor(scrollLeft / colW)), viewMode);
+    const to = colToDateStr(startDate, Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW)), viewMode);
+    return {
+      from: from < startDate ? startDate : from,
+      to: to > endDate ? endDate : to,
+    };
+  }, [startDate, endDate, scrollLeft, colW, containerW, totalCols, viewMode]);
+
+  // スクロール停止後だけ、現在描画している日付・行の予定を取得する。
+  useEffect(() => {
+    if (!active) return;
+    const timer = setTimeout(() => {
+      fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
+      if (extraLocationRow) {
+        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
+      }
+      fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [active, visibleFetchRange, visibleGroupIds, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
 
   // タブ復帰時にスクロール位置/state を再同期し、可視範囲計算のズレによる白画面化を防ぐ
   useEffect(() => {
@@ -558,13 +582,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!active) return;
     if (pendingFetchRef.current) {
       pendingFetchRef.current = false;
-      fetchPlans(startDate, initFetchEndDate());
     }
     if (pendingLocFetchRef.current && extraLocationRow) {
       pendingLocFetchRef.current = false;
-      fetchLocationOverlayPlans(startDate, initFetchEndDate());
     }
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, extraLocationRow]);
 
   function getGroupAtRow(rowIdx) {
     for (const g of layoutGroups) {
@@ -1109,13 +1131,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [active, mode, layoutGroups, containerH, serialSearchTick, leftHdrW, triggerSonar]);
 
   async function handleSeedApply() {
-    fetchedRangesRef.current = [];
+    fetchedPlanKeysRef.current = new Set();
     setPlans([]);
     await apiJson('/seed', {
       method: 'POST',
       body: JSON.stringify({ count: deviceCount, baseDate: startDate, months: displayMonths }),
     });
-    await fetchPlans(startDate, initFetchEndDate());
+    setFetchVersion(v => v + 1);
   }
 
   const handleShiftMonth = useCallback((months) => {

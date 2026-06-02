@@ -66,9 +66,33 @@ class PlanController extends Controller
 
   public function search(Request $request)
   {
+    return $this->searchForMode($request);
+  }
+
+  public function searchDevice(Request $request)
+  {
+    return $this->searchForMode($request, 'device');
+  }
+
+  public function searchWorker(Request $request)
+  {
+    return $this->searchForMode($request, 'worker');
+  }
+
+  public function searchTask(Request $request)
+  {
+    return $this->searchForMode($request, 'task');
+  }
+
+  private function searchForMode(Request $request, ?string $mode = null)
+  {
     $data = $request->validate([
       'from'                   => 'required|date',
       'to'                     => 'required|date|after_or_equal:from',
+      'serial_ids'             => 'nullable|array',
+      'serial_ids.*'           => 'integer|min:1',
+      'worker_ids'             => 'nullable|array',
+      'worker_ids.*'           => 'integer|min:1',
       'kisyu_ids'              => 'nullable|array',
       'kisyu_ids.*'            => 'integer|min:1',
       'team_ids'               => 'nullable|array',
@@ -83,9 +107,31 @@ class PlanController extends Controller
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
 
+    if ($mode === 'device' && empty($data['serial_ids']) && empty($data['kisyu_ids'])) {
+      return response()->json([]);
+    }
+    if ($mode === 'worker' && empty($data['worker_ids']) && empty($data['team_ids']) && empty($data['show_unassigned_worker'])) {
+      return response()->json([]);
+    }
+    if ($mode === 'task' && empty($data['task_ids'])) {
+      return response()->json([]);
+    }
+
+    if (!empty($data['serial_ids'])) {
+      $query->whereIn('serial_id', $data['serial_ids']);
+    }
     if (!empty($data['kisyu_ids'])) {
       $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
       $query->whereIn('serial_id', $serialIds);
+    }
+    if (!empty($data['worker_ids'])) {
+      if (!empty($data['show_unassigned_worker'])) {
+        $query->where(function ($q) use ($data) {
+          $q->whereIn('assignee_id', $data['worker_ids'])->orWhereNull('assignee_id');
+        });
+      } else {
+        $query->whereIn('assignee_id', $data['worker_ids']);
+      }
     }
     if (!empty($data['team_ids'])) {
       $workerIds = KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id');
