@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import VirtualList from './VirtualList';
+import DisplaySettingsSlotPicker from './DisplaySettingsSlotPicker';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
@@ -195,31 +196,13 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>✕</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 10, padding: '12px 20px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 13, color: '#6b7280', marginBottom: 4 }}>設定番号</label>
-            <select
-              value={settingNo}
-              onChange={e => handleSettingNoChange(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff' }}
-            >
-              {normalizedSettingsList.map(item => (
-                <option key={item.settingNo} value={item.settingNo}>
-                  {item.settingNo}: {item.settingName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 13, color: '#6b7280', marginBottom: 4 }}>設定名</label>
-            <input
-              value={settingName}
-              onChange={e => setSettingName(e.target.value)}
-              maxLength={80}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
-            />
-          </div>
-        </div>
+        <DisplaySettingsSlotPicker
+          settingsList={normalizedSettingsList}
+          settingNo={settingNo}
+          settingName={settingName}
+          onSettingNoChange={handleSettingNoChange}
+          onSettingNameChange={setSettingName}
+        />
 
         {/* タブ */}
         <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb', flexShrink: 0 }}>

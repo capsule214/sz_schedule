@@ -72,6 +72,7 @@ class DisplaySettingsController extends Controller
       ->pluck('setting_no')
       ->map(fn($v) => (int) $v)
       ->all();
+    $hasActive = DB::table('display_settings')->where('user_no', $userNo)->where('is_active', true)->exists();
 
     for ($i = 1; $i <= self::SLOT_COUNT; $i++) {
       if (in_array($i, $existing, true)) continue;
@@ -80,13 +81,13 @@ class DisplaySettingsController extends Controller
         'setting_no'   => $i,
         'setting_name' => $this->settingName($i),
         'value'        => json_encode($this->defaults()),
-        'is_active'    => $i === 1,
+        'is_active'    => !$hasActive && $i === 1,
         'created_at'   => $now,
         'updated_at'   => $now,
       ]);
+      if ($i === 1) $hasActive = true;
     }
 
-    $hasActive = DB::table('display_settings')->where('user_no', $userNo)->where('is_active', true)->exists();
     if (!$hasActive) {
       DB::table('display_settings')
         ->where('user_no', $userNo)

@@ -75,10 +75,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const toastTimerRef = useRef(null);
 
   const fetchedPlanKeysRef  = useRef(new Set());
-  const pendingFetchRef     = useRef(false); // 非アクティブ時の displaySettings 変更を遅延フェッチするフラグ
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
   const fetchedLocKeysRef   = useRef(new Set());
-  const pendingLocFetchRef  = useRef(false);
   const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType, memo }
   const fetchedCalendarRangesRef = useRef([]);
   const containerRef = useRef(null);
@@ -346,11 +344,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-    if (active) {
-      pendingFetchRef.current = false;
-    } else {
-      pendingFetchRef.current = true;
-    }
   }, [startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLocationOverlayPlans = useCallback(async (from, to, serialIds = []) => {
@@ -408,15 +401,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!extraLocationRow) {
       setLocationOverlayPlans([]);
       fetchedLocKeysRef.current = new Set();
-      pendingLocFetchRef.current = false;
       return;
     }
     fetchedLocKeysRef.current = new Set();
-    if (active) {
-      pendingLocFetchRef.current = false;
-    } else {
-      pendingLocFetchRef.current = true;
-    }
   }, [extraLocationRow, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 保存・キャンセルを親から呼び出せるようにする
@@ -576,17 +563,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setScrollTop(nextTop);
     setScrollLeft(nextLeft);
   }, [active, totalRows, totalCols, containerH, containerW]);
-
-  // 非アクティブ時に積まれた pending フェッチをタブ切り替えで実行
-  useEffect(() => {
-    if (!active) return;
-    if (pendingFetchRef.current) {
-      pendingFetchRef.current = false;
-    }
-    if (pendingLocFetchRef.current && extraLocationRow) {
-      pendingLocFetchRef.current = false;
-    }
-  }, [active, extraLocationRow]);
 
   function getGroupAtRow(rowIdx) {
     for (const g of layoutGroups) {
