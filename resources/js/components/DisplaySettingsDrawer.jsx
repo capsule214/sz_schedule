@@ -17,7 +17,7 @@ function useListHeight(ref) {
   return height;
 }
 
-export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, onEnsureMasters, onSave }) {
+export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, settingsList = [], onEnsureMasters, onSave }) {
   // location タブはドロワーにないので device にフォールバック
   const [tab, setTab] = useState(() => activeTab === 'worker' ? 'worker' : activeTab === 'task' ? 'task' : 'device');
   const [selectedKisyuIds, setSelectedKisyuIds] = useState([]);
@@ -28,6 +28,8 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
   const [showShippingDateInDevice, setShowShippingDateInDevice] = useState(false);
   const [showResponsibleInDevice,  setShowResponsibleInDevice]  = useState(false);
   const [selectedTaskTabIds, setSelectedTaskTabIds] = useState([]);
+  const [settingNo, setSettingNo] = useState(1);
+  const [settingName, setSettingName] = useState('表示設定1');
   const [kisyuFilter, setKisyuFilter] = useState('');
   const [teamFilter, setTeamFilter]   = useState('');
 
@@ -38,18 +40,43 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
   const serialListH = useListHeight(serialListRef);
   const teamListH   = useListHeight(teamListRef);
 
+  const normalizedSettingsList = useMemo(() => {
+    const source = settingsList.length ? settingsList : (settings.settingsList || []);
+    if (source.length) return source;
+    return Array.from({ length: 5 }, (_, i) => ({
+      settingNo: i + 1,
+      settingName: `表示設定${i + 1}`,
+      settings: {},
+      isActive: i === 0,
+    }));
+  }, [settingsList, settings]);
+
+  function applySettingsToForm(nextSettings) {
+    setSelectedKisyuIds((nextSettings.selectedKisyuIds || []).map(String));
+    setSelectedTeamIds(nextSettings.selectedTeamIds || []);
+    setSelectedTaskIds(nextSettings.selectedTaskIds || []);
+    setShowLocationInDevice(!!nextSettings.showLocationInDevice);
+    setShowUnassignedWorker(!!nextSettings.showUnassignedWorker);
+    setShowShippingDateInDevice(!!nextSettings.showShippingDateInDevice);
+    setShowResponsibleInDevice(!!nextSettings.showResponsibleInDevice);
+    setSelectedTaskTabIds(nextSettings.selectedTaskTabIds || []);
+  }
+
+  function handleSettingNoChange(nextNo) {
+    const no = Number(nextNo);
+    const slot = normalizedSettingsList.find(item => item.settingNo === no);
+    setSettingNo(no);
+    setSettingName(slot?.settingName || `表示設定${no}`);
+    applySettingsToForm(slot?.settings || {});
+  }
+
   // ドロワーが開いたら現在のグリッドタブに合わせ、設定を最新値にリセット
   useEffect(() => {
     if (!open) return;
     setTab(activeTab === 'worker' ? 'worker' : activeTab === 'task' ? 'task' : 'device');
-    setSelectedKisyuIds((settings.selectedKisyuIds || []).map(String));
-    setSelectedTeamIds(settings.selectedTeamIds || []);
-    setSelectedTaskIds(settings.selectedTaskIds || []);
-    setShowLocationInDevice(!!settings.showLocationInDevice);
-    setShowUnassignedWorker(!!settings.showUnassignedWorker);
-    setShowShippingDateInDevice(!!settings.showShippingDateInDevice);
-    setShowResponsibleInDevice(!!settings.showResponsibleInDevice);
-    setSelectedTaskTabIds(settings.selectedTaskTabIds || []);
+    setSettingNo(settings.settingNo || 1);
+    setSettingName(settings.settingName || `表示設定${settings.settingNo || 1}`);
+    applySettingsToForm(settings);
     setKisyuFilter('');
     setTeamFilter('');
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -121,7 +148,20 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
 
   function handleSave() {
     // 選択中のドロワータブも渡し、呼び出し元でグリッドタブを切り替えてもらう
-    onSave({ selectedKisyuIds, selectedTeamIds, selectedTaskIds, selectedTaskTabIds, showLocationInDevice, showUnassignedWorker, showShippingDateInDevice, showResponsibleInDevice }, tab);
+    const trimmedName = settingName.trim() || `表示設定${settingNo}`;
+    onSave({
+      settingNo,
+      settingName: trimmedName,
+      settingsList: normalizedSettingsList,
+      selectedKisyuIds,
+      selectedTeamIds,
+      selectedTaskIds,
+      selectedTaskTabIds,
+      showLocationInDevice,
+      showUnassignedWorker,
+      showShippingDateInDevice,
+      showResponsibleInDevice,
+    }, tab);
   }
 
   return (
@@ -153,6 +193,32 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
           <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>表示設定</span>
           <div style={{ flex: 1 }} />
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>✕</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 10, padding: '12px 20px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: '#6b7280', marginBottom: 4 }}>設定番号</label>
+            <select
+              value={settingNo}
+              onChange={e => handleSettingNoChange(e.target.value)}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff' }}
+            >
+              {normalizedSettingsList.map(item => (
+                <option key={item.settingNo} value={item.settingNo}>
+                  {item.settingNo}: {item.settingName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: '#6b7280', marginBottom: 4 }}>設定名</label>
+            <input
+              value={settingName}
+              onChange={e => setSettingName(e.target.value)}
+              maxLength={80}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+            />
+          </div>
         </div>
 
         {/* タブ */}

@@ -1,0 +1,36 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+  public function up(): void
+  {
+    Schema::dropIfExists('display_settings');
+
+    Schema::create('display_settings', function (Blueprint $table) {
+      $table->unsignedBigInteger('user_no');
+      $table->unsignedTinyInteger('setting_no');
+      $table->string('setting_name', 80);
+      $table->text('value');
+      $table->boolean('is_active')->default(false);
+      $table->timestamps();
+
+      $table->primary(['user_no', 'setting_no']);
+      $table->index(['user_no', 'is_active']);
+    });
+  }
+
+  public function down(): void
+  {
+    Schema::dropIfExists('display_settings');
+
+    Schema::create('display_settings', function (Blueprint $table) {
+      $table->integer('worker_id')->primary();
+      $table->string('key')->unique();
+      $table->text('value');
+    });
+  }
+};

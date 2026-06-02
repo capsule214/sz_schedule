@@ -43,6 +43,7 @@ Route::middleware('auth:web')->group(function () {
   Route::delete('/plan/{id}', [PlanController::class, 'destroyOne']);
 
   Route::get('/display-settings', [DisplaySettingsController::class, 'index']);
+  Route::put('/display-settings/active', [DisplaySettingsController::class, 'activate']);
   Route::put('/display-settings', [DisplaySettingsController::class, 'update']);
 
   Route::get('/location', [LocationController::class, 'index']);

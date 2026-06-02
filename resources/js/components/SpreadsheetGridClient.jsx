@@ -14,6 +14,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [locations, setLocations] = useState([]);
   const [displaySettings, setDisplaySettings] = useState({ selectedKisyuIds: [], selectedTeamIds: [], selectedTaskIds: [], selectedTaskTabIds: [], showLocationInDevice: false, showUnassignedWorker: false, showShippingDateInDevice: false, showResponsibleInDevice: false });
+  const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, locations: false });
@@ -84,6 +85,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const reloadDisplaySettings = useCallback(async () => {
     const ds = await apiJson('/display-settings');
     setDisplaySettings(ds);
+    setDisplaySettingsList(ds.settingsList || []);
     setSettingsLoaded(true);
   }, []);
 
@@ -175,6 +177,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function saveDisplaySettings(settings, drawerTab) {
     setShowSettings(false);
     setDisplaySettings(settings);
+    setDisplaySettingsList(prev => {
+      const next = prev.length ? prev : (settings.settingsList || []);
+      return next.map(item => item.settingNo === settings.settingNo
+        ? { ...item, settingName: settings.settingName, settings, isActive: true }
+        : { ...item, isActive: false });
+    });
     // 適用したドロワータブのグリッドに切り替える
     if (drawerTab === 'device') setTab('device');
     else if (drawerTab === 'worker') setTab('worker');
@@ -183,6 +191,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       await apiJson('/display-settings', {
         method: 'PUT',
         body: JSON.stringify(settings),
+      }).then(saved => {
+        setDisplaySettings(saved);
+        setDisplaySettingsList(saved.settingsList || []);
       });
     } catch {
       showAlert('表示設定の保存に失敗しました。画面には適用済みです');
@@ -381,6 +392,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         workers={workers}
         tasks={tasks}
         settings={displaySettings}
+        settingsList={displaySettingsList}
         onEnsureMasters={ensureMasters}
         onSave={saveDisplaySettings}
       />
