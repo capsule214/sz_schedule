@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import DatePicker from './DatePicker';
 import { TIME_SLOTS } from '../lib/spreadsheet';
+import { apiArray, apiJson } from '../lib/api';
 function toDateStr(dateStr, hm) {
   const d = dateStr.slice(0, 10);
   return `${d}T${hm}:00`;
@@ -16,77 +17,127 @@ function parseDate(s) {
   return { date: d, hm: TIME_SLOTS[0].start };
 }
 
-export default function ScheduleDialog({ plan, serials, tasks, workers, locations, gridMode, initialData, onSave, onClose }) {
+export default function ScheduleDialog({ plan, locations = [], gridMode, initialData, onSave, onClose }) {
   const init = plan || {};
   const sd = parseDate(init.startDate || initialData?.startDate || '');
   const ed = parseDate(init.endDate || initialData?.endDate || '');
-
-  // 機種ドロップダウン用：serials から kisyu 一覧を生成（sortNo 順）
-  const kisyuList = useMemo(() => {
-    const map = new Map();
-    for (const s of serials) {
-      if (!map.has(s.kisyuId)) map.set(s.kisyuId, { kisyuId: s.kisyuId, kisyuName: s.kisyuName, sortNo: s.sortNo ?? 0 });
-    }
-    return [...map.values()].sort((a, b) => a.sortNo - b.sortNo || a.kisyuId - b.kisyuId);
-  }, [serials]);
-
-  // チームリスト（workers から重複除去）
-  const teamList = useMemo(() => {
-    const map = new Map();
-    for (const w of workers) {
-      if (!map.has(w.teamId)) map.set(w.teamId, { teamId: w.teamId, teamName: w.teamName });
-    }
-    return [...map.values()];
-  }, [workers]);
-
-  // 初期 kisyuId：編集中プランまたは初期データから解決
-  const initKisyuId = (() => {
-    const initSerialId = init.serialId || initialData?.serialId;
-    if (initSerialId) {
-      const found = serials.find(s => s.serialId == initSerialId);
-      if (found) return found.kisyuId;
-    }
-    return kisyuList[0]?.kisyuId ?? '';
-  })();
-
-  // 初期 teamId：編集中プランの workerId から解決（null なら未設定）
-  const initTeamId = (() => {
-    const initWorkerId = init.workerId;
-    if (initWorkerId) {
-      const found = workers.find(w => w.workerId == initWorkerId);
-      if (found) return found.teamId;
-    }
-    return '';
-  })();
 
   const [startDate, setStartDate] = useState(sd.date || new Date().toISOString().slice(0, 10));
   const [startHm, setStartHm] = useState(TIME_SLOTS.some(s => s.start === sd.hm) ? sd.hm : TIME_SLOTS[0].start);
   const [endDate, setEndDate] = useState(ed.date || new Date().toISOString().slice(0, 10));
   const [endHm, setEndHm] = useState(TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : TIME_SLOTS[TIME_SLOTS.length - 1].end);
-  const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || (serials[0]?.serialId ?? ''));
-  const [taskId, setTaskId] = useState(init.taskId || (tasks[0]?.taskId ?? ''));
-  const [workerId, setWorkerId] = useState(init.workerId ?? '');
-  const [locationId, setLocationId] = useState(init.locationId || initialData?.locationId || (locations?.[0]?.locationId ?? ''));
-  const [kisyuId, setKisyuId] = useState(initKisyuId);
-  const [teamId, setTeamId] = useState(initTeamId);
+  const [kisyuList, setKisyuList] = useState([]);
+  const [serials, setSerials] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [teamList, setTeamList] = useState([]);
+  const [workers, setWorkers] = useState([]);
+  const [dialogLocations, setDialogLocations] = useState(locations);
+  const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || '');
+  const [taskId, setTaskId] = useState(init.taskId || '');
+  const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
+  const [locationId, setLocationId] = useState(init.locationId || initialData?.locationId || locations?.[0]?.locationId || '');
+  const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
+  const [teamId, setTeamId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [serialLoading, setSerialLoading] = useState(false);
+  const [workerLoading, setWorkerLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 機種が変わったら製番を先頭に自動切り替え
-  const filteredSerials = useMemo(
-    () => serials.filter(s => s.kisyuId == kisyuId),
-    [serials, kisyuId],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInitialMasters() {
+      setLoading(true);
+      setError('');
+      try {
+        const requests = [
+          apiArray('/serial/kisyu'),
+        ];
+        if (gridMode !== 'location') {
+          requests.push(apiArray('/task'), apiArray('/worker/team'));
+        } else if (!locations?.length) {
+          requests.push(apiArray('/location'));
+        }
+        const results = await Promise.all(requests);
+        if (cancelled) return;
+        setKisyuList(results[0]);
+        if (gridMode !== 'location') {
+          setTasks(results[1]);
+          setTeamList(results[2]);
+          if (!taskId && results[1]?.[0]) setTaskId(results[1][0].taskId);
+        } else if (!locations?.length) {
+          setDialogLocations(results[1]);
+          if (!locationId && results[1]?.[0]) setLocationId(results[1][0].locationId);
+        }
+        if (!kisyuId && results[0]?.[0]) setKisyuId(results[0][0].kisyuId);
+      } catch {
+        if (!cancelled) setError('入力に必要なマスタデータの取得に失敗しました');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadInitialMasters();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // チームが変わったら担当者を先頭に自動切り替え（未設定の場合は空）
-  const filteredWorkers = useMemo(
-    () => teamId === '' ? [] : workers.filter(w => w.teamId == teamId),
-    [workers, teamId],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    if (!kisyuId) {
+      setSerials([]);
+      return;
+    }
+    setSerialLoading(true);
+    apiArray(`/serial/kisyu/${kisyuId}`)
+      .then(data => {
+        if (cancelled) return;
+        setSerials(data);
+        const current = init.serialId || initialData?.serialId || serialId;
+        const selected = data.find(s => String(s.serialId) === String(current)) || data[0];
+        setSerialId(selected?.serialId || '');
+      })
+      .catch(() => { if (!cancelled) setError('製番リストの取得に失敗しました'); })
+      .finally(() => { if (!cancelled) setSerialLoading(false); });
+    return () => { cancelled = true; };
+  }, [kisyuId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+    if (gridMode === 'location') return () => { cancelled = true; };
+    const initialWorkerId = init.workerId ?? initialData?.workerId;
+    if (!initialWorkerId) return () => { cancelled = true; };
+    apiJson(`/worker/${initialWorkerId}`)
+      .then(worker => {
+        if (!cancelled && !teamId) setTeamId(worker.teamId || '');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+    if (gridMode === 'location') return () => { cancelled = true; };
+    if (teamId === '') {
+      setWorkers([]);
+      setWorkerId('');
+      return () => { cancelled = true; };
+    }
+    setWorkerLoading(true);
+    apiArray(`/worker/team/${teamId}`)
+      .then(data => {
+        if (cancelled) return;
+        setWorkers(data);
+        const current = init.workerId ?? initialData?.workerId ?? workerId;
+        const selected = data.find(w => String(w.workerId) === String(current)) || data[0];
+        setWorkerId(selected?.workerId || '');
+      })
+      .catch(() => { if (!cancelled) setError('担当者リストの取得に失敗しました'); })
+      .finally(() => { if (!cancelled) setWorkerLoading(false); });
+    return () => { cancelled = true; };
+  }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKisyuChange(newKisyuId) {
     setKisyuId(newKisyuId);
-    const first = serials.find(s => s.kisyuId == newKisyuId);
-    if (first) setSerialId(first.serialId);
+    setSerialId('');
+    setSerials([]);
   }
 
   function handleTeamChange(newTeamId) {
@@ -94,8 +145,8 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
     if (newTeamId === '') {
       setWorkerId('');
     } else {
-      const first = workers.find(w => w.teamId == newTeamId);
-      if (first) setWorkerId(first.workerId);
+      setWorkerId('');
+      setWorkers([]);
     }
   }
 
@@ -103,6 +154,9 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
+    if (!serialId) { setError('製番を選択してください'); return; }
+    if (gridMode !== 'location' && !taskId) { setError('工程を選択してください'); return; }
+    if (gridMode === 'location' && !locationId) { setError('場所を選択してください'); return; }
     setError('');
     if (gridMode === 'location') {
       onSave({ locationId: Number(locationId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
@@ -111,7 +165,6 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
     }
   }
 
-  const serial = serials.find(s => s.serialId == serialId);
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd   = startDate <= endDate ? endDate : startDate;
 
@@ -189,7 +242,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>場所</label>
                 <input
                   readOnly
-                  value={locations?.find(l => l.locationId == locationId)?.locationName || ''}
+                  value={dialogLocations?.find(l => l.locationId == locationId)?.locationName || ''}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#f9fafb' }}
                 />
               </div>
@@ -198,8 +251,10 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
+                  disabled={loading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
+                  {loading && <option value="">取得中...</option>}
                   {kisyuList.map(k => (
                     <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
                   ))}
@@ -210,9 +265,12 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={serialId}
                   onChange={e => setSerialId(e.target.value)}
-                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+                  disabled={!kisyuId || serialLoading}
+                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}
                 >
-                  {filteredSerials.map(s => (
+                  {serialLoading && <option value="">取得中...</option>}
+                  {!serialLoading && serials.length === 0 && <option value="">（なし）</option>}
+                  {serials.map(s => (
                     <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>
                   ))}
                 </select>
@@ -225,8 +283,10 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
+                  disabled={loading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
+                  {loading && <option value="">取得中...</option>}
                   {kisyuList.map(k => (
                     <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
                   ))}
@@ -237,9 +297,12 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={serialId}
                   onChange={e => setSerialId(e.target.value)}
-                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+                  disabled={!kisyuId || serialLoading}
+                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}
                 >
-                  {filteredSerials.map(s => (
+                  {serialLoading && <option value="">取得中...</option>}
+                  {!serialLoading && serials.length === 0 && <option value="">（なし）</option>}
+                  {serials.map(s => (
                     <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>
                   ))}
                 </select>
@@ -249,8 +312,10 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={taskId}
                   onChange={e => setTaskId(e.target.value)}
+                  disabled={loading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
+                  {loading && <option value="">取得中...</option>}
                   {tasks.map(t => (
                     <option key={t.taskId} value={t.taskId}>{t.taskName}</option>
                   ))}
@@ -261,6 +326,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={teamId}
                   onChange={e => handleTeamChange(e.target.value)}
+                  disabled={loading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
                   <option value="">（未設定）</option>
@@ -274,11 +340,12 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 <select
                   value={workerId}
                   onChange={e => setWorkerId(e.target.value)}
-                  disabled={teamId === ''}
-                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: teamId === '' ? '#f9fafb' : '' }}
+                  disabled={teamId === '' || workerLoading}
+                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: teamId === '' || workerLoading ? '#f9fafb' : '' }}
                 >
                   <option value="">（未設定）</option>
-                  {filteredWorkers.map(w => (
+                  {workerLoading && <option value="">取得中...</option>}
+                  {workers.map(w => (
                     <option key={w.workerId} value={w.workerId}>{w.workerName}</option>
                   ))}
                 </select>

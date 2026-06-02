@@ -844,6 +844,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             initialData: {
               locationId: mode === 'location' ? g?.id : null,
               serialId:   mode === 'device'   ? g?.id : null,
+              kisyuId:    mode === 'device'   ? g?.kisyuId : null,
               workerId:   mode === 'worker'   ? g?.id : null,
               startDate: dateStr,
               endDate: endStr,
@@ -966,12 +967,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function openScheduleDialog(data) {
-    try {
-      await onEnsureMasters?.(mode === 'location' ? ['serials', 'locations'] : ['serials', 'workers', 'tasks']);
-      setScheduleDialog(data);
-    } catch {
-      showToast('入力に必要なマスタデータの取得に失敗しました');
-    }
+    setScheduleDialog(data);
   }
 
   async function savePlan(data) {
@@ -985,7 +981,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         endDate:    data.endDate,
       }
       : {
-        serialId:  data.serialId || (mode === 'device' ? dialog.initialData?.serialId : serials[0]?.serialId),
+        serialId:  data.serialId || dialog.initialData?.serialId,
         taskId:    data.taskId,
         workerId:  data.workerId,
         startDate: data.startDate,
@@ -1442,9 +1438,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         <ScheduleDialog
           plan={scheduleDialog.plan}
           initialData={scheduleDialog.initialData}
-          serials={serials}
-          tasks={tasks}
-          workers={workers}
           locations={locations}
           gridMode={mode}
           onSave={savePlan}

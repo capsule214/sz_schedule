@@ -23,7 +23,12 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/me',      [AuthController::class, 'me']);
 
   Route::get('/serial', [SerialController::class, 'index']);
+  Route::get('/serial/kisyu', [SerialController::class, 'kisyu']);
+  Route::get('/serial/kisyu/{kisyuId}', [SerialController::class, 'byKisyu']);
   Route::get('/worker', [WorkerController::class, 'index']);
+  Route::get('/worker/team', [WorkerController::class, 'teams']);
+  Route::get('/worker/team/{teamId}', [WorkerController::class, 'byTeam']);
+  Route::get('/worker/{id}', [WorkerController::class, 'show']);
   Route::get('/task',   [TaskController::class, 'index']);
   Route::get('/resource', [ResourceController::class, 'index']);
 
