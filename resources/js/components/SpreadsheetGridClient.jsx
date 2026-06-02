@@ -179,10 +179,14 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     if (drawerTab === 'device') setTab('device');
     else if (drawerTab === 'worker') setTab('worker');
     else if (drawerTab === 'task') setTab('task');
-    await apiJson('/display-settings', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    });
+    try {
+      await apiJson('/display-settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+    } catch {
+      showAlert('表示設定の保存に失敗しました。画面には適用済みです');
+    }
   }
 
   const handleJumpToOtherTab = useCallback(async (plan, targetMode) => {
