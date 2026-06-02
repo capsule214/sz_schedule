@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import DatePickerDialog from './DatePickerDialog';
+
 export default function SpreadsheetGridToolbar({
   startDate,
   onStartDateChange,
@@ -14,14 +17,28 @@ export default function SpreadsheetGridToolbar({
   onSerialSearchTextChange,
   onSerialSearch,
 }) {
+  const [dateDialogOpen, setDateDialogOpen] = useState(false);
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexShrink: 0, flexWrap: 'wrap' }}>
-      <input
-        type="date"
-        value={startDate}
-        onChange={e => onStartDateChange(e.target.value)}
-        style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}
-      />
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setDateDialogOpen(true)}
+          style={{ fontSize: 13, padding: '3px 10px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+        >
+          {startDate}
+        </button>
+        <DatePickerDialog
+          open={dateDialogOpen}
+          value={startDate}
+          title="表示開始日"
+          onCancel={() => setDateDialogOpen(false)}
+          onConfirm={(date) => {
+            setDateDialogOpen(false);
+            if (date && date !== startDate) onStartDateChange(date);
+          }}
+        />
+      </div>
       {[['◀◀', -2], ['◀', -1], ['▶', 1], ['▶▶', 2]].map(([label, months]) => (
         <button
           key={label}
