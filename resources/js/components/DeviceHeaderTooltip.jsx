@@ -53,7 +53,7 @@ export default function DeviceHeaderTooltip({ detail, onClose }) {
         borderRadius: 8,
         boxShadow: '0 10px 24px rgba(0,0,0,0.15)',
         padding: 10,
-        fontSize: 12,
+        fontSize: 13,
       }}
     >
       {pos.arrow === 'top' ? (

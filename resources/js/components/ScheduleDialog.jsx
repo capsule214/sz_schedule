@@ -133,7 +133,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
 
         <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>開始日</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>開始日</div>
             <DatePicker
               value={startDate}
               onChange={setStartDate}
@@ -146,7 +146,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                   key={s.label}
                   onClick={() => setStartHm(s.start)}
                   style={{
-                    padding: '3px 7px', fontSize: 11, borderRadius: 4,
+                    padding: '3px 7px', fontSize: 13, borderRadius: 4,
                     border: `1px solid ${startHm === s.start ? '#2563eb' : '#d1d5db'}`,
                     background: startHm === s.start ? '#2563eb' : '#fff',
                     color: startHm === s.start ? '#fff' : '#374151',
@@ -157,7 +157,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>終了日</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>終了日</div>
             <DatePicker
               value={endDate}
               onChange={setEndDate}
@@ -170,7 +170,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                   key={s.label}
                   onClick={() => setEndHm(s.end)}
                   style={{
-                    padding: '3px 7px', fontSize: 11, borderRadius: 4,
+                    padding: '3px 7px', fontSize: 13, borderRadius: 4,
                     border: `1px solid ${endHm === s.end ? '#2563eb' : '#d1d5db'}`,
                     background: endHm === s.end ? '#2563eb' : '#fff',
                     color: endHm === s.end ? '#fff' : '#374151',
@@ -186,7 +186,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
           {gridMode === 'location' ? (
             <>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>場所</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>場所</label>
                 <input
                   readOnly
                   value={locations?.find(l => l.locationId == locationId)?.locationName || ''}
@@ -194,7 +194,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>機種</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>機種</label>
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
@@ -206,7 +206,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>整番</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>整番</label>
                 <select
                   value={serialId}
                   onChange={e => setSerialId(e.target.value)}
@@ -221,7 +221,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
           ) : (
             <>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>機種</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>機種</label>
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
@@ -233,7 +233,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>製番</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>製番</label>
                 <select
                   value={serialId}
                   onChange={e => setSerialId(e.target.value)}
@@ -245,7 +245,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>工程</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>工程</label>
                 <select
                   value={taskId}
                   onChange={e => setTaskId(e.target.value)}
@@ -257,7 +257,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>チーム</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>チーム</label>
                 <select
                   value={teamId}
                   onChange={e => handleTeamChange(e.target.value)}
@@ -270,7 +270,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 3 }}>担当者</label>
+                <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>担当者</label>
                 <select
                   value={workerId}
                   onChange={e => setWorkerId(e.target.value)}
@@ -287,7 +287,7 @@ export default function ScheduleDialog({ plan, serials, tasks, workers, location
           )}
         </div>
 
-        {error && <div style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        {error && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '7px 18px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 }}>キャンセル</button>

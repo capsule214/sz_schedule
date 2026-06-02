@@ -56,7 +56,7 @@ export default function DatePicker({ value, onChange, minDate, maxDate, rangeSta
         <span style={{ fontSize: 13, fontWeight: 600 }}>{viewYear}年{viewMonth}月</span>
         <button onClick={nextMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 6px' }}>▶</button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', textAlign: 'center', fontSize: 11, gap: 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', textAlign: 'center', fontSize: 13, gap: 1 }}>
         {['日','月','火','水','木','金','土'].map((d, i) => (
           <div key={d} style={{ color: i === 0 ? '#ef4444' : i === 6 ? '#3b82f6' : '#555', fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}

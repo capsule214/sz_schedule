@@ -46,7 +46,7 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <span style={{ background: taskBg, color: taskFg, padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600 }}>
+        <span style={{ background: taskBg, color: taskFg, padding: '2px 8px', borderRadius: 4, fontSize: 13, fontWeight: 600 }}>
           {plan.taskName}
         </span>
       </div>

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import VirtualList from './VirtualList';
 
 const BTN = {
-  fontSize: 11, padding: '3px 8px', border: '1px solid #d1d5db',
+  fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
@@ -181,12 +181,12 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
 
                 {/* 左：機種グループ */}
                 <div style={{ flex: '0 0 220px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', flexShrink: 0 }}>機種グループ</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>機種グループ</div>
                   <input
                     placeholder="機種名で絞り込み"
                     value={kisyuFilter}
                     onChange={e => setKisyuFilter(e.target.value)}
-                    style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 12, flexShrink: 0 }}
+                    style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13, flexShrink: 0 }}
                   />
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button onClick={() => setSelectedKisyuIds(kisyuList.map(k => k.kisyuId))} style={BTN}>全選択</button>
@@ -200,7 +200,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', cursor: 'pointer', height: 36 }}>
                           <input type="checkbox" checked={selectedKisyuIds.includes(item.kisyuId)} onChange={() => toggleKisyu(item.kisyuId)} />
                           <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.kisyuName}</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{item.count}台</span>
+                          <span style={{ fontSize: 13, color: '#9ca3af', flexShrink: 0 }}>{item.count}台</span>
                         </label>
                       )}
                     />
@@ -209,9 +209,9 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
 
                 {/* 右：機種リスト（プレビュー） */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>
                     機種リスト
-                    <span style={{ fontSize: 11, fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
                       {filteredSerials.length}件
                     </span>
                   </div>
@@ -221,8 +221,8 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                       height={serialListH}
                       renderItem={item => (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', height: 36, borderBottom: '1px solid #f3f4f6' }}>
-                          <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0, width: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.kisyuName}</span>
-                          <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.serialNo}</span>
+                          <span style={{ fontSize: 13, color: '#9ca3af', flexShrink: 0, width: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.kisyuName}</span>
+                          <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.serialNo}</span>
                         </div>
                       )}
                     />
@@ -243,7 +243,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginTop: 4, paddingTop: 8, borderTop: '1px solid #f3f4f6' }}>
                   <input type="checkbox" checked={showLocationInDevice} onChange={e => setShowLocationInDevice(e.target.checked)} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8' }}>場所予定も表示</span>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>（各装置下端に場所予定行を追加）</span>
+                  <span style={{ fontSize: 13, color: '#6b7280' }}>（各装置下端に場所予定行を追加）</span>
                 </label>
               </div>
             </div>
@@ -254,13 +254,13 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
 
               {/* チームリスト */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', flexShrink: 0, marginBottom: 6 }}>チームリスト</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0, marginBottom: 6 }}>チームリスト</div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginBottom: 4 }}>
                 <input
                   placeholder="チーム名で絞り込み"
                   value={teamFilter}
                   onChange={e => setTeamFilter(e.target.value)}
-                  style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 12 }}
+                  style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13 }}
                 />
                 <button onClick={() => setSelectedTeamIds(teamList.map(t => t.teamId))} style={BTN}>全選択</button>
                 <button onClick={() => setSelectedTeamIds([])} style={BTN}>全解除</button>
@@ -273,7 +273,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', cursor: 'pointer', height: 36 }}>
                       <input type="checkbox" checked={selectedTeamIds.includes(item.teamId)} onChange={() => toggleTeam(item.teamId)} />
                       <span style={{ flex: 1, fontSize: 13 }}>{item.teamName}</span>
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>{item.count}人</span>
+                      <span style={{ fontSize: 13, color: '#9ca3af' }}>{item.count}人</span>
                     </label>
                   )}
                 />
@@ -286,13 +286,13 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
               }}>
                 <input type="checkbox" checked={showUnassignedWorker} onChange={e => setShowUnassignedWorker(e.target.checked)} />
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>担当者未定も表示</span>
-                <span style={{ fontSize: 11, color: '#6b7280' }}>（担当者未定の予定を製番別に表示）</span>
+                <span style={{ fontSize: 13, color: '#6b7280' }}>（担当者未定の予定を製番別に表示）</span>
               </label>
 
               {/* 表示タスクリスト */}
               <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 12, paddingTop: 12, flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>表示タスクリスト</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示タスクリスト</span>
                   <button onClick={() => setSelectedTaskIds(tasks.map(t => t.taskId))} style={BTN}>全選択</button>
                   <button onClick={() => setSelectedTaskIds([])} style={BTN}>全解除</button>
                 </div>
@@ -304,7 +304,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                     </label>
                   ))}
                 </div>
-                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>未選択の場合は全タスクのバーを表示します</p>
+                <p style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>未選択の場合は全タスクのバーを表示します</p>
               </div>
             </div>
           )}
@@ -313,14 +313,14 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
           {tab === 'task' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', flex: 1 }}>表示タスクリスト</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#374151', flex: 1 }}>表示タスクリスト</span>
                 <button onClick={() => setSelectedTaskTabIds(tasks.map(t => t.taskId))} style={BTN}>全選択</button>
                 <button onClick={() => setSelectedTaskTabIds([])} style={BTN}>全解除</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, minHeight: 0 }}>
                 {tasksByProcess.map(pg => (
                   <div key={pg.processName}>
-                    <div style={{ padding: '6px 10px', background: '#f3f4f6', fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1 }}>
+                    <div style={{ padding: '6px 10px', background: '#f3f4f6', fontSize: 13, fontWeight: 700, color: '#374151', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1 }}>
                       {pg.processName}
                     </div>
                     {pg.tasks.map(item => (
@@ -332,7 +332,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                   </div>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 8, flexShrink: 0 }}>
+              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8, flexShrink: 0 }}>
                 未選択の場合は全タスクを表示します
               </p>
             </div>

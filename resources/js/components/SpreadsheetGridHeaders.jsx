@@ -10,6 +10,17 @@ export default function SpreadsheetGridHeaders({
   const rows = [];
   const dayW = viewMode === 'day' ? colW : colW * SLOT_COUNT;
   const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+  const today = new Date(`${TODAY_STR}T00:00:00`);
+  const currentMonthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonthKey = `${nextMonthDate.getFullYear()}-${nextMonthDate.getMonth() + 1}`;
+
+  function firstRowStyle(year, month) {
+    const key = `${year}-${month}`;
+    if (key === currentMonthKey) return { background: '#f97316', color: '#fff' };
+    if (key === nextMonthKey) return { background: '#fed7aa', color: '#7c2d12' };
+    return {};
+  }
 
   const yearSpans = [];
   const monthSpans = [];
@@ -46,7 +57,7 @@ export default function SpreadsheetGridHeaders({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 10,
+    fontSize: 13,
     overflow: 'hidden',
     background: '#f3f4f6',
     boxSizing: 'border-box',
@@ -58,7 +69,7 @@ export default function SpreadsheetGridHeaders({
       const weekStart = dateColumns[weekStartDay];
       const weekLabel = weekStart ? `${weekStart.year}年${String(weekStart.month).padStart(2, '0')}月(第${s.week}週)` : `第${s.week}週`;
       return (
-        <div key={`slot-w${s.x}`} style={{ ...commonStyle, left: s.x, width: s.w, top: 0 }}>
+        <div key={`slot-w${s.x}`} style={{ ...commonStyle, ...firstRowStyle(weekStart?.year, weekStart?.month), left: s.x, width: s.w, top: 0 }}>
           {weekLabel}
         </div>
       );
@@ -95,7 +106,7 @@ export default function SpreadsheetGridHeaders({
       const slotCells = slotGroupLabels.map((label, gi) => (
         <div
           key={`slot-group-${dc.dateStr}-${gi}`}
-          style={{ ...commonStyle, left: x + gi * colW * 2, width: colW * 2, top: HDR_H * 3, fontSize: 9 }}
+          style={{ ...commonStyle, left: x + gi * colW * 2, width: colW * 2, top: HDR_H * 3, fontSize: 13 }}
         >
           {label}
         </div>
@@ -110,7 +121,7 @@ export default function SpreadsheetGridHeaders({
   rows.push(...monthSpans.filter(s => s.x + s.w > scrollLeft && s.x < scrollLeft + containerW).map(s => {
     const monthStart = dateColumns[Math.floor(s.x / dayW)];
     return (
-      <div key={`m-top-${s.x}`} style={{ ...commonStyle, left: s.x, width: s.w, top: 0 }}>
+      <div key={`m-top-${s.x}`} style={{ ...commonStyle, ...firstRowStyle(monthStart?.year, monthStart?.month), left: s.x, width: s.w, top: 0 }}>
         {monthStart ? `${monthStart.year}年${String(monthStart.month).padStart(2, '0')}月` : ''}
       </div>
     );
@@ -147,7 +158,7 @@ export default function SpreadsheetGridHeaders({
       ];
     }
     return SLOT_LABELS.map((label, si) => (
-      <div key={`${dc.dateStr}-${si}`} style={{ ...commonStyle, left: x + si * colW, width: colW, top: HDR_H * 3, background: si === 0 ? bg : '#f3f4f6', color: si === 0 ? color : '#374151', fontSize: 9 }}>
+      <div key={`${dc.dateStr}-${si}`} style={{ ...commonStyle, left: x + si * colW, width: colW, top: HDR_H * 3, background: si === 0 ? bg : '#f3f4f6', color: si === 0 ? color : '#374151', fontSize: 13 }}>
         {si === 0 ? dc.day : label}
       </div>
     ));

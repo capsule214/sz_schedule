@@ -116,7 +116,7 @@ export default function SpreadsheetGridBars({
           style={{
             position: 'absolute', left: labelLeft, top: barY, width: labelWidth, height: CELL_SIZE,
             display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap',
-            fontSize: 10, color: fg, pointerEvents: 'none', zIndex: 5, paddingLeft: 2, userSelect: 'none',
+            fontSize: 13, color: fg, pointerEvents: 'none', zIndex: 5, paddingLeft: 2, userSelect: 'none',
           }}
         >
           {label}

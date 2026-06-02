@@ -1196,12 +1196,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       {/* グリッド本体 */}
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {/* 左固定ヘッダー上部コーナー */}
-        <div style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
           {mode === 'device' ? (showShippingDate || showResponsible ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
               <div style={{ width: DEV_HDR_W, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>装置</div>
-              {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>出荷日</div>}
-              {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>責任者</div>}
+              {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
+              {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
             </div>
           ) : '装置') : mode === 'location' ? '場所' : mode === 'task' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>

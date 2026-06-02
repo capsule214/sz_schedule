@@ -89,7 +89,7 @@ export default function DisplaySettingsDialog({ serials, workers, settings, onSa
                 onChange={e => setShowLocationInDevice(e.target.checked)}
               />
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8' }}>場所予定も表示</span>
-              <span style={{ fontSize: 11, color: '#6b7280' }}>（装置タブの各装置下端に場所予定行を追加）</span>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>（装置タブの各装置下端に場所予定行を追加）</span>
             </label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <input
@@ -98,8 +98,8 @@ export default function DisplaySettingsDialog({ serials, workers, settings, onSa
                 onChange={e => setKisyuFilter(e.target.value)}
                 style={{ flex: 1, padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13 }}
               />
-              <button onClick={() => setSelectedKisyuIds(kisyuList.map(k => k.kisyuId))} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全選択</button>
-              <button onClick={() => setSelectedKisyuIds([])} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全解除</button>
+              <button onClick={() => setSelectedKisyuIds(kisyuList.map(k => k.kisyuId))} style={{ fontSize: 13, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全選択</button>
+              <button onClick={() => setSelectedKisyuIds([])} style={{ fontSize: 13, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全解除</button>
             </div>
             <div ref={listContainerRef} style={{ flex: 1, minHeight: 200 }}>
               <VirtualList
@@ -113,7 +113,7 @@ export default function DisplaySettingsDialog({ serials, workers, settings, onSa
                       onChange={() => toggleKisyu(item.kisyuId)}
                     />
                     <span style={{ fontSize: 13, flex: 1 }}>{item.kisyuName}</span>
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>{item.count}台</span>
+                    <span style={{ fontSize: 13, color: '#9ca3af' }}>{item.count}台</span>
                   </label>
                 )}
               />
@@ -130,8 +130,8 @@ export default function DisplaySettingsDialog({ serials, workers, settings, onSa
                 onChange={e => setTeamFilter(e.target.value)}
                 style={{ flex: 1, padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13 }}
               />
-              <button onClick={() => setSelectedTeamNames(teamList.map(t => t.teamName))} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全選択</button>
-              <button onClick={() => setSelectedTeamNames([])} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全解除</button>
+              <button onClick={() => setSelectedTeamNames(teamList.map(t => t.teamName))} style={{ fontSize: 13, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全選択</button>
+              <button onClick={() => setSelectedTeamNames([])} style={{ fontSize: 13, padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', background: '#f9fafb' }}>全解除</button>
             </div>
             <div ref={listContainerRef} style={{ flex: 1, minHeight: 200 }}>
               <VirtualList
@@ -145,7 +145,7 @@ export default function DisplaySettingsDialog({ serials, workers, settings, onSa
                       onChange={() => toggleTeam(item.teamName)}
                     />
                     <span style={{ fontSize: 13, flex: 1 }}>{item.teamName}</span>
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>{item.count}人</span>
+                    <span style={{ fontSize: 13, color: '#9ca3af' }}>{item.count}人</span>
                   </label>
                 )}
               />
