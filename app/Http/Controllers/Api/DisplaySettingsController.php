@@ -10,14 +10,15 @@ class DisplaySettingsController extends Controller
 {
   private const SLOT_COUNT = 5;
 
-  private function userNo(Request $request): int
+  private function userNo(Request $request): string
   {
-    return (int) $request->user()->getKey();
+    return (string) $request->user()->getKey();
   }
 
   private function defaults(): array
   {
     return [
+      'duration'                   => 1,
       'sbmodellist'                => [],
       'syteamlist'                 => [],
       'sytasklist'                 => [],
@@ -39,12 +40,12 @@ class DisplaySettingsController extends Controller
   {
     $settings = array_merge($this->defaults(), $settings);
 
-    $settings['sbmodellist'] = $settings['sbmodellist'] ?: $settings['selectedKisyuIds'];
-    $settings['syteamlist']  = $settings['syteamlist'] ?: $settings['selectedTeamIds'];
-    $settings['sytasklist']  = $settings['sytasklist'] ?: $settings['selectedTaskIds'];
-    $settings['tktasklist']  = $settings['tktasklist'] ?: $settings['selectedTaskTabIds'];
+    $settings['sbmodellist'] = $this->intList($settings['sbmodellist'] ?: $settings['selectedKisyuIds']);
+    $settings['syteamlist']  = $this->intList($settings['syteamlist'] ?: $settings['selectedTeamIds']);
+    $settings['sytasklist']  = $this->intList($settings['sytasklist'] ?: $settings['selectedTaskIds']);
+    $settings['tktasklist']  = $this->intList($settings['tktasklist'] ?: $settings['selectedTaskTabIds']);
 
-    $settings['selectedKisyuIds']    = $settings['selectedKisyuIds'] ?: $settings['sbmodellist'];
+    $settings['selectedKisyuIds']    = $settings['selectedKisyuIds'] ?: array_map('strval', $settings['sbmodellist']);
     $settings['selectedTeamIds']     = $settings['selectedTeamIds'] ?: $settings['syteamlist'];
     $settings['selectedTaskIds']     = $settings['selectedTaskIds'] ?: $settings['sytasklist'];
     $settings['selectedTaskTabIds']  = $settings['selectedTaskTabIds'] ?: $settings['tktasklist'];
@@ -52,11 +53,43 @@ class DisplaySettingsController extends Controller
     $showResource = $settings['showReserveInDevice']
       || $settings['showResourceInDevice']
       || $settings['showLocationInDevice'];
-    $settings['showReserveInDevice']  = $showResource;
-    $settings['showResourceInDevice'] = $showResource;
-    $settings['showLocationInDevice'] = $showResource;
+    $settings['showReserveInDevice']  = (bool) $showResource;
+    $settings['showResourceInDevice'] = (bool) $showResource;
+    $settings['showLocationInDevice'] = (bool) $showResource;
+    $settings['showUnassignedWorker'] = (bool) $settings['showUnassignedWorker'];
+    $settings['showShippingDateInDevice'] = (bool) $settings['showShippingDateInDevice'];
+    $settings['showResponsibleInDevice'] = (bool) $settings['showResponsibleInDevice'];
+    $settings['duration'] = max(1, (int) $settings['duration']);
 
     return $settings;
+  }
+
+  private function intList(mixed $value): array
+  {
+    if (is_string($value)) {
+      $trimmed = trim($value);
+      if ($trimmed === '') return [];
+      if (str_starts_with($trimmed, '[')) {
+        $decoded = json_decode($trimmed, true);
+        $value = is_array($decoded) ? $decoded : [];
+      } elseif (str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) {
+        $body = trim($trimmed, '{}');
+        $value = $body === '' ? [] : explode(',', $body);
+      } else {
+        $value = explode(',', $trimmed);
+      }
+    }
+    if (!is_array($value)) return [];
+    return array_values(array_unique(array_map('intval', $value)));
+  }
+
+  private function arrayValue(array $values): string
+  {
+    $values = $this->intList($values);
+    if (DB::connection()->getDriverName() === 'pgsql') {
+      return '{' . implode(',', $values) . '}';
+    }
+    return json_encode($values);
   }
 
   private function settingName(int $settingNo): string
@@ -64,7 +97,47 @@ class DisplaySettingsController extends Controller
     return "表示設定{$settingNo}";
   }
 
-  private function ensureSlots(int $userNo): void
+  private function settingsFromRow(object $row): array
+  {
+    return $this->normalize([
+      'duration'                 => (int) ($row->duration ?? 1),
+      'sbmodellist'              => $this->intList($row->sbmodellist ?? []),
+      'syteamlist'               => $this->intList($row->syteamlist ?? []),
+      'sytasklist'               => $this->intList($row->sytasklist ?? []),
+      'tktasklist'               => $this->intList($row->tktasklist ?? []),
+      'showReserveInDevice'      => (bool) ($row->show_reserve_in_device ?? false),
+      'showResourceInDevice'     => (bool) ($row->show_resource_in_device ?? false),
+      'showLocationInDevice'     => (bool) ($row->show_location_in_device ?? false),
+      'showUnassignedWorker'     => (bool) ($row->show_unassigned_worker ?? false),
+      'showShippingDateInDevice' => (bool) ($row->show_shipping_date_in_device ?? false),
+      'showResponsibleInDevice'  => (bool) ($row->show_responsible_in_device ?? false),
+    ]);
+  }
+
+  private function rowValues(string $userNo, int $settingNo, string $settingName, array $settings, bool $isActive): array
+  {
+    $settings = $this->normalize($settings);
+
+    return [
+      'user_no'                         => $userNo,
+      'setting_no'                      => $settingNo,
+      'setting_name'                    => $settingName,
+      'duration'                        => $settings['duration'],
+      'sbmodellist'                     => $this->arrayValue($settings['sbmodellist']),
+      'syteamlist'                      => $this->arrayValue($settings['syteamlist']),
+      'sytasklist'                      => $this->arrayValue($settings['sytasklist']),
+      'tktasklist'                      => $this->arrayValue($settings['tktasklist']),
+      'show_reserve_in_device'          => $settings['showReserveInDevice'],
+      'show_resource_in_device'         => $settings['showResourceInDevice'],
+      'show_location_in_device'         => $settings['showLocationInDevice'],
+      'show_unassigned_worker'          => $settings['showUnassignedWorker'],
+      'show_shipping_date_in_device'    => $settings['showShippingDateInDevice'],
+      'show_responsible_in_device'      => $settings['showResponsibleInDevice'],
+      'is_active'                       => $isActive,
+    ];
+  }
+
+  private function ensureSlots(string $userNo): void
   {
     $now = now();
     $existing = DB::table('display_settings')
@@ -77,13 +150,9 @@ class DisplaySettingsController extends Controller
     for ($i = 1; $i <= self::SLOT_COUNT; $i++) {
       if (in_array($i, $existing, true)) continue;
       DB::table('display_settings')->insert([
-        'user_no'      => $userNo,
-        'setting_no'   => $i,
-        'setting_name' => $this->settingName($i),
-        'value'        => json_encode($this->defaults()),
-        'is_active'    => !$hasActive && $i === 1,
-        'created_at'   => $now,
-        'updated_at'   => $now,
+        ...$this->rowValues($userNo, $i, $this->settingName($i), $this->defaults(), !$hasActive && $i === 1),
+        'created_at' => $now,
+        'updated_at' => $now,
       ]);
       if ($i === 1) $hasActive = true;
     }
@@ -96,7 +165,7 @@ class DisplaySettingsController extends Controller
     }
   }
 
-  private function rowsForUser(int $userNo)
+  private function rowsForUser(string $userNo)
   {
     $this->ensureSlots($userNo);
 
@@ -106,7 +175,7 @@ class DisplaySettingsController extends Controller
       ->get();
   }
 
-  private function formatResponse(int $userNo, ?int $activeNo = null): array
+  private function formatResponse(string $userNo, ?int $activeNo = null): array
   {
     $rows = $this->rowsForUser($userNo);
     $active = $activeNo
@@ -116,11 +185,11 @@ class DisplaySettingsController extends Controller
     $settingsList = $rows->map(fn($row) => [
       'settingNo'   => (int) $row->setting_no,
       'settingName' => $row->setting_name ?: $this->settingName((int) $row->setting_no),
-      'settings'    => $this->normalize(json_decode($row->value, true) ?: []),
+      'settings'    => $this->settingsFromRow($row),
       'isActive'    => (bool) $row->is_active,
     ])->values()->all();
 
-    $payload = $this->normalize(json_decode($active->value, true) ?: []);
+    $payload = $this->settingsFromRow($active);
     $payload['userNo'] = $userNo;
     $payload['settingNo'] = (int) $active->setting_no;
     $payload['settingName'] = $active->setting_name ?: $this->settingName((int) $active->setting_no);
@@ -158,6 +227,7 @@ class DisplaySettingsController extends Controller
     $data = $request->validate([
       'settingNo'   => 'nullable|integer|min:1|max:' . self::SLOT_COUNT,
       'settingName' => 'nullable|string|max:80',
+      'duration'    => 'nullable|integer|min:1|max:60',
     ]);
 
     $settingNo = (int) ($data['settingNo'] ?? 1);
@@ -165,6 +235,7 @@ class DisplaySettingsController extends Controller
     if ($settingName === '') $settingName = $this->settingName($settingNo);
 
     $payload = $this->normalize($request->only([
+      'duration',
       'sbmodellist',
       'syteamlist',
       'sytasklist',
@@ -189,11 +260,9 @@ class DisplaySettingsController extends Controller
       DB::table('display_settings')->updateOrInsert(
         ['user_no' => $userNo, 'setting_no' => $settingNo],
         [
-          'setting_name' => $settingName,
-          'value'        => json_encode($payload),
-          'is_active'    => true,
-          'updated_at'   => now(),
-          'created_at'   => now(),
+          ...$this->rowValues($userNo, $settingNo, $settingName, $payload, true),
+          'updated_at' => now(),
+          'created_at' => now(),
         ],
       );
     });

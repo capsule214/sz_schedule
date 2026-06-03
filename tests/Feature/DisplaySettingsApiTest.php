@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -18,7 +19,7 @@ class DisplaySettingsApiTest extends TestCase
         $this->actingAs($user)
             ->getJson('/api/display-settings')
             ->assertOk()
-            ->assertJsonPath('userNo', $user->id)
+            ->assertJsonPath('userNo', (string) $user->id)
             ->assertJsonPath('settingNo', 1)
             ->assertJsonCount(5, 'settingsList');
     }
@@ -40,6 +41,16 @@ class DisplaySettingsApiTest extends TestCase
             ->assertJsonPath('selectedKisyuIds', ['10', '20'])
             ->assertJsonPath('showLocationInDevice', true)
             ->assertJsonPath('settingsList.2.settingName', '工程確認用');
+
+        $this->assertDatabaseHas('display_settings', [
+            'user_no' => (string) $user->id,
+            'setting_no' => 3,
+            'setting_name' => '工程確認用',
+            'duration' => 1,
+            'show_location_in_device' => true,
+        ]);
+        $this->assertFalse(Schema::hasColumn('display_settings', 'value'));
+        $this->assertTrue(Schema::hasColumn('display_settings', 'sbmodellist'));
     }
 
     private function createUser(string $email): User
