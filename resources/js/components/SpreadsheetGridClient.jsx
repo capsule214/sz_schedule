@@ -8,6 +8,38 @@ import GridTabPane from './GridTabPane';
 import AlertToast from './AlertToast';
 import UnsavedChangesDialog from './UnsavedChangesDialog';
 
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+  return null;
+}
+
+function setCookie(name, value, days = 365) {
+  const expires = new Date(Date.now() + days * 86400000).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function displaySettingsCookieName(user) {
+  return `active_display_setting_no_${encodeURIComponent(user?.email || 'default')}`;
+}
+
+function pickDisplaySettings(apiPayload, activeNo) {
+  const list = apiPayload.settingsList || [];
+  const no = Number(activeNo);
+  const active = list.find(item => item.settingNo === no) || list.find(item => item.settingNo === apiPayload.settingNo) || list[0];
+  if (!active) return apiPayload;
+  const settingNo = active.settingNo;
+  const settingName = active.settingName;
+  return {
+    ...apiPayload,
+    ...active.settings,
+    settingNo,
+    settingName,
+    settingsList: list.map(item => ({ ...item, isActive: item.settingNo === settingNo })),
+  };
+}
+
 export default function SpreadsheetGridClient({ user, onLogout }) {
   const [tab, setTab] = useState('device');
   const [serials, setSerials] = useState([]);
@@ -85,10 +117,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   const reloadDisplaySettings = useCallback(async () => {
     const ds = await apiJson('/display-settings');
-    setDisplaySettings(ds);
-    setDisplaySettingsList(ds.settingsList || []);
+    const activeNo = getCookie(displaySettingsCookieName(user));
+    const picked = pickDisplaySettings(ds, activeNo);
+    setDisplaySettings(picked);
+    setDisplaySettingsList(picked.settingsList || []);
     setSettingsLoaded(true);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     reloadDisplaySettings().catch(() => setSettingsLoaded(true));
@@ -177,6 +211,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   async function saveDisplaySettings(settings, drawerTab) {
     setShowSettings(false);
+    setCookie(displaySettingsCookieName(user), settings.settingNo);
     setDisplaySettings(settings);
     setDisplaySettingsList(prev => {
       const next = prev.length ? prev : (settings.settingsList || []);
@@ -193,8 +228,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         method: 'PUT',
         body: JSON.stringify(settings),
       }).then(saved => {
-        setDisplaySettings(saved);
-        setDisplaySettingsList(saved.settingsList || []);
+        const picked = pickDisplaySettings(saved, settings.settingNo);
+        setDisplaySettings(picked);
+        setDisplaySettingsList(picked.settingsList || []);
       });
     } catch {
       showAlert('表示設定の保存に失敗しました。画面には適用済みです');

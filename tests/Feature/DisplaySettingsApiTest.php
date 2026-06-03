@@ -50,7 +50,17 @@ class DisplaySettingsApiTest extends TestCase
             'show_location_in_device' => true,
         ]);
         $this->assertFalse(Schema::hasColumn('display_settings', 'value'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'is_active'));
         $this->assertTrue(Schema::hasColumn('display_settings', 'sbmodellist'));
+    }
+
+    public function test_active_display_setting_api_does_not_exist(): void
+    {
+        $user = $this->createUser('user-c');
+
+        $this->actingAs($user)
+            ->putJson('/api/display-settings/active', ['settingNo' => 4])
+            ->assertStatus(405);
     }
 
     private function createUser(string $email): User

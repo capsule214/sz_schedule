@@ -114,7 +114,7 @@ class DisplaySettingsController extends Controller
     ]);
   }
 
-  private function rowValues(string $userNo, int $settingNo, string $settingName, array $settings, bool $isActive): array
+  private function rowValues(string $userNo, int $settingNo, string $settingName, array $settings): array
   {
     $settings = $this->normalize($settings);
 
@@ -133,7 +133,6 @@ class DisplaySettingsController extends Controller
       'show_unassigned_worker'          => $settings['showUnassignedWorker'],
       'show_shipping_date_in_device'    => $settings['showShippingDateInDevice'],
       'show_responsible_in_device'      => $settings['showResponsibleInDevice'],
-      'is_active'                       => $isActive,
     ];
   }
 
@@ -145,23 +144,14 @@ class DisplaySettingsController extends Controller
       ->pluck('setting_no')
       ->map(fn($v) => (int) $v)
       ->all();
-    $hasActive = DB::table('display_settings')->where('user_no', $userNo)->where('is_active', true)->exists();
 
     for ($i = 1; $i <= self::SLOT_COUNT; $i++) {
       if (in_array($i, $existing, true)) continue;
       DB::table('display_settings')->insert([
-        ...$this->rowValues($userNo, $i, $this->settingName($i), $this->defaults(), !$hasActive && $i === 1),
+        ...$this->rowValues($userNo, $i, $this->settingName($i), $this->defaults()),
         'created_at' => $now,
         'updated_at' => $now,
       ]);
-      if ($i === 1) $hasActive = true;
-    }
-
-    if (!$hasActive) {
-      DB::table('display_settings')
-        ->where('user_no', $userNo)
-        ->where('setting_no', 1)
-        ->update(['is_active' => true, 'updated_at' => $now]);
     }
   }
 
@@ -175,18 +165,17 @@ class DisplaySettingsController extends Controller
       ->get();
   }
 
-  private function formatResponse(string $userNo, ?int $activeNo = null): array
+  private function formatPayload(string $userNo, int $activeNo): array
   {
     $rows = $this->rowsForUser($userNo);
-    $active = $activeNo
-      ? $rows->firstWhere('setting_no', $activeNo)
-      : ($rows->firstWhere('is_active', 1) ?: $rows->first());
+    $active = $rows->firstWhere('setting_no', $activeNo) ?: $rows->first();
+    $activeNo = (int) $active->setting_no;
 
     $settingsList = $rows->map(fn($row) => [
       'settingNo'   => (int) $row->setting_no,
       'settingName' => $row->setting_name ?: $this->settingName((int) $row->setting_no),
       'settings'    => $this->settingsFromRow($row),
-      'isActive'    => (bool) $row->is_active,
+      'isActive'    => (int) $row->setting_no === $activeNo,
     ])->values()->all();
 
     $payload = $this->settingsFromRow($active);
@@ -200,26 +189,9 @@ class DisplaySettingsController extends Controller
 
   public function index(Request $request)
   {
-    return response()->json($this->formatResponse($this->userNo($request)));
-  }
-
-  public function activate(Request $request)
-  {
-    $data = $request->validate([
-      'settingNo' => 'required|integer|min:1|max:' . self::SLOT_COUNT,
-    ]);
-
     $userNo = $this->userNo($request);
-    $this->ensureSlots($userNo);
-    DB::transaction(function () use ($userNo, $data) {
-      DB::table('display_settings')->where('user_no', $userNo)->update(['is_active' => false, 'updated_at' => now()]);
-      DB::table('display_settings')
-        ->where('user_no', $userNo)
-        ->where('setting_no', $data['settingNo'])
-        ->update(['is_active' => true, 'updated_at' => now()]);
-    });
 
-    return response()->json($this->formatResponse($userNo, $data['settingNo']));
+    return response()->json($this->formatPayload($userNo, 1));
   }
 
   public function update(Request $request)
@@ -256,17 +228,16 @@ class DisplaySettingsController extends Controller
     $this->ensureSlots($userNo);
 
     DB::transaction(function () use ($userNo, $settingNo, $settingName, $payload) {
-      DB::table('display_settings')->where('user_no', $userNo)->update(['is_active' => false, 'updated_at' => now()]);
       DB::table('display_settings')->updateOrInsert(
         ['user_no' => $userNo, 'setting_no' => $settingNo],
         [
-          ...$this->rowValues($userNo, $settingNo, $settingName, $payload, true),
+          ...$this->rowValues($userNo, $settingNo, $settingName, $payload),
           'updated_at' => now(),
           'created_at' => now(),
         ],
       );
     });
 
-    return response()->json($this->formatResponse($userNo, $settingNo));
+    return response()->json($this->formatPayload($userNo, $settingNo));
   }
 }

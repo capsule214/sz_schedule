@@ -30,11 +30,9 @@ return new class extends Migration
       $table->boolean('show_unassigned_worker')->default(false);
       $table->boolean('show_shipping_date_in_device')->default(false);
       $table->boolean('show_responsible_in_device')->default(false);
-      $table->boolean('is_active')->default(false);
       $table->timestamps();
 
       $table->primary(['user_no', 'setting_no']);
-      $table->index(['user_no', 'is_active']);
     });
 
     if (DB::connection()->getDriverName() === 'pgsql') {
@@ -91,7 +89,6 @@ return new class extends Migration
       'show_unassigned_worker'           => (bool) ($settings['showUnassignedWorker'] ?? false),
       'show_shipping_date_in_device'     => (bool) ($settings['showShippingDateInDevice'] ?? false),
       'show_responsible_in_device'       => (bool) ($settings['showResponsibleInDevice'] ?? false),
-      'is_active'                        => $isActive,
     ];
   }
 
