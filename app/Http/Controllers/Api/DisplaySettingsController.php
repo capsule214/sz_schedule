@@ -8,134 +8,262 @@ use Illuminate\Support\Facades\DB;
 
 class DisplaySettingsController extends Controller
 {
+  /** スロット数（0〜SLOT_COUNT-1） */
   private const SLOT_COUNT = 5;
 
+  // ---------------------------------------------------------------
+  // デフォルト値
+  // ---------------------------------------------------------------
+  private function defaults(): array
+  {
+    return [
+      // 共通
+      'duration'        => 1,
+      'flgdiff'         => false,
+      'flgkeppin'       => false,
+      'flgsyoyo'        => false,
+      'flgukeoi'        => false,
+
+      // 場所タブ
+      'pllocation'      => 3,
+      'plslace'         => 1,
+
+      // 装置タブ
+      'sbcolor'         => 0,
+      'sbdspdate'       => false,
+      'sbdspincharge'   => false,
+      'sbdspplplan'     => false,
+      'flggoso'         => false,
+      'sboption'        => 0,
+      'sborder'         => 0,
+      'sbsbmb'          => 0,
+      'sbslace'         => 1,
+      'sbequiptype'     => -1,
+      'sbinchargelist'  => [],
+      'sbmodellist'     => [],
+      'sbstatuslist'    => [],
+      'sbszgrouplist'   => [],
+
+      // 担当者タブ
+      'sycolor'         => 0,
+      'sygroup'         => 0,
+      'syslace'         => 1,
+      'syteamlist'      => [],
+      'sytasklist'      => [],
+
+      // タスクタブ
+      'tksbmb'          => 0,
+      'tkslace'         => 1,
+      'tktasklist'      => [],
+    ];
+  }
+
+  // ---------------------------------------------------------------
+  // ユーザーキー取得
+  // ---------------------------------------------------------------
   private function userNo(Request $request): string
   {
     return (string) $request->user()->getKey();
   }
 
-  private function defaults(): array
+  // ---------------------------------------------------------------
+  // 正規化
+  // ---------------------------------------------------------------
+  private function normalize(array $in): array
   {
-    return [
-      'duration'                   => 1,
-      'sbmodellist'                => [],
-      'syteamlist'                 => [],
-      'sytasklist'                 => [],
-      'tktasklist'                 => [],
-      'showReserveInDevice'        => false,
-      'showResourceInDevice'       => false,
-      'showLocationInDevice'       => false,
-      'showUnassignedWorker'       => false,
-      'showShippingDateInDevice'   => false,
-      'showResponsibleInDevice'    => false,
-      'selectedKisyuIds'           => [],
-      'selectedTeamIds'            => [],
-      'selectedTaskIds'            => [],
-      'selectedTaskTabIds'         => [],
-    ];
+    $d = array_merge($this->defaults(), $in);
+
+    // 整数スカラー
+    $d['duration']    = max(1, (int) $d['duration']);
+    $d['pllocation']  = (int) $d['pllocation'];
+    $d['plslace']     = (int) $d['plslace'];
+    $d['sbcolor']     = (int) $d['sbcolor'];
+    $d['sboption']    = (int) $d['sboption'];
+    $d['sborder']     = (int) $d['sborder'];
+    $d['sbsbmb']      = (int) $d['sbsbmb'];
+    $d['sbslace']     = (int) $d['sbslace'];
+    $d['sbequiptype'] = (int) $d['sbequiptype'];
+    $d['sycolor']     = (int) $d['sycolor'];
+    $d['sygroup']     = (int) $d['sygroup'];
+    $d['syslace']     = (int) $d['syslace'];
+    $d['tksbmb']      = (int) $d['tksbmb'];
+    $d['tkslace']     = (int) $d['tkslace'];
+
+    // 真偽値
+    foreach (['flgdiff', 'flgkeppin', 'flgsyoyo', 'flgukeoi',
+              'sbdspdate', 'sbdspincharge', 'sbdspplplan', 'flggoso'] as $key) {
+      $d[$key] = (bool) $d[$key];
+    }
+
+    // 整数配列
+    foreach (['sbmodellist', 'sbstatuslist', 'sbszgrouplist',
+              'syteamlist', 'sytasklist', 'tktasklist'] as $key) {
+      $d[$key] = $this->intList($d[$key]);
+    }
+
+    // 文字列配列
+    $d['sbinchargelist'] = $this->strList($d['sbinchargelist']);
+
+    return $d;
   }
 
-  private function normalize(array $settings): array
-  {
-    $settings = array_merge($this->defaults(), $settings);
-
-    $settings['sbmodellist'] = $this->intList($settings['sbmodellist'] ?: $settings['selectedKisyuIds']);
-    $settings['syteamlist']  = $this->intList($settings['syteamlist'] ?: $settings['selectedTeamIds']);
-    $settings['sytasklist']  = $this->intList($settings['sytasklist'] ?: $settings['selectedTaskIds']);
-    $settings['tktasklist']  = $this->intList($settings['tktasklist'] ?: $settings['selectedTaskTabIds']);
-
-    $settings['selectedKisyuIds']    = $settings['selectedKisyuIds'] ?: array_map('strval', $settings['sbmodellist']);
-    $settings['selectedTeamIds']     = $settings['selectedTeamIds'] ?: $settings['syteamlist'];
-    $settings['selectedTaskIds']     = $settings['selectedTaskIds'] ?: $settings['sytasklist'];
-    $settings['selectedTaskTabIds']  = $settings['selectedTaskTabIds'] ?: $settings['tktasklist'];
-
-    $showResource = $settings['showReserveInDevice']
-      || $settings['showResourceInDevice']
-      || $settings['showLocationInDevice'];
-    $settings['showReserveInDevice']  = (bool) $showResource;
-    $settings['showResourceInDevice'] = (bool) $showResource;
-    $settings['showLocationInDevice'] = (bool) $showResource;
-    $settings['showUnassignedWorker'] = (bool) $settings['showUnassignedWorker'];
-    $settings['showShippingDateInDevice'] = (bool) $settings['showShippingDateInDevice'];
-    $settings['showResponsibleInDevice'] = (bool) $settings['showResponsibleInDevice'];
-    $settings['duration'] = max(1, (int) $settings['duration']);
-
-    return $settings;
-  }
-
+  // ---------------------------------------------------------------
+  // 配列パーサー
+  // ---------------------------------------------------------------
   private function intList(mixed $value): array
   {
-    if (is_string($value)) {
-      $trimmed = trim($value);
-      if ($trimmed === '') return [];
-      if (str_starts_with($trimmed, '[')) {
-        $decoded = json_decode($trimmed, true);
-        $value = is_array($decoded) ? $decoded : [];
-      } elseif (str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) {
-        $body = trim($trimmed, '{}');
-        $value = $body === '' ? [] : explode(',', $body);
-      } else {
-        $value = explode(',', $trimmed);
-      }
-    }
-    if (!is_array($value)) return [];
-    return array_values(array_unique(array_map('intval', $value)));
+    $arr = $this->parseList($value);
+    return array_values(array_unique(array_map('intval', $arr)));
   }
 
-  private function arrayValue(array $values): string
+  private function strList(mixed $value): array
   {
-    $values = $this->intList($values);
+    $arr = $this->parseList($value);
+    return array_values(array_unique(array_map('strval', $arr)));
+  }
+
+  private function parseList(mixed $value): array
+  {
+    if (is_array($value)) return $value;
+    if (!is_string($value)) return [];
+    $trimmed = trim($value);
+    if ($trimmed === '') return [];
+    // PostgreSQL配列形式 {a,b,c}
+    if (str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) {
+      $body = substr($trimmed, 1, -1);
+      return $body === '' ? [] : explode(',', $body);
+    }
+    // JSON形式 [a,b,c]
+    if (str_starts_with($trimmed, '[')) {
+      $decoded = json_decode($trimmed, true);
+      return is_array($decoded) ? $decoded : [];
+    }
+    return explode(',', $trimmed);
+  }
+
+  // ---------------------------------------------------------------
+  // DB保存用: 配列 → 文字列
+  // ---------------------------------------------------------------
+  private function intArrayValue(array $values): string
+  {
+    $values = array_values(array_unique(array_map('intval', $values)));
     if (DB::connection()->getDriverName() === 'pgsql') {
       return '{' . implode(',', $values) . '}';
     }
     return json_encode($values);
   }
 
-  private function settingName(int $settingNo): string
+  private function strArrayValue(array $values): string
   {
-    return "表示設定{$settingNo}";
+    $values = array_values(array_unique(array_map('strval', $values)));
+    if (DB::connection()->getDriverName() === 'pgsql') {
+      $escaped = array_map(fn($v) => '"' . str_replace('"', '\\"', $v) . '"', $values);
+      return '{' . implode(',', $escaped) . '}';
+    }
+    return json_encode($values);
   }
 
+  // ---------------------------------------------------------------
+  // デフォルト設定名
+  // ---------------------------------------------------------------
+  private function settingName(int $settingNo): string
+  {
+    return "表示設定" . ($settingNo + 1);
+  }
+
+  // ---------------------------------------------------------------
+  // DBレコード → 設定配列
+  // ---------------------------------------------------------------
   private function settingsFromRow(object $row): array
   {
     return $this->normalize([
-      'duration'                 => (int) ($row->duration ?? 1),
-      'sbmodellist'              => $this->intList($row->sbmodellist ?? []),
-      'syteamlist'               => $this->intList($row->syteamlist ?? []),
-      'sytasklist'               => $this->intList($row->sytasklist ?? []),
-      'tktasklist'               => $this->intList($row->tktasklist ?? []),
-      'showReserveInDevice'      => (bool) ($row->show_reserve_in_device ?? false),
-      'showResourceInDevice'     => (bool) ($row->show_resource_in_device ?? false),
-      'showLocationInDevice'     => (bool) ($row->show_location_in_device ?? false),
-      'showUnassignedWorker'     => (bool) ($row->show_unassigned_worker ?? false),
-      'showShippingDateInDevice' => (bool) ($row->show_shipping_date_in_device ?? false),
-      'showResponsibleInDevice'  => (bool) ($row->show_responsible_in_device ?? false),
+      'duration'        => $row->duration ?? 1,
+      'flgdiff'         => $row->flgdiff ?? false,
+      'flgkeppin'       => $row->flgkeppin ?? false,
+      'flgsyoyo'        => $row->flgsyoyo ?? false,
+      'flgukeoi'        => $row->flgukeoi ?? false,
+
+      'pllocation'      => $row->pllocation ?? 3,
+      'plslace'         => $row->plslace ?? 1,
+
+      'sbcolor'         => $row->sbcolor ?? 0,
+      'sbdspdate'       => $row->sbdspdate ?? false,
+      'sbdspincharge'   => $row->sbdspincharge ?? false,
+      'sbdspplplan'     => $row->sbdspplplan ?? false,
+      'flggoso'         => $row->flggoso ?? false,
+      'sboption'        => $row->sboption ?? 0,
+      'sborder'         => $row->sborder ?? 0,
+      'sbsbmb'          => $row->sbsbmb ?? 0,
+      'sbslace'         => $row->sbslace ?? 1,
+      'sbequiptype'     => $row->sbequiptype ?? -1,
+      'sbinchargelist'  => $this->strList($row->sbinchargelist ?? []),
+      'sbmodellist'     => $this->intList($row->sbmodellist ?? []),
+      'sbstatuslist'    => $this->intList($row->sbstatuslist ?? []),
+      'sbszgrouplist'   => $this->intList($row->sbszgrouplist ?? []),
+
+      'sycolor'         => $row->sycolor ?? 0,
+      'sygroup'         => $row->sygroup ?? 0,
+      'syslace'         => $row->syslace ?? 1,
+      'syteamlist'      => $this->intList($row->syteamlist ?? []),
+      'sytasklist'      => $this->intList($row->sytasklist ?? []),
+
+      'tksbmb'          => $row->tksbmb ?? 0,
+      'tkslace'         => $row->tkslace ?? 1,
+      'tktasklist'      => $this->intList($row->tktasklist ?? []),
     ]);
   }
 
+  // ---------------------------------------------------------------
+  // 設定配列 → DB保存用配列
+  // ---------------------------------------------------------------
   private function rowValues(string $userNo, int $settingNo, string $settingName, array $settings): array
   {
-    $settings = $this->normalize($settings);
+    $s = $this->normalize($settings);
 
     return [
-      'user_no'                         => $userNo,
-      'setting_no'                      => $settingNo,
-      'setting_name'                    => $settingName,
-      'duration'                        => $settings['duration'],
-      'sbmodellist'                     => $this->arrayValue($settings['sbmodellist']),
-      'syteamlist'                      => $this->arrayValue($settings['syteamlist']),
-      'sytasklist'                      => $this->arrayValue($settings['sytasklist']),
-      'tktasklist'                      => $this->arrayValue($settings['tktasklist']),
-      'show_reserve_in_device'          => $settings['showReserveInDevice'],
-      'show_resource_in_device'         => $settings['showResourceInDevice'],
-      'show_location_in_device'         => $settings['showLocationInDevice'],
-      'show_unassigned_worker'          => $settings['showUnassignedWorker'],
-      'show_shipping_date_in_device'    => $settings['showShippingDateInDevice'],
-      'show_responsible_in_device'      => $settings['showResponsibleInDevice'],
+      'user_no'         => $userNo,
+      'setting_no'      => $settingNo,
+      'setting_name'    => $settingName,
+
+      'duration'        => $s['duration'],
+      'flgdiff'         => $s['flgdiff'],
+      'flgkeppin'       => $s['flgkeppin'],
+      'flgsyoyo'        => $s['flgsyoyo'],
+      'flgukeoi'        => $s['flgukeoi'],
+
+      'pllocation'      => $s['pllocation'],
+      'plslace'         => $s['plslace'],
+
+      'sbcolor'         => $s['sbcolor'],
+      'sbdspdate'       => $s['sbdspdate'],
+      'sbdspincharge'   => $s['sbdspincharge'],
+      'sbdspplplan'     => $s['sbdspplplan'],
+      'flggoso'         => $s['flggoso'],
+      'sboption'        => $s['sboption'],
+      'sborder'         => $s['sborder'],
+      'sbsbmb'          => $s['sbsbmb'],
+      'sbslace'         => $s['sbslace'],
+      'sbequiptype'     => $s['sbequiptype'],
+      'sbinchargelist'  => $this->strArrayValue($s['sbinchargelist']),
+      'sbmodellist'     => $this->intArrayValue($s['sbmodellist']),
+      'sbstatuslist'    => $this->intArrayValue($s['sbstatuslist']),
+      'sbszgrouplist'   => $this->intArrayValue($s['sbszgrouplist']),
+
+      'sycolor'         => $s['sycolor'],
+      'sygroup'         => $s['sygroup'],
+      'syslace'         => $s['syslace'],
+      'syteamlist'      => $this->intArrayValue($s['syteamlist']),
+      'sytasklist'      => $this->intArrayValue($s['sytasklist']),
+
+      'tksbmb'          => $s['tksbmb'],
+      'tkslace'         => $s['tkslace'],
+      'tktasklist'      => $this->intArrayValue($s['tktasklist']),
     ];
   }
 
+  // ---------------------------------------------------------------
+  // スロット自動生成（存在しないスロットを補完）
+  // ---------------------------------------------------------------
   private function ensureSlots(string $userNo): void
   {
     $now = now();
@@ -145,7 +273,7 @@ class DisplaySettingsController extends Controller
       ->map(fn($v) => (int) $v)
       ->all();
 
-    for ($i = 1; $i <= self::SLOT_COUNT; $i++) {
+    for ($i = 0; $i < self::SLOT_COUNT; $i++) {
       if (in_array($i, $existing, true)) continue;
       DB::table('display_settings')->insert([
         ...$this->rowValues($userNo, $i, $this->settingName($i), $this->defaults()),
@@ -155,6 +283,9 @@ class DisplaySettingsController extends Controller
     }
   }
 
+  // ---------------------------------------------------------------
+  // ユーザーの全スロット取得
+  // ---------------------------------------------------------------
   private function rowsForUser(string $userNo)
   {
     $this->ensureSlots($userNo);
@@ -165,10 +296,13 @@ class DisplaySettingsController extends Controller
       ->get();
   }
 
+  // ---------------------------------------------------------------
+  // レスポンスペイロード生成
+  // ---------------------------------------------------------------
   private function formatPayload(string $userNo, int $activeNo): array
   {
     $rows = $this->rowsForUser($userNo);
-    $active = $rows->firstWhere('setting_no', $activeNo) ?: $rows->first();
+    $active = $rows->firstWhere('setting_no', $activeNo) ?? $rows->first();
     $activeNo = (int) $active->setting_no;
 
     $settingsList = $rows->map(fn($row) => [
@@ -179,50 +313,37 @@ class DisplaySettingsController extends Controller
     ])->values()->all();
 
     $payload = $this->settingsFromRow($active);
-    $payload['userNo'] = $userNo;
-    $payload['settingNo'] = (int) $active->setting_no;
-    $payload['settingName'] = $active->setting_name ?: $this->settingName((int) $active->setting_no);
+    $payload['userNo']       = $userNo;
+    $payload['settingNo']    = $activeNo;
+    $payload['settingName']  = $active->setting_name ?: $this->settingName($activeNo);
     $payload['settingsList'] = $settingsList;
 
     return $payload;
   }
 
+  // ---------------------------------------------------------------
+  // GET /api/display-settings
+  // ---------------------------------------------------------------
   public function index(Request $request)
   {
-    $userNo = $this->userNo($request);
-
-    return response()->json($this->formatPayload($userNo, 1));
+    return response()->json($this->formatPayload($this->userNo($request), 0));
   }
 
+  // ---------------------------------------------------------------
+  // PUT /api/display-settings
+  // ---------------------------------------------------------------
   public function update(Request $request)
   {
-    $data = $request->validate([
-      'settingNo'   => 'nullable|integer|min:1|max:' . self::SLOT_COUNT,
+    $meta = $request->validate([
+      'settingNo'   => 'nullable|integer|min:0|max:' . (self::SLOT_COUNT - 1),
       'settingName' => 'nullable|string|max:80',
-      'duration'    => 'nullable|integer|min:1|max:60',
     ]);
 
-    $settingNo = (int) ($data['settingNo'] ?? 1);
-    $settingName = trim((string) ($data['settingName'] ?? $this->settingName($settingNo)));
+    $settingNo = (int) ($meta['settingNo'] ?? 0);
+    $settingName = trim((string) ($meta['settingName'] ?? ''));
     if ($settingName === '') $settingName = $this->settingName($settingNo);
 
-    $payload = $this->normalize($request->only([
-      'duration',
-      'sbmodellist',
-      'syteamlist',
-      'sytasklist',
-      'tktasklist',
-      'showReserveInDevice',
-      'showResourceInDevice',
-      'showLocationInDevice',
-      'showUnassignedWorker',
-      'showShippingDateInDevice',
-      'showResponsibleInDevice',
-      'selectedKisyuIds',
-      'selectedTeamIds',
-      'selectedTaskIds',
-      'selectedTaskTabIds',
-    ]));
+    $payload = $request->only(array_keys($this->defaults()));
 
     $userNo = $this->userNo($request);
     $this->ensureSlots($userNo);
@@ -232,8 +353,8 @@ class DisplaySettingsController extends Controller
         ['user_no' => $userNo, 'setting_no' => $settingNo],
         [
           ...$this->rowValues($userNo, $settingNo, $settingName, $payload),
-          'updated_at' => now(),
           'created_at' => now(),
+          'updated_at' => now(),
         ],
       );
     });
