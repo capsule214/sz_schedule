@@ -24,7 +24,8 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
   // 装置タブ
   const [duration,      setDuration]      = useState(1);    // 表示期間（日数）
   const [sborder,       setSborder]       = useState(0);    // 0:製番順 1:着工日順 2:出荷日順
-  const [sbcolor,       setSbcolor]       = useState(0);    // 0:タスクカラー 1:機種カラー
+  const [sbcolor,       setSbcolor]       = useState(0);    // 0:タスクカラー 1:機種カラー（装置タブ）
+  const [sycolor,       setSycolor]       = useState(0);    // 0:タスクカラー 1:機種カラー（担当者タブ）
   const [sbsbmb,        setSbsbmb]        = useState(0);    // 0:製番 1:M番
   const [sbequiptype,   setSbequiptype]   = useState(-1);  // -1:全て 1:AAA 2:BBB 3:CCC
   const [sbstatuslist,   setSbstatuslist]   = useState([]); // number[] 0:試作機 1:量産機 2:生産終了機
@@ -42,6 +43,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
   const [flggoso,       setFlggoso]       = useState(false);
   const [flgdiff,       setFlgdiff]       = useState(false);
   // 担当者タブ
+  const [sygroup,    setSygroup]    = useState(0);  // 0=全て 1=1部 2=2部 3=3部
   const [syteamlist, setSyteamlist] = useState([]); // number[]
   const [sytasklist, setSytasklist] = useState([]); // number[]
   // タスクタブ
@@ -70,6 +72,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     setDuration(Math.max(1, Number(nextSettings.duration ?? 1)));
     setSborder(Number(nextSettings.sborder ?? 0));
     setSbcolor(Number(nextSettings.sbcolor ?? 0));
+    setSycolor(Number(nextSettings.sycolor ?? 0));
     setSbsbmb(Number(nextSettings.sbsbmb ?? 0));
     setSbequiptype(Number(nextSettings.sbequiptype ?? -1));
     setSbstatuslist((nextSettings.sbstatuslist || []).map(Number));
@@ -86,6 +89,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     setFlgkeppin(!!nextSettings.flgkeppin);
     setFlggoso(!!nextSettings.flggoso);
     setFlgdiff(!!nextSettings.flgdiff);
+    setSygroup(Number(nextSettings.sygroup ?? 0));
     setSyteamlist((nextSettings.syteamlist || []).map(Number));
     setSytasklist((nextSettings.sytasklist || []).map(Number));
     setTktasklist((nextSettings.tktasklist || []).map(Number));
@@ -150,10 +154,12 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     return Object.values(map).sort((a, b) => a.processSortNo - b.processSortNo);
   }, [tasks]);
 
-  // チームリスト
+  // チームリスト（製造部署・チーム名で絞り込み）
   const teamList = useMemo(() => {
     const map = workers.reduce((acc, w) => {
       if (!w.teamId) return acc;
+      // sygroup > 0 のとき製造部署で絞り込み
+      if (sygroup > 0 && w.szgroupId !== sygroup) return acc;
       const k = w.teamId;
       if (!acc[k]) acc[k] = { teamId: k, teamName: w.teamName || '(未設定)', count: 0 };
       acc[k].count++;
@@ -162,7 +168,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     return Object.values(map)
       .filter(t => t.teamName.includes(teamFilter))
       .sort((a, b) => a.teamName.localeCompare(b.teamName, 'ja'));
-  }, [workers, teamFilter]);
+  }, [workers, sygroup, teamFilter]);
 
   function toggleKisyu(id) {
     // id は number
@@ -187,6 +193,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
       duration,
       sborder,
       sbcolor,
+      sycolor,
       sbsbmb,
       sbequiptype,
       sbstatuslist,
@@ -203,6 +210,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
       flgkeppin,
       flggoso,
       flgdiff,
+      sygroup,
       syteamlist,
       sytasklist,
       tktasklist,
@@ -523,48 +531,140 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
           {tab === 'worker' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
 
-              {/* チームリスト */}
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0, marginBottom: 6 }}>チームリスト</div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginBottom: 4 }}>
-                <input
-                  placeholder="チーム名で絞り込み"
-                  value={teamFilter}
-                  onChange={e => setTeamFilter(e.target.value)}
-                  style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13 }}
-                />
-                <button onClick={() => setSyteamlist(teamList.map(t => t.teamId))} style={BTN}>全選択</button>
-                <button onClick={() => setSyteamlist([])} style={BTN}>全解除</button>
-              </div>
-              <div ref={teamListRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <VirtualList
-                  items={teamList.map(t => ({ ...t, id: t.teamId }))}
-                  height={teamListH}
-                  renderItem={item => (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', cursor: 'pointer', height: 36 }}>
-                      <input type="checkbox" checked={syteamlist.includes(item.teamId)} onChange={() => toggleTeam(item.teamId)} />
-                      <span style={{ flex: 1, fontSize: 13 }}>{item.teamName}</span>
-                      <span style={{ fontSize: 13, color: '#9ca3af' }}>{item.count}人</span>
-                    </label>
-                  )}
-                />
+              {/* 1行目：製造部署 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製造部署</span>
+                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
+                  {[[-1, '全て'], [1, '1部'], [2, '2部'], [3, '3部']].map(([val, label], idx, arr) => {
+                    const v = val === -1 ? 0 : val;
+                    const active = sygroup === v;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setSygroup(v)}
+                        style={{
+                          padding: '4px 14px', border: 'none',
+                          borderRight: idx < arr.length - 1 ? '1px solid #d1d5db' : 'none',
+                          background: active ? '#2563eb' : '#fff',
+                          color: active ? '#fff' : '#374151',
+                          fontSize: 13, cursor: 'pointer', fontWeight: active ? 600 : 400,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                      >{label}</button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* 表示タスクリスト */}
-              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 12, paddingTop: 12, flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示タスクリスト</span>
-                  <button onClick={() => setSytasklist(tasks.map(t => t.taskId))} style={BTN}>全選択</button>
-                  <button onClick={() => setSytasklist([])} style={BTN}>全解除</button>
+              {/* 3カラム横並び */}
+              <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+
+                {/* 左：チームリスト */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>チームリスト</div>
+                  <input
+                    placeholder="チーム名で絞り込み"
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value)}
+                    style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13, flexShrink: 0 }}
+                  />
+                  <button onClick={() => setSyteamlist(teamList.map(t => t.teamId))} style={{ ...BTN, width: '100%' }}>全選択</button>
+                  <select
+                    multiple
+                    value={syteamlist.map(String)}
+                    onChange={e => setSyteamlist([...e.target.selectedOptions].map(o => Number(o.value)))}
+                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
+                  >
+                    {teamList.map(t => (
+                      <option key={t.teamId} value={t.teamId}>{t.teamName}（{t.count}人）</option>
+                    ))}
+                  </select>
                 </div>
-                <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6 }}>
-                  {tasks.map(item => (
-                    <label key={item.taskId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', cursor: 'pointer', height: 36, borderBottom: '1px solid #f3f4f6' }}>
-                      <input type="checkbox" checked={sytasklist.includes(item.taskId)} onChange={() => toggleSyTask(item.taskId)} />
-                      <span style={{ flex: 1, fontSize: 13 }}>{item.taskName}</span>
-                    </label>
-                  ))}
+
+                {/* 中：表示タスクリスト */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>表示タスクリスト</div>
+                  <button onClick={() => setSytasklist(tasks.map(t => t.taskId))} style={{ ...BTN, width: '100%' }}>全選択</button>
+                  <select
+                    multiple
+                    value={sytasklist.map(String)}
+                    onChange={e => setSytasklist([...e.target.selectedOptions].map(o => Number(o.value)))}
+                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
+                  >
+                    {tasks.map(t => (
+                      <option key={t.taskId} value={t.taskId}>{t.taskName}</option>
+                    ))}
+                  </select>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は全タスクを表示します</p>
                 </div>
-                <p style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>未選択の場合は全タスクのバーを表示します</p>
+
+                {/* 右：表示オプション1 ＋ 表示オプション2 */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 120 }}>
+
+                  {/* 表示オプション1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション1</div>
+
+                    {/* 表示期間 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示期間</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        value={duration}
+                        onChange={e => setDuration(Math.max(1, Number(e.target.value)))}
+                        style={{
+                          width: 52, padding: '4px 6px',
+                          border: '1px solid #d1d5db', borderRadius: 6,
+                          fontSize: 13, textAlign: 'right',
+                        }}
+                      />
+                      <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>ヶ月</span>
+                    </div>
+
+                    {/* タスク表示色 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>タスク表示色</span>
+                      <select
+                        value={sycolor}
+                        onChange={e => setSycolor(Number(e.target.value))}
+                        style={{
+                          flex: 1, padding: '4px 6px',
+                          border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13,
+                        }}
+                      >
+                        <option value={0}>タスクカラー</option>
+                        <option value={1}>機種カラー</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 表示オプション2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション2</div>
+                    {[
+                      [sboption,      e => setSboption(e.target.checked),      '完了製品も表示'],
+                      [synobody,      e => setSynobody(e.target.checked),      '社員未定も表示'],
+                      [sbdspplplan,   e => setSbdspplplan(e.target.checked),   '場所予定も表示'],
+                      [sbdspdate,     e => setSbdspdate(e.target.checked),     '出荷日を表示'],
+                      [sbdspincharge, e => setSbdspincharge(e.target.checked), '責任者を表示'],
+                      [flgsyoyo,      e => setFlgsyoyo(e.target.checked),      '所要日連動を表示'],
+                      [flgukeoi,      e => setFlgukeoi(e.target.checked),      '請負発注状態を表示'],
+                      [flgkeppin,     e => setFlgkeppin(e.target.checked),     '部品欠品状態を表示'],
+                      [flggoso,       e => setFlggoso(e.target.checked),       '後送有無を表示'],
+                      [flgdiff,       e => setFlgdiff(e.target.checked),       '当日変更状態を表示'],
+                    ].map(([checked, onChange, label]) => (
+                      <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={checked} onChange={onChange} />
+                        <span style={{ fontSize: 13, color: '#374151' }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                </div>
+
               </div>
             </div>
           )}

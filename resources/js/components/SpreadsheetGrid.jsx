@@ -206,10 +206,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           label2: task.taskName,
         }));
     } else {
+      const sygroup = displaySettings.sygroup || 0;
       let w = workers;
+      if (sygroup > 0) {
+        w = w.filter(wr => wr.szgroupId === sygroup);
+      }
       if (syteamlist.length > 0) {
         w = w.filter(wr => syteamlist.includes(wr.teamId));
       }
+      // 担当者タブは teamId → workerId 昇順固定
+      w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
     }
   }, [mode, serials, workers, locations, displaySettings, baseDeviceGroups, forcedSerialId]);
@@ -313,6 +319,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const sbequiptype   = displaySettings.sbequiptype;
     const sbszgrouplist = displaySettings.sbszgrouplist || [];
     const sbstatuslist  = displaySettings.sbstatuslist  || [];
+    const sygroup       = displaySettings.sygroup       || 0;
     const syteamlist    = displaySettings.syteamlist    || [];
     const sytasklist    = displaySettings.sytasklist    || [];
     const tktasklist    = displaySettings.tktasklist    || [];
@@ -323,6 +330,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (sbszgrouplist.length > 0) body.szgroup_ids = sbszgrouplist;
       if (sbstatuslist.length > 0) body.seizo_statuses = sbstatuslist;
     } else if (mode === 'worker') {
+      if (sygroup > 0) body.team_szgroup_id = sygroup;
       if (syteamlist.length > 0) body.team_ids = syteamlist;
       if (sytasklist.length > 0) body.task_ids = sytasklist;
     } else if (mode === 'task') {

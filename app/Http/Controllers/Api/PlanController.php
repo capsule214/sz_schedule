@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\KdPlan;
 use App\Models\KdSerial;
+use App\Models\KmTeam;
 use App\Models\KmWorker;
 use Illuminate\Http\Request;
 
@@ -100,6 +101,7 @@ class PlanController extends Controller
       'szgroup_ids.*'          => 'integer|min:1',
       'seizo_statuses'         => 'nullable|array',
       'seizo_statuses.*'       => 'integer|min:0|max:2',
+      'team_szgroup_id'        => 'nullable|integer|min:1|max:3',
       'team_ids'               => 'nullable|array',
       'team_ids.*'             => 'integer|min:1',
       'task_ids'               => 'nullable|array',
@@ -115,7 +117,7 @@ class PlanController extends Controller
     if ($mode === 'device' && empty($data['serial_ids']) && empty($data['kisyu_ids'])) {
       return response()->json([]);
     }
-    if ($mode === 'worker' && empty($data['worker_ids']) && empty($data['team_ids']) && empty($data['show_unassigned_worker'])) {
+    if ($mode === 'worker' && empty($data['worker_ids']) && empty($data['team_ids']) && empty($data['team_szgroup_id']) && empty($data['show_unassigned_worker'])) {
       return response()->json([]);
     }
     if ($mode === 'task' && empty($data['task_ids'])) {
@@ -149,6 +151,18 @@ class PlanController extends Controller
         });
       } else {
         $query->whereIn('assignee_id', $data['worker_ids']);
+      }
+    }
+    if (!empty($data['team_szgroup_id'])) {
+      // 製造部署フィルタ: szgroup_id が一致するチームの worker_ids に絞る
+      $sgroupTeamIds = KmTeam::where('szgroup_id', $data['team_szgroup_id'])->pluck('team_id');
+      $sgroupWorkerIds = KmWorker::whereIn('team_id', $sgroupTeamIds)->pluck('worker_id');
+      if (!empty($data['show_unassigned_worker'])) {
+        $query->where(function ($q) use ($sgroupWorkerIds) {
+          $q->whereIn('assignee_id', $sgroupWorkerIds)->orWhereNull('assignee_id');
+        });
+      } else {
+        $query->whereIn('assignee_id', $sgroupWorkerIds);
       }
     }
     if (!empty($data['team_ids'])) {

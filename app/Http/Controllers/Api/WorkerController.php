@@ -15,16 +15,16 @@ class WorkerController extends Controller
       'workerName'  => $w->worker_name,
       'teamId'      => $w->team_id,
       'teamName'    => $w->km_team ? $w->km_team->team_name : '',
+      'szgroupId'   => $w->km_team ? $w->km_team->szgroup_id : null,
     ];
   }
 
   public function index()
   {
     $workers = KmWorker::with('km_team')
-      ->get()
-      ->sortBy(function ($w) {
-        return $w->km_team ? $w->km_team->sort_no : 999;
-      });
+      ->orderBy('team_id')
+      ->orderBy('worker_id')
+      ->get();
 
     return response()->json($workers->values()->map(fn($w) => $this->formatWorker($w)));
   }
