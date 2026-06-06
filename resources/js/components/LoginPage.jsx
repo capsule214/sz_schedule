@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { initCsrf, apiJson } from '../lib/api';
 
 export default function LoginPage({ onLogin }) {
-  const [loginId, setLoginId]   = useState('');
+  const [loginId,  setLoginId]  = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -15,7 +16,7 @@ export default function LoginPage({ onLogin }) {
       await initCsrf();
       const data = await apiJson('/login', {
         method: 'POST',
-        body: JSON.stringify({ loginId, password }),
+        body: JSON.stringify({ loginId, password, remember }),
       });
       onLogin(data.user);
     } catch (e) {
@@ -59,7 +60,7 @@ export default function LoginPage({ onLogin }) {
             />
           </label>
 
-          <label style={{ display: 'block', marginBottom: 24 }}>
+          <label style={{ display: 'block', marginBottom: 20 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>パスワード</span>
             <input
               type="password"
@@ -74,6 +75,19 @@ export default function LoginPage({ onLogin }) {
                 outline: 'none',
               }}
             />
+          </label>
+
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            marginBottom: 20, cursor: 'pointer', userSelect: 'none',
+          }}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#2563eb' }}
+            />
+            <span style={{ fontSize: 13, color: '#374151' }}>継続ログインする</span>
           </label>
 
           {error && (

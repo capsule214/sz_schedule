@@ -35,6 +35,13 @@ function App() {
     return () => window.removeEventListener('api:unauthorized', handleUnauthorized);
   }, []);
 
+  // ブラウザ標準コンテキストメニューを全面抑制
+  useEffect(() => {
+    const suppress = e => e.preventDefault();
+    document.addEventListener('contextmenu', suppress);
+    return () => document.removeEventListener('contextmenu', suppress);
+  }, []);
+
   if (!checked) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 14, color: '#6b7280' }}>
