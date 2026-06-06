@@ -1,5 +1,5 @@
 import { getColor } from '../lib/colors';
-import { CELL_SIZE, HANDLE_W } from '../lib/spreadsheet';
+import { CELL_SIZE, HANDLE_W, TODAY_STR } from '../lib/spreadsheet';
 
 export default function SpreadsheetGridBars({
   layoutGroups,
@@ -19,6 +19,7 @@ export default function SpreadsheetGridBars({
   planToEndCol,
   onBarPointerDown,
   onBarRightClick,
+  flgdiff = false,
 }) {
   const bars = [];
   const labels = [];
@@ -77,6 +78,7 @@ export default function SpreadsheetGridBars({
       const isSel = selected.has(plan.planId);
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
+      const showStar = flgdiff && plan.updatedAt === TODAY_STR;
 
       const rowArr = rowStartXMap.get(absRow) || [];
       const myIdx = rowArr.findIndex(r => r.planId === plan.planId);
@@ -103,6 +105,15 @@ export default function SpreadsheetGridBars({
           <div style={{ width: HANDLE_W, height: '100%', cursor: 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); onBarPointerDown(e, plan, 'resize-left'); }} />
           <div style={{ flex: 1 }} />
           <div style={{ width: HANDLE_W, height: '100%', cursor: 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); onBarPointerDown(e, plan, 'resize-right'); }} />
+          {showStar && (
+            <div style={{
+              position: 'absolute', right: 2, top: 1,
+              width: 10, height: 10,
+              fontSize: 10, lineHeight: '10px',
+              pointerEvents: 'none', zIndex: 6,
+              userSelect: 'none',
+            }}>⭐</div>
+          )}
         </div>
       );
 

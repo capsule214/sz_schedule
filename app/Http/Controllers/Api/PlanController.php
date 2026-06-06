@@ -54,6 +54,7 @@ class PlanController extends Controller
       'endDate'        => $plan->end_date,
       'workerId'       => $plan->assignee_id,
       'workerName'     => $worker ? $worker->worker_name : '',
+      'updatedAt'      => $plan->updated_at ? substr($plan->updated_at, 0, 10) : null,
     ];
   }
 
@@ -220,7 +221,7 @@ class PlanController extends Controller
     ]);
 
     $ids     = $data['ids'];
-    $deleted = KdPlan::whereIn('plan_id', $ids)->update(['deleted' => 1]);
+    $deleted = KdPlan::whereIn('plan_id', $ids)->update(['deleted' => 1, 'updated_at' => now()]);
     return response()->json(['deleted' => $deleted]);
   }
 

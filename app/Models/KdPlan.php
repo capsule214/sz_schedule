@@ -8,7 +8,8 @@ class KdPlan extends Model
 {
   protected $table = 'kd_plan';
   protected $primaryKey = 'plan_id';
-  public $timestamps = false;
+  const CREATED_AT = null;              // created_at は管理しない
+  public $timestamps = true;            // updated_at のみ自動更新
   protected $fillable = ['serial_id', 'task_id', 'assignee_id', 'deleted', 'start_date', 'end_date'];
 
   public function kd_serial()
