@@ -84,14 +84,16 @@ export default function SpreadsheetGridCanvas({
     ctx.stroke();
 
     // グループ区切り線（グリッド線より太く/濃く上書き）
+    // CSS の box-sizing:border-box では borderBottom がグループ高さの最終ピクセル（内側）に描画される。
+    // Canvas の fillRect は border-box と同じ位置に合わせるため 1px 上 (lineY - 1) に描画する。
     for (const g of layoutGroups) {
-      const lineY = g.startRow * CELL_SIZE - scrollTop;
+      const lineY = g.startRow * CELL_SIZE - scrollTop - 1;
       if (lineY >= -1 && lineY <= height + 1) {
         ctx.fillStyle = '#9ca3af';
         ctx.fillRect(0, Math.round(lineY), width, 1);
       }
       if (g.locationRowIdx >= 0) {
-        const locY = (g.startRow + g.locationRowIdx) * CELL_SIZE - scrollTop;
+        const locY = (g.startRow + g.locationRowIdx) * CELL_SIZE - scrollTop - 1;
         if (locY >= -1 && locY <= height + 1) {
           ctx.fillStyle = '#93c5fd';
           ctx.fillRect(0, Math.round(locY), width, 1);
