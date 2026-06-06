@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\KmCalendar;
+use App\Models\DrCalendar;
 use Illuminate\Http\Request;
 
 class CalendarController extends Controller
@@ -15,46 +15,47 @@ class CalendarController extends Controller
       'to'   => 'required|date|after_or_equal:from',
     ]);
 
-    $rows = KmCalendar::whereBetween('date', [$data['from'], $data['to']])->get();
+    $rows = DrCalendar::whereBetween('calendar_date', [$data['from'], $data['to']])->get();
 
     return response()->json($rows->map(fn($c) => [
-      'date'    => $c->date,
-      'dateType' => $c->day_type,
-      'dayType' => $c->day_type,
-      'memo'    => $c->memo,
+      'date'     => $c->calendar_date,
+      'dateType' => $c->date_type,
+      'dayType'  => $c->date_type,
     ]));
   }
 
   public function index()
   {
-    return response()->json(KmCalendar::orderBy('date')->get()->map(fn($c) => [
-      'date'    => $c->date,
-      'dateType' => $c->day_type,
-      'dayType' => $c->day_type,
-      'memo'    => $c->memo,
+    return response()->json(DrCalendar::orderBy('calendar_date')->get()->map(fn($c) => [
+      'date'     => $c->calendar_date,
+      'dateType' => $c->date_type,
+      'dayType'  => $c->date_type,
     ]));
   }
 
   public function store(Request $request)
   {
     $data = $request->validate([
-      'date'    => 'required|date',
-      'dayType' => 'nullable|integer|in:0,1,2',
-      'dateType' => 'nullable|integer|in:0,1,2',
-      'memo'    => 'nullable|string|max:100',
+      'date'     => 'required|date',
+      'dateType' => 'nullable|integer|in:0,1,6',
+      'dayType'  => 'nullable|integer|in:0,1,6',
     ]);
 
-    $cal = KmCalendar::updateOrCreate(
-      ['date' => $data['date']],
-      ['day_type' => $data['dateType'] ?? $data['dayType'] ?? 0, 'memo' => $data['memo'] ?? null]
+    $cal = DrCalendar::updateOrCreate(
+      ['calendar_date' => $data['date']],
+      ['date_type' => $data['dateType'] ?? $data['dayType'] ?? 0]
     );
 
-    return response()->json(['date' => $cal->date, 'dateType' => $cal->day_type, 'dayType' => $cal->day_type, 'memo' => $cal->memo], 201);
+    return response()->json([
+      'date'     => $cal->calendar_date,
+      'dateType' => $cal->date_type,
+      'dayType'  => $cal->date_type,
+    ], 201);
   }
 
   public function destroy(string $date)
   {
-    KmCalendar::where('date', $date)->delete();
+    DrCalendar::where('calendar_date', $date)->delete();
     return response()->json(['deleted' => 1]);
   }
 }

@@ -86,7 +86,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const fetchedPlanKeysRef  = useRef(new Set());
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
   const fetchedLocKeysRef   = useRef(new Set());
-  const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType, memo }
+  const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType } (0=平日 1=週末 6=会社休業日)
   const fetchedCalendarRangesRef = useRef([]);
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -418,7 +418,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         });
         setCalendarData(prev => {
           const next = new Map(prev);
-          for (const c of data) next.set(c.date, { dayType: c.dayType, memo: c.memo });
+          for (const c of data) next.set(c.date, { dayType: c.dayType });
           return next;
         });
         fetchedCalendarRangesRef.current.push(gap);
@@ -1165,12 +1165,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const dow = dt.getDay();
       const cal = calendarData.get(ds);
       let type;
-      if (cal?.dayType === 1)      type = 'holiday';   // 祝日
-      else if (cal?.dayType === 2) type = 'weekday';   // 特別出勤（土曜→平日扱い）
+      if (cal?.dayType === 6)      type = 'holiday';   // 会社休業日
       else if (dow === 0)          type = 'sunday';
       else if (dow === 6)          type = 'saturday';
       else                         type = 'weekday';
-      cols.push({ dateStr: ds, day: dt.getDate(), dow, month: dt.getMonth() + 1, year: dt.getFullYear(), week: getWeekNumber(ds), type, calMemo: cal?.memo ?? null });
+      cols.push({ dateStr: ds, day: dt.getDate(), dow, month: dt.getMonth() + 1, year: dt.getFullYear(), week: getWeekNumber(ds), type });
     }
     return cols;
   }, [startDate, endDate, calendarData]);

@@ -12,7 +12,7 @@ use App\Models\KmTask;
 use App\Models\KdPlan;
 use App\Models\KmLocation;
 use App\Models\KdLocationPlan;
-use App\Models\KmCalendar;
+use App\Models\DrCalendar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -224,7 +224,7 @@ class SeedController extends Controller
     KmProcess::truncate();
     DmKisyu::truncate();
     KmLocation::truncate();
-    KmCalendar::truncate();
+    DrCalendar::truncate();
     DB::statement('PRAGMA foreign_keys = ON');
 
     $locationIds = [];
@@ -306,17 +306,16 @@ class SeedController extends Controller
       $w = (int) date('w', $ts);
       $dateType = ($w === 0 || $w === 6) ? 1 : 0;
       if ($this->lcgRange(1, 100) <= 3) {
-        $dateType = 2;
+        $dateType = 6; // 会社休業日
       }
       $calendarRows[] = [
-        'date'     => date('Y-m-d', $ts),
-        'day_type' => $dateType,
-        'memo'     => $dateType === 2 ? '祝日' : null,
+        'calendar_date' => date('Y-m-d', $ts),
+        'date_type'     => $dateType,
       ];
     }
 
     foreach (array_chunk($calendarRows, 200) as $chunk) {
-      KmCalendar::insert($chunk);
+      DrCalendar::insert($chunk);
     }
 
     return response()->json([
