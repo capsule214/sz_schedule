@@ -108,8 +108,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
   const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
   const leftHdrW = mode === 'device' ? DEV_HDR_W + deviceExtraW
-           : (mode === 'worker' || mode === 'task') ? ASGN_HDR_W * 2
+           : (mode === 'worker' || mode === 'task' || mode === 'location') ? ASGN_HDR_W * 2
            : ASGN_HDR_W;
+
+  // 場所タブのフロアフィルタ（ローカル状態、displaySettings.pllocation で初期化）
+  const [pllocation, setPllocation] = useState(() => displaySettings?.pllocation ?? 3);
+  useEffect(() => {
+    if (displaySettings?.pllocation != null) setPllocation(displaySettings.pllocation);
+  }, [displaySettings?.pllocation]); // eslint-disable-line react-hooks/exhaustive-deps
   const planEndpoint = mode === 'location' ? '/location-plan' : '/plan';
   const planSearchEndpoint = mode === 'device'
     ? '/plan/search/device'
@@ -185,10 +191,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       return baseDeviceGroups;
     } else if (mode === 'location') {
-      return (locations || []).map(loc => ({
+      let locs = locations || [];
+      if (pllocation) locs = locs.filter(loc => loc.floorLevel === pllocation);
+      return locs.map(loc => ({
         id: loc.locationId,
         label1: loc.locationName,
-        label2: '',
+        label2: String(loc.floorLevel ?? ''),
       }));
     } else if (mode === 'task') {
       const tktasklist = displaySettings.tktasklist || [];
@@ -218,7 +226,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
     }
-  }, [mode, serials, workers, locations, displaySettings, baseDeviceGroups, forcedSerialId]);
+  }, [mode, serials, workers, locations, displaySettings, baseDeviceGroups, forcedSerialId, pllocation]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? 'device' : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'location';
@@ -1222,6 +1230,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialSearchText={serialSearchText}
         onSerialSearchTextChange={setSerialSearchText}
         onSerialSearch={handleSerialSearch}
+        pllocation={pllocation}
+        onPlLocationChange={setPllocation}
       />
 
       {/* グリッド本体 */}

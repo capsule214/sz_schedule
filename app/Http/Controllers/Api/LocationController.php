@@ -16,6 +16,7 @@ class LocationController extends Controller
         'locationId'   => $loc->location_id,
         'locationName' => $loc->location_name,
         'sortNo'       => $loc->sort_no,
+        'floorLevel'   => $loc->floor_level,
       ];
     }));
   }

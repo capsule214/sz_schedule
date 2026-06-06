@@ -73,6 +73,15 @@ export default function SpreadsheetGridLeftHeader({
               {g.isUnassigned ? g.label2 : g.label1}
             </div>
           </div>
+        ) : mode === 'location' ? (
+          <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+            <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
+              {g.label2 ? `${g.label2}F` : '-'}
+            </div>
+            <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#111827' }}>
+              {g.label1}
+            </div>
+          </div>
         ) : (
           <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{g.label1}</div>
         )}

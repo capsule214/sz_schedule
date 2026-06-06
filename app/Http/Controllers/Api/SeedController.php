@@ -232,6 +232,7 @@ class SeedController extends Controller
       $loc = KmLocation::create([
         'location_name' => '場所' . str_pad($i, 3, '0', STR_PAD_LEFT),
         'sort_no'       => $i,
+        'floor_level'   => (($i - 1) % 3) + 3,  // 3/4/5 を循環
       ]);
       $locationIds[] = $loc->location_id;
     }

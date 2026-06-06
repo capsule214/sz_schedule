@@ -9,7 +9,7 @@ class KmLocation extends Model
   protected $table = 'km_location';
   protected $primaryKey = 'location_id';
   public $timestamps = false;
-  protected $fillable = ['location_name', 'sort_no'];
+  protected $fillable = ['location_name', 'sort_no', 'floor_level'];
 
   public function kd_location_plans()
   {
