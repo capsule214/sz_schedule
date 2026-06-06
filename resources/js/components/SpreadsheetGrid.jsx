@@ -118,7 +118,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       : mode === 'task'
         ? '/plan/search/task'
         : '/location-plan/search';
-  const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : MIN_ROWS;
+  const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
@@ -149,9 +149,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (sbszgrouplist.length > 0) {
       s = s.filter(ser => sbszgrouplist.includes(ser.szgroupId));
     }
-    if (sbstatuslist.length > 0) {
-      s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
+    if (sbstatuslist.length === 0) {
+      return []; // 全チェックOFFのときは何も表示しない
     }
+    s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
     s = [...s].sort((a, b) => {
       if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
       return a.serialNo.localeCompare(b.serialNo, 'ja', { numeric: true });

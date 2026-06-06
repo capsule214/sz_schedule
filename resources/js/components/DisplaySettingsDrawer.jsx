@@ -120,7 +120,9 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     if (sbequiptype !== -1) {
       src = src.filter(s => s.equipTypeId === sbequiptype);
     }
-    if (sbstatuslist.length > 0) {
+    if (sbstatuslist.length === 0) {
+      src = []; // 全チェックOFFのときは何も表示しない
+    } else {
       src = src.filter(s => sbstatuslist.includes(s.seizoStatus));
     }
     const map = src.reduce((acc, s) => {
