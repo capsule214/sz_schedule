@@ -35,6 +35,7 @@ class DisplaySettingsController extends Controller
       'sbdspplplan'     => false,
       'flggoso'         => false,
       'sboption'        => 0,
+      'synobody'        => false,
       'sborder'         => 0,
       'sbsbmb'          => 0,
       'sbslace'         => 1,
@@ -91,7 +92,7 @@ class DisplaySettingsController extends Controller
 
     // 真偽値
     foreach (['flgdiff', 'flgkeppin', 'flgsyoyo', 'flgukeoi',
-              'sbdspdate', 'sbdspincharge', 'sbdspplplan', 'flggoso'] as $key) {
+              'sbdspdate', 'sbdspincharge', 'sbdspplplan', 'flggoso', 'synobody'] as $key) {
       $d[$key] = (bool) $d[$key];
     }
 
@@ -192,6 +193,7 @@ class DisplaySettingsController extends Controller
       'sbdspplplan'     => $row->sbdspplplan ?? false,
       'flggoso'         => $row->flggoso ?? false,
       'sboption'        => $row->sboption ?? 0,
+      'synobody'        => $row->synobody ?? false,
       'sborder'         => $row->sborder ?? 0,
       'sbsbmb'          => $row->sbsbmb ?? 0,
       'sbslace'         => $row->sbslace ?? 1,
@@ -240,6 +242,7 @@ class DisplaySettingsController extends Controller
       'sbdspplplan'     => $s['sbdspplplan'],
       'flggoso'         => $s['flggoso'],
       'sboption'        => $s['sboption'],
+      'synobody'        => $s['synobody'],
       'sborder'         => $s['sborder'],
       'sbsbmb'          => $s['sbsbmb'],
       'sbslace'         => $s['sbslace'],

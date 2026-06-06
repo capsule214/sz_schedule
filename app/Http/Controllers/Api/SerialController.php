@@ -15,11 +15,14 @@ class SerialController extends Controller
       'kisyuId'       => $s->kisyu_id,
       'kisyuName'     => $s->dm_kisyu ? $s->dm_kisyu->kisyu_name : '',
       'serialNo'      => $s->serial_no,
+      'equipTypeId'   => $s->equip_type_id,
+      'szgroupId'     => $s->szgroup_id,
       'shippingDate'  => $s->shipping_date,
       'responsible'   => $s->responsible,
       'backColor'     => $s->back_color,
       'fontColor'     => $s->font_color,
       'sortNo'        => $s->dm_kisyu ? $s->dm_kisyu->sort_no : 0,
+      'seizoStatus'   => $s->dm_kisyu ? $s->dm_kisyu->seizo_status : null,
     ];
   }
 

@@ -26,8 +26,11 @@ function displaySettingsCookieName(user) {
 
 function pickDisplaySettings(apiPayload, activeNo) {
   const list = apiPayload.settingsList || [];
-  const no = Number(activeNo);
-  const active = list.find(item => item.settingNo === no) || list.find(item => item.settingNo === apiPayload.settingNo) || list[0];
+  // cookie 値は文字列で来るので数値に変換。未設定時は 0 番スロットを使用
+  const no = activeNo !== null && activeNo !== undefined && activeNo !== '' ? Number(activeNo) : 0;
+  const active = list.find(item => item.settingNo === no)
+    ?? list.find(item => item.settingNo === apiPayload.settingNo)
+    ?? list[0];
   if (!active) return apiPayload;
   const settingNo = active.settingNo;
   const settingName = active.settingName;
@@ -46,7 +49,19 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [displaySettings, setDisplaySettings] = useState({ selectedKisyuIds: [], selectedTeamIds: [], selectedTaskIds: [], selectedTaskTabIds: [], showLocationInDevice: false, showUnassignedWorker: false, showShippingDateInDevice: false, showResponsibleInDevice: false });
+  const [displaySettings, setDisplaySettings] = useState({
+    settingNo: 0,
+    settingName: '表示設定1',
+    duration: 1,
+    flgdiff: false, flgkeppin: false, flgsyoyo: false, flgukeoi: false,
+    pllocation: 3, plslace: 1,
+    sbcolor: 0, sbdspdate: false, sbdspincharge: false, sbdspplplan: false, flggoso: false,
+    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbslace: 1, sbequiptype: -1,
+    flgsyoyo: false, flgukeoi: false, flgkeppin: false, flgdiff: false,
+    sbinchargelist: [], sbmodellist: [], sbstatuslist: [], sbszgrouplist: [],
+    sycolor: 0, sygroup: 0, syslace: 1, syteamlist: [], sytasklist: [],
+    tksbmb: 0, tkslace: 1, tktasklist: [],
+  });
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -74,10 +89,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   const masterRequirements = useMemo(() => ({
     device: ['serials'],
-    worker: displaySettings.showUnassignedWorker ? ['workers', 'serials'] : ['workers'],
+    worker: ['workers'],
     task: ['tasks'],
     location: ['locations'],
-  }), [displaySettings.showUnassignedWorker]);
+  }), []);
 
   const hasMastersForMode = useCallback((mode) => (
     (masterRequirements[mode] || []).every(key => loadedMasters[key])
@@ -214,10 +229,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setCookie(displaySettingsCookieName(user), settings.settingNo);
     setDisplaySettings(settings);
     setDisplaySettingsList(prev => {
-      const next = prev.length ? prev : (settings.settingsList || []);
-      return next.map(item => item.settingNo === settings.settingNo
-        ? { ...item, settingName: settings.settingName, settings, isActive: true }
-        : { ...item, isActive: false });
+      const base = prev.length ? prev : (settings.settingsList || []);
+      return base.map(item =>
+        item.settingNo === settings.settingNo
+          ? { ...item, settingName: settings.settingName, settings, isActive: true }
+          : { ...item, isActive: false }
+      );
     });
     // 適用したドロワータブのグリッドに切り替える
     if (drawerTab === 'device') setTab('device');
@@ -238,7 +255,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   const handleJumpToOtherTab = useCallback(async (plan, targetMode) => {
-    const { selectedKisyuIds = [], selectedTeamIds = [] } = displaySettings;
+    const sbmodellist = displaySettings.sbmodellist || [];
+    const syteamlist  = displaySettings.syteamlist  || [];
 
     // ① 表示設定チェック（機種 / 担当者が表示対象か）
     if (targetMode === 'device') {
@@ -248,7 +266,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         showAlert('表示対象データがありませんでした');
         return;
       }
-      if (selectedKisyuIds.length > 0 && !selectedKisyuIds.includes(String(serial.kisyuId))) {
+      if (sbmodellist.length > 0 && !sbmodellist.includes(Number(serial.kisyuId))) {
         showAlert('表示対象データがありませんでした（表示設定で非表示の機種です）');
         return;
       }
@@ -259,7 +277,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         showAlert('表示対象データがありませんでした');
         return;
       }
-      if (selectedTeamIds.length > 0 && !selectedTeamIds.includes(worker.teamId)) {
+      if (syteamlist.length > 0 && !syteamlist.includes(worker.teamId)) {
         showAlert('表示対象データがありませんでした（表示設定で非表示のチームです）');
         return;
       }
@@ -324,61 +342,66 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         onCancel={handleCancel}
       />
 
-      {/* グリッド — アクティブなタブだけマウントし、非表示タブの API 呼び出しを発生させない */}
+      {/* グリッド — 全タブを常時マウントし visibility で切り替え。スクロール位置を保持する */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {!hasMastersForMode(tab) ? (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#6b7280' }}>
+        {/* アクティブタブのマスター未ロード中はオーバーレイで「読み込み中」を表示 */}
+        {!hasMastersForMode(tab) && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, color: '#6b7280', background: '#fff',
+          }}>
             読み込み中...
           </div>
-        ) : tab === 'device' ? (
-          <GridTabPane active>
+        )}
+
+        <GridTabPane active={tab === 'device'}>
           <SpreadsheetGrid
             {...gridProps}
-            active
+            active={tab === 'device'}
             ref={deviceGridRef}
             mode="device"
-            jumpTarget={jumpTarget}
+            jumpTarget={tab === 'device' ? jumpTarget : null}
             onRangeChange={r => { deviceRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-          </GridTabPane>
-        ) : tab === 'worker' ? (
-          <GridTabPane active>
+        </GridTabPane>
+
+        <GridTabPane active={tab === 'worker'}>
           <SpreadsheetGrid
             {...gridProps}
-            active
+            active={tab === 'worker'}
             ref={workerGridRef}
             mode="worker"
-            jumpTarget={jumpTarget}
+            jumpTarget={tab === 'worker' ? jumpTarget : null}
             onRangeChange={r => { workerRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-          </GridTabPane>
-        ) : tab === 'location' ? (
-          <GridTabPane active>
+        </GridTabPane>
+
+        <GridTabPane active={tab === 'location'}>
           <SpreadsheetGrid
             {...gridProps}
-            active
+            active={tab === 'location'}
             ref={locationGridRef}
             mode="location"
             jumpTarget={null}
             onRangeChange={r => { locationRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-          </GridTabPane>
-        ) : (
-          <GridTabPane active>
+        </GridTabPane>
+
+        <GridTabPane active={tab === 'task'}>
           <SpreadsheetGrid
             {...gridProps}
-            active
+            active={tab === 'task'}
             ref={taskGridRef}
             mode="task"
             jumpTarget={null}
             onRangeChange={r => { taskRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
-          </GridTabPane>
-        )}
+        </GridTabPane>
 
         <AlertToast message={alertMessage} onClose={() => setAlertMessage(null)} />
 

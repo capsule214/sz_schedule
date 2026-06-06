@@ -45,7 +45,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 }, ref) {
   const today = new Date();
   const [startDate, setStartDate] = useState(() => dateToStr(today));
-  const [displayMonths, setDisplayMonths] = useState(4);
+  const [displayMonths, setDisplayMonths] = useState(() => {
+    const d = displaySettings?.duration;
+    return (d && d >= 1) ? d : 4;
+  });
+
+  // 表示設定の duration（ヶ月）が変わったら displayMonths を同期
+  useEffect(() => {
+    const d = displaySettings?.duration;
+    if (d && d >= 1) setDisplayMonths(d);
+  }, [displaySettings?.duration]);
   const [deviceCount, setDeviceCount] = useState(1000);
   const [viewMode, setViewMode] = useState('day');
   const [plans, setPlans] = useState([]);
@@ -95,8 +104,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const prevJumpTargetRef = useRef(null);
   const pendingScrollSerialIdRef = useRef(null);
 
-  const showShippingDate = mode === 'device' && !!displaySettings.showShippingDateInDevice;
-  const showResponsible  = mode === 'device' && !!displaySettings.showResponsibleInDevice;
+  const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
+  const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
   const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
   const leftHdrW = mode === 'device' ? DEV_HDR_W + deviceExtraW
            : (mode === 'worker' || mode === 'task') ? ASGN_HDR_W * 2
@@ -110,7 +119,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         ? '/plan/search/task'
         : '/location-plan/search';
   const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : MIN_ROWS;
-  const extraLocationRow = mode === 'device' && !!displaySettings.showLocationInDevice;
+  const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
 
@@ -126,10 +135,22 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const baseDeviceGroups = useMemo(() => {
     if (mode !== 'device') return [];
-    const { selectedKisyuIds = [] } = displaySettings;
+    const sbmodellist   = displaySettings.sbmodellist   || [];
+    const sbequiptype   = displaySettings.sbequiptype;   // -1:全て 1/2/3
+    const sbszgrouplist = displaySettings.sbszgrouplist  || [];
+    const sbstatuslist  = displaySettings.sbstatuslist   || [];
     let s = serials;
-    if (selectedKisyuIds.length > 0) {
-      s = s.filter(ser => selectedKisyuIds.includes(String(ser.kisyuId)));
+    if (sbmodellist.length > 0) {
+      s = s.filter(ser => sbmodellist.includes(Number(ser.kisyuId)));
+    }
+    if (sbequiptype != null && sbequiptype !== -1) {
+      s = s.filter(ser => ser.equipTypeId === sbequiptype);
+    }
+    if (sbszgrouplist.length > 0) {
+      s = s.filter(ser => sbszgrouplist.includes(ser.szgroupId));
+    }
+    if (sbstatuslist.length > 0) {
+      s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
     }
     s = [...s].sort((a, b) => {
       if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
@@ -146,7 +167,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [mode, serials, displaySettings, deviceCount]);
 
   const filteredGroups = useMemo(() => {
-    const { selectedTeamIds = [] } = displaySettings;
+    const syteamlist = displaySettings.syteamlist || [];
     if (mode === 'device') {
       if (forcedSerialId != null) {
         const ser = serials.find(s => s.serialId === forcedSerialId);
@@ -169,10 +190,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         label2: '',
       }));
     } else if (mode === 'task') {
-      const { selectedTaskTabIds = [] } = displaySettings;
+      const tktasklist = displaySettings.tktasklist || [];
       let t = tasks;
-      if (selectedTaskTabIds.length > 0) {
-        t = t.filter(task => selectedTaskTabIds.includes(task.taskId));
+      if (tktasklist.length > 0) {
+        t = t.filter(task => tktasklist.includes(task.taskId));
       }
       return [...t]
         .sort((a, b) => {
@@ -186,8 +207,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }));
     } else {
       let w = workers;
-      if (selectedTeamIds.length > 0) {
-        w = w.filter(wr => selectedTeamIds.includes(wr.teamId));
+      if (syteamlist.length > 0) {
+        w = w.filter(wr => syteamlist.includes(wr.teamId));
       }
       return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
     }
@@ -199,7 +220,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
 
-    if (mode !== 'worker' || !displaySettings.showUnassignedWorker) return result;
+    if (mode !== 'worker' || !displaySettings.showUnassignedWorker) return result; // showUnassignedWorker は将来対応予定
 
     // 担当者未定の予定（workerId === null）を製番別にグループ化して末尾に追加
     const unassignedPlans = activePlans.filter(p => p.workerId == null);
@@ -288,17 +309,24 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   // 表示設定から API 検索ボディのフィルタ部分を構築する
   function buildFilterBody() {
-    const { selectedKisyuIds = [], selectedTeamIds = [], selectedTaskIds = [], showUnassignedWorker = false } = displaySettings;
+    const sbmodellist   = displaySettings.sbmodellist   || [];
+    const sbequiptype   = displaySettings.sbequiptype;
+    const sbszgrouplist = displaySettings.sbszgrouplist || [];
+    const sbstatuslist  = displaySettings.sbstatuslist  || [];
+    const syteamlist    = displaySettings.syteamlist    || [];
+    const sytasklist    = displaySettings.sytasklist    || [];
+    const tktasklist    = displaySettings.tktasklist    || [];
     const body = {};
     if (mode === 'device') {
-      if (selectedKisyuIds.length > 0) body.kisyu_ids = selectedKisyuIds.map(Number);
+      if (sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
+      if (sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;
+      if (sbszgrouplist.length > 0) body.szgroup_ids = sbszgrouplist;
+      if (sbstatuslist.length > 0) body.seizo_statuses = sbstatuslist;
     } else if (mode === 'worker') {
-      if (selectedTeamIds.length > 0) body.team_ids = selectedTeamIds;
-      if (selectedTaskIds.length > 0) body.task_ids = selectedTaskIds;
-      if (showUnassignedWorker) body.show_unassigned_worker = true;
+      if (syteamlist.length > 0) body.team_ids = syteamlist;
+      if (sytasklist.length > 0) body.task_ids = sytasklist;
     } else if (mode === 'task') {
-      const { selectedTaskTabIds = [] } = displaySettings;
-      if (selectedTaskTabIds.length > 0) body.task_ids = selectedTaskTabIds;
+      if (tktasklist.length > 0) body.task_ids = tktasklist;
     }
     return body;
   }

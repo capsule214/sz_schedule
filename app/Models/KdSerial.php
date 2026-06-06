@@ -9,7 +9,7 @@ class KdSerial extends Model
   protected $table = 'kd_serial';
   protected $primaryKey = 'serial_id';
   public $timestamps = false;
-  protected $fillable = ['kisyu_id', 'serial_no', 'shipping_date', 'responsible', 'back_color', 'font_color'];
+  protected $fillable = ['kisyu_id', 'serial_no', 'equip_type_id', 'szgroup_id', 'shipping_date', 'responsible', 'back_color', 'font_color'];
 
   public function dm_kisyu()
   {

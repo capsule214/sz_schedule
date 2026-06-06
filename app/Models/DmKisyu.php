@@ -9,7 +9,7 @@ class DmKisyu extends Model
   protected $table = 'dm_kisyu';
   protected $primaryKey = 'kisyu_id';
   public $timestamps = false;
-  protected $fillable = ['kisyu_name', 'sort_no'];
+  protected $fillable = ['kisyu_name', 'sort_no', 'seizo_status'];
 
   public function serials()
   {

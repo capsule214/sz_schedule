@@ -95,6 +95,11 @@ class PlanController extends Controller
       'worker_ids.*'           => 'integer|min:1',
       'kisyu_ids'              => 'nullable|array',
       'kisyu_ids.*'            => 'integer|min:1',
+      'equip_type_id'          => 'nullable|integer',
+      'szgroup_ids'            => 'nullable|array',
+      'szgroup_ids.*'          => 'integer|min:1',
+      'seizo_statuses'         => 'nullable|array',
+      'seizo_statuses.*'       => 'integer|min:0|max:2',
       'team_ids'               => 'nullable|array',
       'team_ids.*'             => 'integer|min:1',
       'task_ids'               => 'nullable|array',
@@ -122,6 +127,19 @@ class PlanController extends Controller
     }
     if (!empty($data['kisyu_ids'])) {
       $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
+      $query->whereIn('serial_id', $serialIds);
+    }
+    if (!empty($data['equip_type_id'])) {
+      $serialIds = KdSerial::where('equip_type_id', $data['equip_type_id'])->pluck('serial_id');
+      $query->whereIn('serial_id', $serialIds);
+    }
+    if (!empty($data['szgroup_ids'])) {
+      $serialIds = KdSerial::whereIn('szgroup_id', $data['szgroup_ids'])->pluck('serial_id');
+      $query->whereIn('serial_id', $serialIds);
+    }
+    if (!empty($data['seizo_statuses'])) {
+      $kisyuIds  = \App\Models\DmKisyu::whereIn('seizo_status', $data['seizo_statuses'])->pluck('kisyu_id');
+      $serialIds = KdSerial::whereIn('kisyu_id', $kisyuIds)->pluck('serial_id');
       $query->whereIn('serial_id', $serialIds);
     }
     if (!empty($data['worker_ids'])) {
