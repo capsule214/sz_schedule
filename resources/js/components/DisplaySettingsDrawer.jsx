@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import VirtualList from './VirtualList';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import DisplaySettingsSlotPicker from './DisplaySettingsSlotPicker';
 
 const BTN = {
@@ -7,16 +6,6 @@ const BTN = {
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
-function useListHeight(ref) {
-  const [height, setHeight] = useState(200);
-  useEffect(() => {
-    if (!ref.current) return;
-    const obs = new ResizeObserver(([e]) => setHeight(e.contentRect.height));
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  });
-  return height;
-}
 
 export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, settingsList = [], onEnsureMasters, onSave }) {
   // location タブはドロワーにないので device にフォールバック
@@ -47,14 +36,13 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
   const [syteamlist, setSyteamlist] = useState([]); // number[]
   const [sytasklist, setSytasklist] = useState([]); // number[]
   // タスクタブ
+  const [tksbmb,     setTksbmb]     = useState(0);  // 0=製番 1=M番 2=すべて
   const [tktasklist, setTktasklist] = useState([]); // number[]
   const [settingNo, setSettingNo] = useState(0);
   const [settingName, setSettingName] = useState('表示設定1');
   const [teamFilter,       setTeamFilter]        = useState('');
   const [sbinchargeInput,  setSbinchargeInput]   = useState(''); // タグ入力中のテキスト
 
-  const teamListRef = useRef(null);
-  const teamListH   = useListHeight(teamListRef);
 
   const normalizedSettingsList = useMemo(() => {
     const source = settingsList.length ? settingsList : (settings.settingsList || []);
@@ -92,6 +80,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
     setSygroup(Number(nextSettings.sygroup ?? 0));
     setSyteamlist((nextSettings.syteamlist || []).map(Number));
     setSytasklist((nextSettings.sytasklist || []).map(Number));
+    setTksbmb(Number(nextSettings.tksbmb ?? 0));
     setTktasklist((nextSettings.tktasklist || []).map(Number));
   }
 
@@ -213,6 +202,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
       sygroup,
       syteamlist,
       sytasklist,
+      tksbmb,
       tktasklist,
     }, tab);
   }
@@ -580,6 +570,7 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
                       <option key={t.teamId} value={t.teamId}>{t.teamName}（{t.count}人）</option>
                     ))}
                   </select>
+
                 </div>
 
                 {/* 中：表示タスクリスト */}
@@ -672,29 +663,108 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
           {/* ── タスクタブ ── */}
           {tab === 'task' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#374151', flex: 1 }}>表示タスクリスト</span>
-                <button onClick={() => setTktasklist(tasks.map(t => t.taskId))} style={BTN}>全選択</button>
-                <button onClick={() => setTktasklist([])} style={BTN}>全解除</button>
+
+              {/* 1行目：製品表示 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
+                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
+                  {[['製番', 0], ['M番', 1], ['すべて', 2]].map(([label, val], idx, arr) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setTksbmb(val)}
+                      style={{
+                        padding: '4px 14px', border: 'none',
+                        borderRight: idx < arr.length - 1 ? '1px solid #d1d5db' : 'none',
+                        background: tksbmb === val ? '#2563eb' : '#fff',
+                        color: tksbmb === val ? '#fff' : '#374151',
+                        fontSize: 13, cursor: 'pointer', fontWeight: tksbmb === val ? 600 : 400,
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >{label}</button>
+                  ))}
+                </div>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, minHeight: 0 }}>
-                {tasksByProcess.map(pg => (
-                  <div key={pg.processName}>
-                    <div style={{ padding: '6px 10px', background: '#f3f4f6', fontSize: 13, fontWeight: 700, color: '#374151', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1 }}>
-                      {pg.processName}
+
+              {/* 2カラム横並び */}
+              <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+
+                {/* 左：表示タスクリスト */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>表示タスクリスト</div>
+                  <select
+                    multiple
+                    value={tktasklist.map(String)}
+                    onChange={e => setTktasklist([...e.target.selectedOptions].map(o => Number(o.value)))}
+                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
+                  >
+                    {tasks.map(t => (
+                      <option key={t.taskId} value={t.taskId}>{t.taskTypeName || '(未設定)'} | {t.processName || '(未設定)'} | {t.taskName}</option>
+                    ))}
+                  </select>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は何も表示しません</p>
+                </div>
+
+                {/* 右：表示オプション1 ＋ 表示オプション2 */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 120 }}>
+
+                  {/* 表示オプション1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション1</div>
+
+                    {/* 表示期間 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示期間</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        value={duration}
+                        onChange={e => setDuration(Math.max(1, Number(e.target.value)))}
+                        style={{ width: 52, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, textAlign: 'right' }}
+                      />
+                      <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>ヶ月</span>
                     </div>
-                    {pg.tasks.map(item => (
-                      <label key={item.taskId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', cursor: 'pointer', height: 36, borderBottom: '1px solid #f3f4f6' }}>
-                        <input type="checkbox" checked={tktasklist.includes(item.taskId)} onChange={() => toggleTkTask(item.taskId)} />
-                        <span style={{ flex: 1, fontSize: 13 }}>{item.taskName}</span>
+
+                    {/* タスク表示色 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>タスク表示色</span>
+                      <select
+                        value={sycolor}
+                        onChange={e => setSycolor(Number(e.target.value))}
+                        style={{ flex: 1, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+                      >
+                        <option value={0}>タスクカラー</option>
+                        <option value={1}>機種カラー</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 表示オプション2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション2</div>
+                    {[
+                      [sboption,      e => setSboption(e.target.checked),      '完了製品も表示'],
+                      [synobody,      e => setSynobody(e.target.checked),      '社員未定も表示'],
+                      [sbdspplplan,   e => setSbdspplplan(e.target.checked),   '場所予定も表示'],
+                      [sbdspdate,     e => setSbdspdate(e.target.checked),     '出荷日を表示'],
+                      [sbdspincharge, e => setSbdspincharge(e.target.checked), '責任者を表示'],
+                      [flgsyoyo,      e => setFlgsyoyo(e.target.checked),      '所要日連動を表示'],
+                      [flgukeoi,      e => setFlgukeoi(e.target.checked),      '請負発注状態を表示'],
+                      [flgkeppin,     e => setFlgkeppin(e.target.checked),     '部品欠品状態を表示'],
+                      [flggoso,       e => setFlggoso(e.target.checked),       '後送有無を表示'],
+                      [flgdiff,       e => setFlgdiff(e.target.checked),       '当日変更状態を表示'],
+                    ].map(([checked, onChange, label]) => (
+                      <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={checked} onChange={onChange} />
+                        <span style={{ fontSize: 13, color: '#374151' }}>{label}</span>
                       </label>
                     ))}
                   </div>
-                ))}
+
+                </div>
+
               </div>
-              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 8, flexShrink: 0 }}>
-                未選択の場合は全タスクを表示します
-              </p>
             </div>
           )}
         </div>

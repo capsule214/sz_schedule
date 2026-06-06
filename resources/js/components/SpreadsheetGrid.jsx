@@ -191,10 +191,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }));
     } else if (mode === 'task') {
       const tktasklist = displaySettings.tktasklist || [];
-      let t = tasks;
-      if (tktasklist.length > 0) {
-        t = t.filter(task => tktasklist.includes(task.taskId));
-      }
+      // 未選択時は何も表示しない
+      if (tktasklist.length === 0) return [];
+      let t = tasks.filter(task => tktasklist.includes(task.taskId));
       return [...t]
         .sort((a, b) => {
           const pd = (a.processSortNo || 0) - (b.processSortNo || 0);
