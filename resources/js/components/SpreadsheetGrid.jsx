@@ -226,7 +226,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
 
-    if (mode !== 'worker' || !displaySettings.showUnassignedWorker) return result; // showUnassignedWorker は将来対応予定
+    if (mode !== 'worker' || !displaySettings.synobody) return result;
 
     // 担当者未定の予定（workerId === null）を製番別にグループ化して末尾に追加
     const unassignedPlans = activePlans.filter(p => p.workerId == null);
@@ -323,6 +323,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const syteamlist    = displaySettings.syteamlist    || [];
     const sytasklist    = displaySettings.sytasklist    || [];
     const tktasklist    = displaySettings.tktasklist    || [];
+    const synobody      = displaySettings.synobody      || false;
     const body = {};
     if (mode === 'device') {
       if (sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
@@ -333,6 +334,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (sygroup > 0) body.team_szgroup_id = sygroup;
       if (syteamlist.length > 0) body.team_ids = syteamlist;
       if (sytasklist.length > 0) body.task_ids = sytasklist;
+      if (synobody) body.show_unassigned_worker = true;
     } else if (mode === 'task') {
       if (tktasklist.length > 0) body.task_ids = tktasklist;
     }
