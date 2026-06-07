@@ -230,4 +230,16 @@ class PlanController extends Controller
     KdPlan::findOrFail($id)->update(['deleted' => 1]);
     return response()->json(['deleted' => 1]);
   }
+
+  /** 製番IDで予定を全件取得（日付フィルタなし） */
+  public function bySerial(int $serialId)
+  {
+    $plans = KdPlan::with(['kd_serial.dm_kisyu', 'km_task', 'km_worker'])
+      ->where('serial_id', $serialId)
+      ->where('deleted', 0)
+      ->orderBy('start_date')
+      ->get();
+
+    return response()->json($plans->map(fn($p) => $this->formatPlan($p)));
+  }
 }

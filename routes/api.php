@@ -32,15 +32,16 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/task',   [TaskController::class, 'index']);
   Route::get('/resource', [ResourceController::class, 'index']);
 
-  Route::get('/plan',          [PlanController::class, 'index']);
-  Route::post('/plan/search',  [PlanController::class, 'search']);
-  Route::post('/plan/search/device', [PlanController::class, 'searchDevice']);
-  Route::post('/plan/search/worker', [PlanController::class, 'searchWorker']);
-  Route::post('/plan/search/task',   [PlanController::class, 'searchTask']);
-  Route::post('/plan',         [PlanController::class, 'store']);
-  Route::delete('/plan',      [PlanController::class, 'destroy']);
-  Route::put('/plan/{id}',    [PlanController::class, 'update']);
-  Route::delete('/plan/{id}', [PlanController::class, 'destroyOne']);
+  Route::get('/plan',                      [PlanController::class, 'index']);
+  Route::post('/plan/search',              [PlanController::class, 'search']);
+  Route::post('/plan/search/device',       [PlanController::class, 'searchDevice']);
+  Route::post('/plan/search/worker',       [PlanController::class, 'searchWorker']);
+  Route::post('/plan/search/task',         [PlanController::class, 'searchTask']);
+  Route::get('/plan/by-serial/{serialId}', [PlanController::class, 'bySerial']);
+  Route::post('/plan',                     [PlanController::class, 'store']);
+  Route::delete('/plan',                   [PlanController::class, 'destroy']);
+  Route::put('/plan/{id}',                 [PlanController::class, 'update']);
+  Route::delete('/plan/{id}',              [PlanController::class, 'destroyOne']);
 
   Route::get('/display-settings', [DisplaySettingsController::class, 'index']);
   Route::put('/display-settings', [DisplaySettingsController::class, 'update']);

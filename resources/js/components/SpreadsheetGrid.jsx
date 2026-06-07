@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImper
 import { apiArray, apiJson } from '../lib/api';
 import ContextMenu from './ContextMenu';
 import BarTooltip from './BarTooltip';
+import { getColor } from '../lib/colors';
 import ScheduleDialog from './ScheduleDialog';
 import SpreadsheetGridToolbar from './SpreadsheetGridToolbar';
 import SpreadsheetGridStatusBar from './SpreadsheetGridStatusBar';
@@ -71,6 +72,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const tempIdCounterRef  = useRef(-1); // 貼り付け時のローカル仮ID（負数）
 
   const [contextMenu, setContextMenu] = useState(null);
+  const [serialOverlay, setSerialOverlay] = useState(null); // { triggerPlan, serialPlans } | null
   const [tooltip, setTooltip] = useState(null);
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [selected, setSelected] = useState(new Set());
@@ -905,6 +907,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       ? { label: '装置予定を表示',  onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, 'device') }
       : null;
 
+    const serialPlanItem = mode === 'worker' && plan.serialId
+      ? { label: '前後予定を表示', onClick: () => {
+          apiArray(`/plan/by-serial/${plan.serialId}`)
+            .then(data => setSerialOverlay({ triggerPlan: plan, serialPlans: data || [] }))
+            .catch(() => {});
+        }}
+      : null;
+
     const items = isMulti ? [
       { label: `${n}件コピー`, onClick: () => {
         const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(Boolean);
@@ -921,6 +931,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       'separator',
       { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
       ...(jumpItem ? ['separator', jumpItem] : []),
+      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
     ];
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }
@@ -1458,6 +1469,159 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       {tooltip && <BarTooltip plan={tooltip.plan} anchorX={tooltip.x} anchorY={tooltip.y} onClose={() => setTooltip(null)} />}
+      {serialOverlay && (() => {
+        const scrollEl = scrollRef.current;
+        if (!scrollEl) return null;
+        const scrollRect = scrollEl.getBoundingClientRect();
+
+        // バー描画領域の画面矩形（左ヘッダ・日付ヘッダを除く）
+        const areaLeft   = scrollRect.left;
+        const areaTop    = scrollRect.top + TOTAL_HDR_H;
+        const areaRight  = scrollRect.right;
+        const areaBottom = scrollRect.bottom;
+        const areaW      = areaRight - areaLeft;
+
+        // 対象行の絶対行番号を layoutGroups から特定
+        const { triggerPlan, serialPlans } = serialOverlay;
+        let rowAbs = -1;
+        for (const g of layoutGroups) {
+          if (!g.plans) continue;
+          const found = g.plans.find(p => p.planId === triggerPlan.planId);
+          if (found) { rowAbs = g.startRow + found.rowIdx; break; }
+        }
+        if (rowAbs < 0) return null;
+
+        // 対象行の画面Y座標
+        const rowScreenY    = areaTop + rowAbs * CELL_SIZE - scrollTop;
+        const rowScreenYBot = rowScreenY + CELL_SIZE;
+
+        // ホイールイベントをスクロール領域に転送（オーバーレイ上でもスクロール可能）
+        const fwdWheel = e => {
+          const el = scrollRef.current;
+          if (el) { el.scrollTop += e.deltaY; el.scrollLeft += e.deltaX; }
+        };
+
+        // オーバーレイを対象行の上下に分割（対象行はオーバーレイなし→バーが鮮明に見える）
+        const overlayColor = 'rgba(0,0,0,0.55)';
+        const topH   = Math.max(0, Math.min(rowScreenY, areaBottom) - areaTop);
+        const botTop = Math.max(areaTop, rowScreenYBot);
+        const botH   = Math.max(0, areaBottom - botTop);
+
+        // 対象行が可視範囲内かどうか
+        const rowVisible = rowScreenY < areaBottom && rowScreenYBot > areaTop;
+
+        // 表示範囲に重なる予定だけに絞る
+        const contentRight = totalCols * colW;
+        const visPlans = serialPlans.filter(p => p.endDate >= startDate && p.startDate <= endDate);
+
+        // ラベルクリッピング用にX座標ソート
+        const xArr = visPlans
+          .map(p => ({ planId: p.planId, x: planToStartCol(p, startDate, viewMode) * colW }))
+          .sort((a, b) => a.x - b.x);
+
+        const overlayBars = [];
+        if (rowVisible) {
+          for (const p of visPlans) {
+            const sc = planToStartCol(p, startDate, viewMode);
+            const ec = planToEndCol(p, startDate, viewMode);
+            const barX = sc * colW;
+            if (barX >= contentRight) continue;
+            const barW = Math.min(Math.max(colW, (ec - sc + 1) * colW), contentRight - barX);
+
+            // 水平方向をバー描画領域でクリップ
+            const barScreenX = areaLeft + barX - scrollLeft;
+            const clampLeft  = Math.max(barScreenX, areaLeft);
+            const clampRight = Math.min(barScreenX + barW, areaRight);
+            if (clampRight <= clampLeft) continue;
+
+            const isCurrent = p.planId === triggerPlan.planId;
+            const bg = getColor(p.taskBackColor);
+            const fg = getColor(p.taskFontColor);
+
+            // ラベル幅（次バー・コンテンツ右端・エリア右端でクリップ）
+            const myIdx    = xArr.findIndex(r => r.planId === p.planId);
+            const nextX    = myIdx >= 0 && myIdx + 1 < xArr.length ? xArr[myIdx + 1].x : null;
+            const labelLeft    = barX + HANDLE_W;
+            const rawLabelW    = nextX != null ? Math.max(0, nextX - labelLeft) : Math.max(0, contentRight - labelLeft);
+            const labelScreenX = areaLeft + labelLeft - scrollLeft;
+            const lblClampL    = Math.max(labelScreenX, areaLeft);
+            const lblClampR    = Math.min(labelScreenX + rawLabelW, areaRight);
+            const labelW       = Math.max(0, lblClampR - lblClampL);
+
+            // クロージャ用にキャプチャ
+            const planSnap = p;
+
+            overlayBars.push(
+              <div key={p.planId}
+                onWheel={fwdWheel}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const cx = e.clientX, cy = e.clientY;
+                  setContextMenu({ x: cx, y: cy, items: [
+                    { label: '詳細', onClick: () => setTooltip({ plan: planSnap, x: cx, y: cy }) },
+                  ]});
+                }}
+                style={{
+                  position: 'fixed', left: clampLeft, top: rowScreenY,
+                  width: clampRight - clampLeft, height: CELL_SIZE,
+                  background: bg,
+                  border: isCurrent ? '2px solid #1d4ed8' : '1px solid rgba(0,0,0,0.20)',
+                  boxSizing: 'border-box', zIndex: 201,
+                  overflow: 'hidden', userSelect: 'none', cursor: 'default',
+                }}
+              />
+            );
+            if (labelW > 0) {
+              overlayBars.push(
+                <div key={`lbl-${p.planId}`} style={{
+                  position: 'fixed', left: lblClampL, top: rowScreenY,
+                  width: labelW, height: CELL_SIZE,
+                  display: 'flex', alignItems: 'center',
+                  overflow: 'hidden', whiteSpace: 'nowrap',
+                  fontSize: 13, color: fg,
+                  pointerEvents: 'none', zIndex: 202,
+                  paddingLeft: lblClampL > labelScreenX ? 0 : 2,
+                  userSelect: 'none',
+                }}>
+                  {p.taskName}
+                </div>
+              );
+            }
+          }
+        }
+
+        return (
+          <>
+            {/* 上部オーバーレイ（対象行より上・クリックで解除・ホイールでスクロール） */}
+            {topH > 0 && (
+              <div
+                onClick={() => setSerialOverlay(null)}
+                onWheel={fwdWheel}
+                style={{
+                  position: 'fixed', left: areaLeft, top: areaTop,
+                  width: areaW, height: topH,
+                  background: overlayColor, zIndex: 200,
+                }}
+              />
+            )}
+            {/* 下部オーバーレイ（対象行より下・クリックで解除・ホイールでスクロール） */}
+            {botH > 0 && (
+              <div
+                onClick={() => setSerialOverlay(null)}
+                onWheel={fwdWheel}
+                style={{
+                  position: 'fixed', left: areaLeft, top: botTop,
+                  width: areaW, height: botH,
+                  background: overlayColor, zIndex: 200,
+                }}
+              />
+            )}
+            {/* 製番の全予定バーを対象行に重ねて描画 */}
+            {overlayBars}
+          </>
+        );
+      })()}
       {scheduleDialog && (
         <ScheduleDialog
           plan={scheduleDialog.plan}
