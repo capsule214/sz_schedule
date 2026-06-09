@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DisplaySettingsApiTest extends TestCase
@@ -20,7 +20,7 @@ class DisplaySettingsApiTest extends TestCase
             ->getJson('/api/display-settings')
             ->assertOk()
             ->assertJsonPath('userNo', (string) $user->id)
-            ->assertJsonPath('settingNo', 1)
+            ->assertJsonPath('settingNo', 0)
             ->assertJsonCount(5, 'settingsList');
     }
 
@@ -32,22 +32,22 @@ class DisplaySettingsApiTest extends TestCase
             ->putJson('/api/display-settings', [
                 'settingNo' => 3,
                 'settingName' => '工程確認用',
-                'selectedKisyuIds' => ['10', '20'],
-                'showLocationInDevice' => true,
+                'sbmodellist' => ['10', '20'],
+                'sbdspplplan' => true,
             ])
             ->assertOk()
             ->assertJsonPath('settingNo', 3)
             ->assertJsonPath('settingName', '工程確認用')
-            ->assertJsonPath('selectedKisyuIds', ['10', '20'])
-            ->assertJsonPath('showLocationInDevice', true)
-            ->assertJsonPath('settingsList.2.settingName', '工程確認用');
+            ->assertJsonPath('sbmodellist', [10, 20])
+            ->assertJsonPath('sbdspplplan', true)
+            ->assertJsonPath('settingsList.3.settingName', '工程確認用');
 
         $this->assertDatabaseHas('display_settings', [
             'user_no' => (string) $user->id,
             'setting_no' => 3,
             'setting_name' => '工程確認用',
             'duration' => 1,
-            'show_location_in_device' => true,
+            'sbdspplplan' => true,
         ]);
         $this->assertFalse(Schema::hasColumn('display_settings', 'value'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'is_active'));
