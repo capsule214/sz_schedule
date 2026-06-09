@@ -22,7 +22,7 @@ class ReserveController extends Controller
   private function payload(array $data): array
   {
     return [
-      'location_id' => $data['resourceId'],
+      'resource_id' => $data['resourceId'],
       'serial_id'   => $data['serialId'],
       'start_date'  => $data['startDate'],
       'end_date'    => $data['endDate'],
@@ -31,16 +31,14 @@ class ReserveController extends Controller
 
   private function formatReserve(KdLocationPlan $reserve): array
   {
-    $resource = $reserve->km_location;
+    $resource = $reserve->km_resource;
     $serial   = $reserve->kd_serial;
 
     return [
       'reserveId'    => $reserve->location_plan_id,
       'planId'       => $reserve->location_plan_id,
-      'resourceId'   => $reserve->location_id,
-      'resourceName' => $resource ? $resource->location_name : '',
-      'locationId'   => $reserve->location_id,
-      'locationName' => $resource ? $resource->location_name : '',
+      'resourceId'   => $reserve->resource_id,
+      'resourceName' => $resource ? $resource->resource_name : '',
       'serialId'     => $reserve->serial_id,
       'serialNo'     => $serial ? $serial->serial_no : '',
       'kisyuId'      => $serial ? $serial->kisyu_id : null,
@@ -52,7 +50,7 @@ class ReserveController extends Controller
 
   public function index()
   {
-    $query = KdLocationPlan::with(['km_location', 'kd_serial.dm_kisyu'])
+    $query = KdLocationPlan::with(['km_resource', 'kd_serial.dm_kisyu'])
       ->where('deleted', 0);
 
     return response()->json($query->get()->map(fn($p) => $this->formatReserve($p)));
@@ -61,17 +59,27 @@ class ReserveController extends Controller
   public function search(Request $request)
   {
     $data = $request->validate([
-      'from'        => 'required|date',
-      'to'          => 'required|date|after_or_equal:from',
-      'kisyu_ids'   => 'nullable|array',
-      'kisyu_ids.*' => 'integer|min:1',
+      'from'           => 'required|date',
+      'to'             => 'required|date|after_or_equal:from',
+      'resource_ids'   => 'nullable|array',
+      'resource_ids.*' => 'integer|min:1',
+      'serial_ids'     => 'nullable|array',
+      'serial_ids.*'   => 'integer|min:1',
+      'kisyu_ids'      => 'nullable|array',
+      'kisyu_ids.*'    => 'integer|min:1',
     ]);
 
-    $query = KdLocationPlan::with(['km_location', 'kd_serial.dm_kisyu'])
+    $query = KdLocationPlan::with(['km_resource', 'kd_serial.dm_kisyu'])
       ->where('deleted', 0)
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
 
+    if (!empty($data['resource_ids'])) {
+      $query->whereIn('resource_id', $data['resource_ids']);
+    }
+    if (!empty($data['serial_ids'])) {
+      $query->whereIn('serial_id', $data['serial_ids']);
+    }
     if (!empty($data['kisyu_ids'])) {
       $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
       $query->whereIn('serial_id', $serialIds);
@@ -89,7 +97,7 @@ class ReserveController extends Controller
       'deleted' => 0,
     ]);
 
-    $reserve->load(['km_location', 'kd_serial.dm_kisyu']);
+    $reserve->load(['km_resource', 'kd_serial.dm_kisyu']);
 
     return response()->json($this->formatReserve($reserve), 201);
   }
@@ -100,7 +108,7 @@ class ReserveController extends Controller
     $data = $request->validate($this->reserveRules());
 
     $reserve->update($this->payload($data));
-    $reserve->load(['km_location', 'kd_serial.dm_kisyu']);
+    $reserve->load(['km_resource', 'kd_serial.dm_kisyu']);
 
     return response()->json($this->formatReserve($reserve));
   }

@@ -18,6 +18,7 @@ export default function SpreadsheetGridToolbar({
   onSerialSearch,
   pllocation,
   onPlLocationChange,
+  resources,
 }) {
   const [dateDialogOpen, setDateDialogOpen] = useState(false);
 
@@ -66,17 +67,29 @@ export default function SpreadsheetGridToolbar({
         </>
       )}
       <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
-      {mode === 'location' && (
-        <select
-          value={pllocation}
-          onChange={e => onPlLocationChange?.(Number(e.target.value))}
-          style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}
-        >
-          <option value={3}>3F</option>
-          <option value={4}>4F</option>
-          <option value={5}>5F</option>
-        </select>
-      )}
+      {mode === 'location' && (() => {
+        // Extract unique location types from the locations data
+        const seen = new Set();
+        const locationTypes = [];
+        for (const loc of (resources || [])) {
+          if (loc.locationTypeId != null && !seen.has(loc.locationTypeId)) {
+            seen.add(loc.locationTypeId);
+            locationTypes.push({ id: loc.locationTypeId, name: loc.locationTypeName ?? String(loc.locationTypeId) });
+          }
+        }
+        return (
+          <select
+            value={pllocation ?? ''}
+            onChange={e => onPlLocationChange?.(e.target.value === '' ? null : Number(e.target.value))}
+            style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}
+          >
+            <option value="">全て</option>
+            {locationTypes.map(lt => (
+              <option key={lt.id} value={lt.id}>{lt.name}</option>
+            ))}
+          </select>
+        );
+      })()}
       <button onClick={() => onViewModeChange('day')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'day' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'day' ? '#eff6ff' : '#fff', color: viewMode === 'day' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>日単位</button>
       <button onClick={() => onViewModeChange('slot')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'slot' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'slot' ? '#eff6ff' : '#fff', color: viewMode === 'slot' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>時間割</button>
       {mode === 'device' && (

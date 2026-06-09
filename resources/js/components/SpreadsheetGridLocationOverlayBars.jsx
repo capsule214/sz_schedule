@@ -40,7 +40,7 @@ export default function SpreadsheetGridLocationOverlayBars({
       bars.push(
         <div
           key={`loc-ov-${plan.planId}`}
-          title={plan.locationName}
+          title={plan.resourceName}
           style={{
             position: 'absolute', left: x, top: y, width: w, height: CELL_SIZE,
             background: '#93c5fd', border: '1px solid #3b82f6',
@@ -58,7 +58,7 @@ export default function SpreadsheetGridLocationOverlayBars({
             fontSize: 13, color: '#1e3a5f', pointerEvents: 'none', zIndex: 3, userSelect: 'none',
           }}
         >
-          {plan.locationName}
+          {plan.resourceName}
         </div>
       );
     }

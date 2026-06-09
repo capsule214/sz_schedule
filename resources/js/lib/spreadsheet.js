@@ -102,7 +102,7 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
     const gid = groupKey === 'device' ? plan.serialId
           : groupKey === 'worker' ? plan.workerId
           : groupKey === 'task'   ? plan.taskId
-          : plan.locationId;
+          : plan.resourceId;
     const grp = groupMap[gid];
     if (!grp) continue;
 

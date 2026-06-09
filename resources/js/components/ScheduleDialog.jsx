@@ -17,7 +17,7 @@ function parseDate(s) {
   return { date: d, hm: TIME_SLOTS[0].start };
 }
 
-export default function ScheduleDialog({ plan, locations = [], gridMode, initialData, onSave, onClose }) {
+export default function ScheduleDialog({ plan, resources = [], gridMode, initialData, onSave, onClose }) {
   const init = plan || {};
   const sd = parseDate(init.startDate || initialData?.startDate || '');
   const ed = parseDate(init.endDate || initialData?.endDate || '');
@@ -31,11 +31,11 @@ export default function ScheduleDialog({ plan, locations = [], gridMode, initial
   const [tasks, setTasks] = useState([]);
   const [teamList, setTeamList] = useState([]);
   const [workers, setWorkers] = useState([]);
-  const [dialogLocations, setDialogLocations] = useState(locations);
+  const [dialogResources, setDialogResources] = useState(resources);
   const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || '');
   const [taskId, setTaskId] = useState(init.taskId || '');
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
-  const [locationId, setLocationId] = useState(init.locationId || initialData?.locationId || locations?.[0]?.locationId || '');
+  const [resourceId, setResourceId] = useState(init.resourceId || initialData?.resourceId || resources?.[0]?.resourceId || '');
   const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,8 +54,8 @@ export default function ScheduleDialog({ plan, locations = [], gridMode, initial
         ];
         if (gridMode !== 'location') {
           requests.push(apiArray('/task'), apiArray('/worker/team'));
-        } else if (!locations?.length) {
-          requests.push(apiArray('/location'));
+        } else if (!resources?.length) {
+          requests.push(apiArray('/resource'));
         }
         const results = await Promise.all(requests);
         if (cancelled) return;
@@ -64,9 +64,9 @@ export default function ScheduleDialog({ plan, locations = [], gridMode, initial
           setTasks(results[1]);
           setTeamList(results[2]);
           if (!taskId && results[1]?.[0]) setTaskId(results[1][0].taskId);
-        } else if (!locations?.length) {
-          setDialogLocations(results[1]);
-          if (!locationId && results[1]?.[0]) setLocationId(results[1][0].locationId);
+        } else if (!resources?.length) {
+          setDialogResources(results[1]);
+          if (!resourceId && results[1]?.[0]) setResourceId(results[1][0].resourceId);
         }
         if (!kisyuId && results[0]?.[0]) setKisyuId(results[0][0].kisyuId);
       } catch {
@@ -156,10 +156,10 @@ export default function ScheduleDialog({ plan, locations = [], gridMode, initial
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!serialId) { setError('製番を選択してください'); return; }
     if (gridMode !== 'location' && !taskId) { setError('工程を選択してください'); return; }
-    if (gridMode === 'location' && !locationId) { setError('場所を選択してください'); return; }
+    if (gridMode === 'location' && !resourceId) { setError('場所を選択してください'); return; }
     setError('');
     if (gridMode === 'location') {
-      onSave({ locationId: Number(locationId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
+      onSave({ resourceId: Number(resourceId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
     } else {
       onSave({ serialId: Number(serialId), taskId: Number(taskId), workerId: workerId !== '' ? Number(workerId) : null, startDate: sd2, endDate: ed2 });
     }
@@ -242,7 +242,7 @@ export default function ScheduleDialog({ plan, locations = [], gridMode, initial
                 <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>場所</label>
                 <input
                   readOnly
-                  value={dialogLocations?.find(l => l.locationId == locationId)?.locationName || ''}
+                  value={dialogResources?.find(r => r.resourceId == resourceId)?.resourceName || ''}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#f9fafb' }}
                 />
               </div>

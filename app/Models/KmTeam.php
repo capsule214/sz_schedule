@@ -9,7 +9,7 @@ class KmTeam extends Model
   protected $table = 'km_team';
   protected $primaryKey = 'team_id';
   public $timestamps = false;
-  protected $fillable = ['team_name', 'sort_no', 'szgroup_id'];
+  protected $fillable = ['team_name', 'sort_no', 'equip_group_id'];
 
   public function workers()
   {

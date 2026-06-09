@@ -9,11 +9,11 @@ class KdLocationPlan extends Model
   protected $table = 'kd_location_plan';
   protected $primaryKey = 'location_plan_id';
   public $timestamps = false;
-  protected $fillable = ['location_id', 'serial_id', 'start_date', 'end_date', 'deleted'];
+  protected $fillable = ['resource_id', 'serial_id', 'start_date', 'end_date', 'deleted'];
 
-  public function km_location()
+  public function km_resource()
   {
-    return $this->belongsTo(KmLocation::class, 'location_id', 'location_id');
+    return $this->belongsTo(KmResource::class, 'resource_id', 'resource_id');
   }
 
   public function kd_serial()

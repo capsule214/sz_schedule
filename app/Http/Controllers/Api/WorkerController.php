@@ -15,7 +15,7 @@ class WorkerController extends Controller
       'workerName'  => $w->worker_name,
       'teamId'      => $w->team_id,
       'teamName'    => $w->km_team ? $w->km_team->team_name : '',
-      'szgroupId'   => $w->km_team ? $w->km_team->szgroup_id : null,
+      'szgroupId'   => $w->km_team ? $w->km_team->equip_group_id : null,
     ];
   }
 

@@ -10,7 +10,7 @@ class KdPlan extends Model
   protected $primaryKey = 'plan_id';
   const CREATED_AT = null;              // created_at は管理しない
   public $timestamps = true;            // updated_at のみ自動更新
-  protected $fillable = ['serial_id', 'task_id', 'assignee_id', 'deleted', 'start_date', 'end_date'];
+  protected $fillable = ['serial_id', 'task_id', 'worker_id', 'deleted', 'start_date', 'end_date'];
 
   public function kd_serial()
   {
@@ -24,6 +24,6 @@ class KdPlan extends Model
 
   public function km_worker()
   {
-    return $this->belongsTo(KmWorker::class, 'assignee_id', 'worker_id');
+    return $this->belongsTo(KmWorker::class, 'worker_id', 'worker_id');
   }
 }

@@ -26,7 +26,7 @@ class DisplaySettingsController extends Controller
 
       // 場所タブ
       'pllocation'      => 3,
-      'plslace'         => 1,
+      'plscale'         => 1,
 
       // 装置タブ
       'sbcolor'         => 0,
@@ -38,7 +38,7 @@ class DisplaySettingsController extends Controller
       'synobody'        => false,
       'sborder'         => 0,
       'sbsbmb'          => 0,
-      'sbslace'         => 1,
+      'sbscale'         => 1,
       'sbequiptype'     => -1,
       'sbinchargelist'  => [],
       'sbmodellist'     => [],
@@ -77,12 +77,12 @@ class DisplaySettingsController extends Controller
     // 整数スカラー
     $d['duration']    = max(1, (int) $d['duration']);
     $d['pllocation']  = (int) $d['pllocation'];
-    $d['plslace']     = (int) $d['plslace'];
+    $d['plscale']     = (int) $d['plscale'];
     $d['sbcolor']     = (int) $d['sbcolor'];
     $d['sboption']    = (int) $d['sboption'];
     $d['sborder']     = (int) $d['sborder'];
     $d['sbsbmb']      = (int) $d['sbsbmb'];
-    $d['sbslace']     = (int) $d['sbslace'];
+    $d['sbscale']     = (int) $d['sbscale'];
     $d['sbequiptype'] = (int) $d['sbequiptype'];
     $d['sycolor']     = (int) $d['sycolor'];
     $d['sygroup']     = (int) $d['sygroup'];
@@ -185,7 +185,7 @@ class DisplaySettingsController extends Controller
       'flgukeoi'        => $row->flgukeoi ?? false,
 
       'pllocation'      => $row->pllocation ?? 3,
-      'plslace'         => $row->plslace ?? 1,
+      'plscale'         => $row->plscale ?? 1,
 
       'sbcolor'         => $row->sbcolor ?? 0,
       'sbdspdate'       => $row->sbdspdate ?? false,
@@ -196,7 +196,7 @@ class DisplaySettingsController extends Controller
       'synobody'        => $row->synobody ?? false,
       'sborder'         => $row->sborder ?? 0,
       'sbsbmb'          => $row->sbsbmb ?? 0,
-      'sbslace'         => $row->sbslace ?? 1,
+      'sbscale'         => $row->sbscale ?? 1,
       'sbequiptype'     => $row->sbequiptype ?? -1,
       'sbinchargelist'  => $this->strList($row->sbinchargelist ?? []),
       'sbmodellist'     => $this->intList($row->sbmodellist ?? []),
@@ -234,7 +234,7 @@ class DisplaySettingsController extends Controller
       'flgukeoi'        => $s['flgukeoi'],
 
       'pllocation'      => $s['pllocation'],
-      'plslace'         => $s['plslace'],
+      'plscale'         => $s['plscale'],
 
       'sbcolor'         => $s['sbcolor'],
       'sbdspdate'       => $s['sbdspdate'],
@@ -245,7 +245,7 @@ class DisplaySettingsController extends Controller
       'synobody'        => $s['synobody'],
       'sborder'         => $s['sborder'],
       'sbsbmb'          => $s['sbsbmb'],
-      'sbslace'         => $s['sbslace'],
+      'sbscale'         => $s['sbscale'],
       'sbequiptype'     => $s['sbequiptype'],
       'sbinchargelist'  => $this->strArrayValue($s['sbinchargelist']),
       'sbmodellist'     => $this->intArrayValue($s['sbmodellist']),

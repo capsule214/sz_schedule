@@ -76,7 +76,7 @@ export default function SpreadsheetGridLeftHeader({
         ) : mode === 'location' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
-              {g.label2 ? `${g.label2}F` : '-'}
+              {g.label2 || '-'}
             </div>
             <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#111827' }}>
               {g.label1}

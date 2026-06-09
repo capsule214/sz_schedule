@@ -40,7 +40,7 @@ import {
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
-  mode, serials, workers, tasks, locations, displaySettings,
+  mode, serials, workers, tasks, resources, displaySettings,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange,
 }, ref) {
@@ -118,14 +118,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (displaySettings?.pllocation != null) setPllocation(displaySettings.pllocation);
   }, [displaySettings?.pllocation]); // eslint-disable-line react-hooks/exhaustive-deps
-  const planEndpoint = mode === 'location' ? '/location-plan' : '/plan';
+  const planEndpoint = mode === 'location' ? '/reserve' : '/plan';
   const planSearchEndpoint = mode === 'device'
     ? '/plan/search/device'
     : mode === 'worker'
       ? '/plan/search/worker'
       : mode === 'task'
         ? '/plan/search/task'
-        : '/location-plan/search';
+        : '/reserve/search';
   const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
@@ -193,12 +193,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       return baseDeviceGroups;
     } else if (mode === 'location') {
-      let locs = locations || [];
-      if (pllocation) locs = locs.filter(loc => loc.floorLevel === pllocation);
+      let locs = resources || [];
+      if (pllocation) locs = locs.filter(loc => loc.locationTypeId === pllocation);
       return locs.map(loc => ({
-        id: loc.locationId,
-        label1: loc.locationName,
-        label2: String(loc.floorLevel ?? ''),
+        id: loc.resourceId,
+        label1: loc.resourceName,
+        label2: loc.locationTypeName ?? '',
       }));
     } else if (mode === 'task') {
       const tktasklist = displaySettings.tktasklist || [];
@@ -228,7 +228,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
     }
-  }, [mode, serials, workers, locations, displaySettings, baseDeviceGroups, forcedSerialId, pllocation]);
+  }, [mode, serials, workers, resources, displaySettings, baseDeviceGroups, forcedSerialId, pllocation]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? 'device' : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'location';
@@ -357,7 +357,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (mode === 'device') return { serial_ids: ids };
     if (mode === 'worker') return { worker_ids: ids };
     if (mode === 'task') return { task_ids: ids };
-    return { location_ids: ids };
+    return { resource_ids: ids };
   }, [mode]);
 
   const makeFetchKey = useCallback((from, to, body) => {
@@ -402,7 +402,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (fetchedLocKeysRef.current.has(key)) return;
     fetchedLocKeysRef.current.add(key);
     try {
-      const data = await apiArray('/location-plan/search', {
+      const data = await apiArray('/reserve/search', {
         method: 'POST',
         body: JSON.stringify({ from, to, ...body }),
       });
@@ -818,7 +818,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 移動先グループが確定している場合は全プランを同一グループへ
       let newSerialId   = dp.serialId;
       let newWorkerId   = dp.workerId;
-      let newLocationId = dp.locationId;
+      let newLocationId = dp.resourceId;
       if (destGroupId !== null) {
         if (mode === 'device')   newSerialId   = destGroupId;
         else if (mode === 'worker') newWorkerId = destGroupId;
@@ -827,7 +827,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
       // API は呼ばず、ローカル state を即時更新して保留リストに積む
       const payload = mode === 'location'
-        ? { locationId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate }
+        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate }
         : { serialId: newSerialId, taskId: dp.taskId, workerId: newWorkerId, startDate: newStartDate, endDate: newEndDate };
       setPlans(prev => prev.map(p =>
         p.planId === dp.planId ? { ...p, ...payload } : p
@@ -866,7 +866,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           openScheduleDialog({
             plan: null,
             initialData: {
-              locationId: mode === 'location' ? g?.id : null,
+              resourceId: mode === 'location' ? g?.id : null,
               serialId:   mode === 'device'   ? g?.id : null,
               kisyuId:    mode === 'device'   ? g?.kisyuId : null,
               workerId:   mode === 'worker'   ? g?.id : null,
@@ -979,10 +979,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 全プランを貼り付け先の場所/装置/担当者に統一する
       const newSerialId   = mode === 'device'   ? targetSerialId   : p.serialId;
       const newWorkerId   = mode === 'worker'   ? targetWorkerId   : p.workerId;
-      const newLocationId = mode === 'location' ? targetLocationId : p.locationId;
+      const newLocationId = mode === 'location' ? targetLocationId : p.resourceId;
 
       const payload = mode === 'location'
-        ? { locationId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
+        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
         : { serialId: newSerialId, taskId: p.taskId, workerId: newWorkerId, startDate: newStart, endDate: newEnd };
       const tempId = tempIdCounterRef.current--;
       newPlans.push({ ...p, planId: tempId, ...payload });
@@ -1008,7 +1008,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setScheduleDialog(null);
     const payload = mode === 'location'
       ? {
-        locationId: data.locationId || dialog.initialData?.locationId,
+        resourceId: data.resourceId || dialog.initialData?.resourceId,
         serialId:   data.serialId,
         startDate:  data.startDate,
         endDate:    data.endDate,
@@ -1243,6 +1243,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         onSerialSearch={handleSerialSearch}
         pllocation={pllocation}
         onPlLocationChange={setPllocation}
+        resources={resources}
       />
 
       {/* グリッド本体 */}
@@ -1626,7 +1627,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         <ScheduleDialog
           plan={scheduleDialog.plan}
           initialData={scheduleDialog.initialData}
-          locations={locations}
+          resources={resources}
           gridMode={mode}
           onSave={savePlan}
           onClose={() => setScheduleDialog(null)}

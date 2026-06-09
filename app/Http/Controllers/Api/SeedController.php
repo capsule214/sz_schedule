@@ -10,7 +10,8 @@ use App\Models\KmWorker;
 use App\Models\KmProcess;
 use App\Models\KmTask;
 use App\Models\KdPlan;
-use App\Models\KmLocation;
+use App\Models\KmResource;
+use App\Models\KkLocationType;
 use App\Models\KdLocationPlan;
 use App\Models\DrCalendar;
 use Illuminate\Http\Request;
@@ -79,15 +80,24 @@ class SeedController extends Controller
     KmTask::truncate();
     KmProcess::truncate();
     DmKisyu::truncate();
-    KmLocation::truncate();
+    KmResource::truncate();
+    KkLocationType::truncate();
     DB::statement('PRAGMA foreign_keys = ON');
+
+    // 場所種別マスタを作成
+    $locationTypeNames = ['1F', '2F', '3F', '4F', '5F'];
+    $locationTypeIds = [];
+    foreach ($locationTypeNames as $i => $typeName) {
+      $lt = KkLocationType::create(['location_name' => $typeName]);
+      $locationTypeIds[] = $lt->location_type_id;
+    }
 
     // 場所マスタ（1F〜5F）を作成
     $locationNames = ['1F', '2F', '3F', '4F', '5F'];
     $locationIds = [];
     foreach ($locationNames as $i => $name) {
-      $loc = KmLocation::create(['location_name' => $name, 'sort_no' => $i + 1]);
-      $locationIds[] = $loc->location_id;
+      $loc = KmResource::create(['resource_name' => $name, 'sort_no' => $i + 1, 'location_type_id' => $locationTypeIds[$i]]);
+      $locationIds[] = $loc->resource_id;
     }
 
     $kisyuNames = ['機種A', '機種B', '機種C', '機種D', '機種E'];
@@ -162,7 +172,7 @@ class SeedController extends Controller
       $plans[] = [
         'serial_id'   => $serialIds[$serialIdx],
         'task_id'     => $taskIds[$taskIdx],
-        'assignee_id' => $workerIds[$workerIdx],
+        'worker_id'   => $workerIds[$workerIdx],
         'deleted'     => 0,
         'start_date'  => $startDate,
         'end_date'    => $endDate,
@@ -184,7 +194,7 @@ class SeedController extends Controller
       [$startDate, $endDate] = $this->buildDateRangeFromSlots($base, $startSlot, $duration);
 
       $locationPlans[] = [
-        'location_id' => $locationIds[$locationIdx],
+        'resource_id' => $locationIds[$locationIdx],
         'serial_id'   => $serialIds[$serialIdx],
         'start_date'  => $startDate,
         'end_date'    => $endDate,
@@ -223,18 +233,26 @@ class SeedController extends Controller
     KmTask::truncate();
     KmProcess::truncate();
     DmKisyu::truncate();
-    KmLocation::truncate();
+    KmResource::truncate();
+    KkLocationType::truncate();
     DrCalendar::truncate();
     DB::statement('PRAGMA foreign_keys = ON');
 
+    // 場所種別マスタを作成（3F/4F/5F相当）
+    $locationTypeIds = [];
+    foreach (['3F', '4F', '5F'] as $typeName) {
+      $lt = KkLocationType::create(['location_name' => $typeName]);
+      $locationTypeIds[] = $lt->location_type_id;
+    }
+
     $locationIds = [];
     for ($i = 1; $i <= 100; $i++) {
-      $loc = KmLocation::create([
-        'location_name' => '場所' . str_pad($i, 3, '0', STR_PAD_LEFT),
-        'sort_no'       => $i,
-        'floor_level'   => (($i - 1) % 3) + 3,  // 3/4/5 を循環
+      $loc = KmResource::create([
+        'resource_name'    => '場所' . str_pad($i, 3, '0', STR_PAD_LEFT),
+        'sort_no'          => $i,
+        'location_type_id' => $locationTypeIds[(($i - 1) % 3)],
       ]);
-      $locationIds[] = $loc->location_id;
+      $locationIds[] = $loc->resource_id;
     }
 
     $kisyuIds = [];
@@ -341,7 +359,7 @@ class SeedController extends Controller
     $serialIds   = KdSerial::pluck('serial_id')->all();
     $taskIds     = KmTask::pluck('task_id')->all();
     $workerIds   = KmWorker::pluck('worker_id')->all();
-    $locationIds = KmLocation::pluck('location_id')->all();
+    $locationIds = KmResource::pluck('resource_id')->all();
 
     if (empty($serialIds) || empty($taskIds) || empty($workerIds) || empty($locationIds)) {
       return response()->json(['message' => '先に初期データ生成を実行してください。'], 422);
@@ -361,7 +379,7 @@ class SeedController extends Controller
       $plans[] = [
         'serial_id'   => $serialIds[$this->lcgRange(0, count($serialIds) - 1)],
         'task_id'     => $taskIds[$this->lcgRange(0, count($taskIds) - 1)],
-        'assignee_id' => $this->lcgRange(1, 100) <= 8 ? null : $workerIds[$this->lcgRange(0, count($workerIds) - 1)],
+        'worker_id'   => $this->lcgRange(1, 100) <= 8 ? null : $workerIds[$this->lcgRange(0, count($workerIds) - 1)],
         'deleted'     => 0,
         'start_date'  => $startDate,
         'end_date'    => $endDate,
@@ -382,7 +400,7 @@ class SeedController extends Controller
       );
 
       $reserves[] = [
-        'location_id' => $locationIds[$this->lcgRange(0, count($locationIds) - 1)],
+        'resource_id' => $locationIds[$this->lcgRange(0, count($locationIds) - 1)],
         'serial_id'   => $serialIds[$this->lcgRange(0, count($serialIds) - 1)],
         'start_date'  => $startDate,
         'end_date'    => $endDate,

@@ -48,15 +48,15 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [serials, setSerials] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [locations, setLocations] = useState([]);
+  const [resources, setResources] = useState([]);
   const [displaySettings, setDisplaySettings] = useState({
     settingNo: 0,
     settingName: '表示設定1',
     duration: 1,
     flgdiff: false, flgkeppin: false, flgsyoyo: false, flgukeoi: false,
-    pllocation: 3, plslace: 1,
+    pllocation: 3, plscale: 1,
     sbcolor: 0, sbdspdate: false, sbdspincharge: false, sbdspplplan: false, flggoso: false,
-    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbslace: 1, sbequiptype: -1,
+    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbscale: 1, sbequiptype: -1,
     flgsyoyo: false, flgukeoi: false, flgkeppin: false, flgdiff: false,
     sbinchargelist: [], sbmodellist: [], sbstatuslist: [], sbszgrouplist: [],
     sycolor: 0, sygroup: 0, syslace: 1, syteamlist: [], sytasklist: [],
@@ -65,7 +65,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, locations: false });
+  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false });
   const [seeding, setSeeding] = useState(false);
   const [jumpTarget, setJumpTarget] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -91,7 +91,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     device: ['serials'],
     worker: ['workers'],
     task: ['tasks'],
-    location: ['locations'],
+    location: ['resources'],
   }), []);
 
   const hasMastersForMode = useCallback((mode) => (
@@ -99,7 +99,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   ), [loadedMasters, masterRequirements]);
 
   const ensureMasters = useCallback(async (keys) => {
-    const dataByKey = { serials, workers, tasks, locations };
+    const dataByKey = { serials, workers, tasks, resources };
     const missing = keys.filter(key => !loadedMasters[key]);
     if (missing.length === 0) return dataByKey;
 
@@ -107,7 +107,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       if (key === 'serials') return [key, await apiArray('/serial')];
       if (key === 'workers') return [key, await apiArray('/worker')];
       if (key === 'tasks') return [key, await apiArray('/task')];
-      if (key === 'locations') return [key, await apiArray('/location')];
+      if (key === 'resources') return [key, await apiArray('/resource')];
       throw new Error(`Unknown master key: ${key}`);
     }));
 
@@ -116,7 +116,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       if (key === 'serials') setSerials(data);
       else if (key === 'workers') setWorkers(data);
       else if (key === 'tasks') setTasks(data);
-      else if (key === 'locations') setLocations(data);
+      else if (key === 'resources') setResources(data);
     }
 
     setLoadedMasters(prev => ({
@@ -124,7 +124,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       ...Object.fromEntries(entries.map(([key]) => [key, true])),
     }));
     return dataByKey;
-  }, [loadedMasters, locations, serials, tasks, workers]);
+  }, [loadedMasters, resources, serials, tasks, workers]);
 
   const ensureMastersForMode = useCallback((mode) => (
     ensureMasters(masterRequirements[mode] || [])
@@ -179,8 +179,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       setSerials([]);
       setWorkers([]);
       setTasks([]);
-      setLocations([]);
-      setLoadedMasters({ serials: false, workers: false, tasks: false, locations: false });
+      setResources([]);
+      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false });
       await reloadDisplaySettings();
       await handleCancel();
       showAlert('初期データを生成しました');
@@ -317,7 +317,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   const gridProps = {
-    serials, workers, tasks, locations, displaySettings,
+    serials, workers, tasks, resources, displaySettings,
     onJumpToOtherTab: handleJumpToOtherTab,
     onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,

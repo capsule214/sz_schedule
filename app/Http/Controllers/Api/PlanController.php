@@ -25,11 +25,11 @@ class PlanController extends Controller
   private function planPayload(array $data): array
   {
     return [
-      'serial_id'   => $data['serialId'],
-      'task_id'     => $data['taskId'],
-      'assignee_id' => $data['workerId'] ?? null,
-      'start_date'  => $data['startDate'],
-      'end_date'    => $data['endDate'],
+      'serial_id'  => $data['serialId'],
+      'task_id'    => $data['taskId'],
+      'worker_id'  => $data['workerId'] ?? null,
+      'start_date' => $data['startDate'],
+      'end_date'   => $data['endDate'],
     ];
   }
 
@@ -52,7 +52,7 @@ class PlanController extends Controller
       'taskFontColor'  => $task ? $task->font_color : 6,
       'startDate'      => $plan->start_date,
       'endDate'        => $plan->end_date,
-      'workerId'       => $plan->assignee_id,
+      'workerId'       => $plan->worker_id,
       'workerName'     => $worker ? $worker->worker_name : '',
       'updatedAt'      => $plan->updated_at ? substr($plan->updated_at, 0, 10) : null,
     ];
@@ -141,39 +141,39 @@ class PlanController extends Controller
       $query->whereIn('serial_id', $serialIds);
     }
     if (!empty($data['seizo_statuses'])) {
-      $kisyuIds  = \App\Models\DmKisyu::whereIn('seizo_status', $data['seizo_statuses'])->pluck('kisyu_id');
+      $kisyuIds  = \App\Models\DmKisyu::whereIn('waku_display', $data['seizo_statuses'])->pluck('kisyu_id');
       $serialIds = KdSerial::whereIn('kisyu_id', $kisyuIds)->pluck('serial_id');
       $query->whereIn('serial_id', $serialIds);
     }
     if (!empty($data['worker_ids'])) {
       if (!empty($data['show_unassigned_worker'])) {
         $query->where(function ($q) use ($data) {
-          $q->whereIn('assignee_id', $data['worker_ids'])->orWhereNull('assignee_id');
+          $q->whereIn('worker_id', $data['worker_ids'])->orWhereNull('worker_id');
         });
       } else {
-        $query->whereIn('assignee_id', $data['worker_ids']);
+        $query->whereIn('worker_id', $data['worker_ids']);
       }
     }
     if (!empty($data['team_szgroup_id'])) {
-      // 製造部署フィルタ: szgroup_id が一致するチームの worker_ids に絞る
-      $sgroupTeamIds = KmTeam::where('szgroup_id', $data['team_szgroup_id'])->pluck('team_id');
+      // 製造部署フィルタ: equip_group_id が一致するチームの worker_ids に絞る
+      $sgroupTeamIds = KmTeam::where('equip_group_id', $data['team_szgroup_id'])->pluck('team_id');
       $sgroupWorkerIds = KmWorker::whereIn('team_id', $sgroupTeamIds)->pluck('worker_id');
       if (!empty($data['show_unassigned_worker'])) {
         $query->where(function ($q) use ($sgroupWorkerIds) {
-          $q->whereIn('assignee_id', $sgroupWorkerIds)->orWhereNull('assignee_id');
+          $q->whereIn('worker_id', $sgroupWorkerIds)->orWhereNull('worker_id');
         });
       } else {
-        $query->whereIn('assignee_id', $sgroupWorkerIds);
+        $query->whereIn('worker_id', $sgroupWorkerIds);
       }
     }
     if (!empty($data['team_ids'])) {
       $workerIds = KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id');
       if (!empty($data['show_unassigned_worker'])) {
         $query->where(function ($q) use ($workerIds) {
-          $q->whereIn('assignee_id', $workerIds)->orWhereNull('assignee_id');
+          $q->whereIn('worker_id', $workerIds)->orWhereNull('worker_id');
         });
       } else {
-        $query->whereIn('assignee_id', $workerIds);
+        $query->whereIn('worker_id', $workerIds);
       }
     } elseif (!empty($data['show_unassigned_worker'])) {
       // チームフィルタなしで担当者未定のみ追加取得（全担当者＋未定は既にフィルタなしで取得済み）

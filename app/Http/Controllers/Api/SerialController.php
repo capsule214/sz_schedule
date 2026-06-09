@@ -22,7 +22,7 @@ class SerialController extends Controller
       'backColor'     => $s->back_color,
       'fontColor'     => $s->font_color,
       'sortNo'        => $s->dm_kisyu ? $s->dm_kisyu->sort_no : 0,
-      'seizoStatus'   => $s->dm_kisyu ? $s->dm_kisyu->seizo_status : null,
+      'seizoStatus'   => $s->dm_kisyu ? $s->dm_kisyu->waku_display : null,
     ];
   }
 
