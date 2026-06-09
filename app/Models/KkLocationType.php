@@ -9,7 +9,7 @@ class KkLocationType extends Model
   protected $table = 'kk_location_type';
   protected $primaryKey = 'location_type_id';
   public $timestamps = false;
-  protected $fillable = ['location_name'];
+  protected $fillable = ['location_type_name'];
 
   public function resources()
   {

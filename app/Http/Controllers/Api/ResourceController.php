@@ -16,7 +16,9 @@ class ResourceController extends Controller
       'resourceName'     => $r->resource_name,
       'sortNo'           => $r->sort_no,
       'locationTypeId'   => $r->location_type_id,
-      'locationTypeName' => $r->locationType ? $r->locationType->location_name : null,
+      'locationTypeName' => $r->locationType ? $r->locationType->location_type_name : null,
+      'backColor'        => $r->back_color,
+      'fontColor'        => $r->font_color,
     ]));
   }
 }

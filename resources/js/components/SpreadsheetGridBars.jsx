@@ -73,8 +73,8 @@ export default function SpreadsheetGridBars({
       if (x + w < scrollLeft || x > scrollLeft + containerW) continue;
       if (absRow < visRowStart || absRow > visRowEnd) continue;
 
-      const bg = getColor(plan.taskBackColor);
-      const fg = getColor(plan.taskFontColor);
+      const bg = getColor(mode === 'location' ? plan.backColor : plan.taskBackColor);
+      const fg = getColor(mode === 'location' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;

@@ -1,4 +1,5 @@
 import { CELL_SIZE, DEV_HDR_W, ASGN_HDR_W } from '../lib/spreadsheet';
+import { getColor } from '../lib/colors';
 
 export default function SpreadsheetGridLeftHeader({
   layoutGroups,
@@ -78,7 +79,7 @@ export default function SpreadsheetGridLeftHeader({
             <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
               {g.label2 || '-'}
             </div>
-            <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#111827' }}>
+            <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', background: getColor(g.backColor), color: getColor(g.fontColor) }}>
               {g.label1}
             </div>
           </div>

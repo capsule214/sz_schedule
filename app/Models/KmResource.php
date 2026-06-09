@@ -9,7 +9,7 @@ class KmResource extends Model
   protected $table = 'km_resource';
   protected $primaryKey = 'resource_id';
   public $timestamps = false;
-  protected $fillable = ['resource_name', 'sort_no', 'location_type_id'];
+  protected $fillable = ['resource_name', 'sort_no', 'location_type_id', 'back_color', 'font_color'];
 
   public function kd_location_plans()
   {

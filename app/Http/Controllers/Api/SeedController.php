@@ -88,7 +88,7 @@ class SeedController extends Controller
     $locationTypeNames = ['1F', '2F', '3F', '4F', '5F'];
     $locationTypeIds = [];
     foreach ($locationTypeNames as $i => $typeName) {
-      $lt = KkLocationType::create(['location_name' => $typeName]);
+      $lt = KkLocationType::create(['location_type_name' => $typeName]);
       $locationTypeIds[] = $lt->location_type_id;
     }
 
@@ -96,7 +96,13 @@ class SeedController extends Controller
     $locationNames = ['1F', '2F', '3F', '4F', '5F'];
     $locationIds = [];
     foreach ($locationNames as $i => $name) {
-      $loc = KmResource::create(['resource_name' => $name, 'sort_no' => $i + 1, 'location_type_id' => $locationTypeIds[$i]]);
+      $loc = KmResource::create([
+        'resource_name'    => $name,
+        'sort_no'          => $i + 1,
+        'location_type_id' => $locationTypeIds[$i],
+        'back_color'       => $i + 1,
+        'font_color'       => 6,
+      ]);
       $locationIds[] = $loc->resource_id;
     }
 
@@ -241,7 +247,7 @@ class SeedController extends Controller
     // 場所種別マスタを作成（3F/4F/5F相当）
     $locationTypeIds = [];
     foreach (['3F', '4F', '5F'] as $typeName) {
-      $lt = KkLocationType::create(['location_name' => $typeName]);
+      $lt = KkLocationType::create(['location_type_name' => $typeName]);
       $locationTypeIds[] = $lt->location_type_id;
     }
 
@@ -250,7 +256,9 @@ class SeedController extends Controller
       $loc = KmResource::create([
         'resource_name'    => '場所' . str_pad($i, 3, '0', STR_PAD_LEFT),
         'sort_no'          => $i,
-        'location_type_id' => $locationTypeIds[(($i - 1) % 3)],
+        'location_type_id' => $locationTypeIds[(($i - 1) % count($locationTypeIds))],
+        'back_color'       => (($i - 1) % 5) + 1,
+        'font_color'       => 6,
       ]);
       $locationIds[] = $loc->resource_id;
     }

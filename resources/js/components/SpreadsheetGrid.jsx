@@ -114,7 +114,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
            : ASGN_HDR_W;
 
   // 場所タブのフロアフィルタ（ローカル状態、displaySettings.pllocation で初期化）
-  const [pllocation, setPllocation] = useState(() => displaySettings?.pllocation ?? 3);
+  const [pllocation, setPllocation] = useState(() => displaySettings?.pllocation ?? null);
   useEffect(() => {
     if (displaySettings?.pllocation != null) setPllocation(displaySettings.pllocation);
   }, [displaySettings?.pllocation]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -199,6 +199,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         id: loc.resourceId,
         label1: loc.resourceName,
         label2: loc.locationTypeName ?? '',
+        backColor: loc.backColor,
+        fontColor: loc.fontColor,
       }));
     } else if (mode === 'task') {
       const tktasklist = displaySettings.tktasklist || [];
@@ -1256,7 +1258,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
               {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
               {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
             </div>
-          ) : '装置') : mode === 'location' ? '場所' : mode === 'task' ? (
+          ) : '装置') : mode === 'location' ? (
+            <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+              <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>フロア名</div>
+              <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>場所名</div>
+            </div>
+          ) : mode === 'task' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
               <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>プロセス名</div>
               <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>タスク名</div>
