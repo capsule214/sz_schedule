@@ -88,7 +88,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const fetchedPlanKeysRef  = useRef(new Set());
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
   const fetchedLocKeysRef   = useRef(new Set());
-  const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType } (0=平日 1=週末 6=会社休業日)
+  const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType } (0=平日 1=土日 3=祝日 4=会社休日)
   const fetchedCalendarRangesRef = useRef([]);
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -1184,7 +1184,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const dow = dt.getDay();
       const cal = calendarData.get(ds);
       let type;
-      if (cal?.dayType === 6)      type = 'holiday';   // 会社休業日
+      if (cal?.dayType === 3 || cal?.dayType === 4) type = 'holiday';   // 祝日 / 会社休日
       else if (dow === 0)          type = 'sunday';
       else if (dow === 6)          type = 'saturday';
       else                         type = 'weekday';

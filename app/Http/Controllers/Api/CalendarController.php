@@ -37,8 +37,8 @@ class CalendarController extends Controller
   {
     $data = $request->validate([
       'date'     => 'required|date',
-      'dateType' => 'nullable|integer|in:0,1,6',
-      'dayType'  => 'nullable|integer|in:0,1,6',
+      'dateType' => 'nullable|integer|in:0,1,3,4',
+      'dayType'  => 'nullable|integer|in:0,1,3,4',
     ]);
 
     $cal = DrCalendar::updateOrCreate(

@@ -325,7 +325,7 @@ class SeedController extends Controller
       $w = (int) date('w', $ts);
       $dateType = ($w === 0 || $w === 6) ? 1 : 0;
       if ($this->lcgRange(1, 100) <= 3) {
-        $dateType = 6; // 会社休業日
+        $dateType = 4; // 会社休日
       }
       $calendarRows[] = [
         'calendar_date' => date('Y-m-d', $ts),
