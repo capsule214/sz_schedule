@@ -56,7 +56,7 @@ export default function SpreadsheetGridToolbar({
           <option key={n} value={n}>{n}ヶ月</option>
         ))}
       </select>
-      {mode !== 'location' && mode !== 'task' && (
+      {mode !== 'place' && mode !== 'task' && (
         <>
           <select value={deviceCount} onChange={e => onDeviceCountChange(Number(e.target.value))} style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}>
             {[100, 200, 500, 1000, 2000, 5000].map(n => (
@@ -67,7 +67,7 @@ export default function SpreadsheetGridToolbar({
         </>
       )}
       <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 2px' }} />
-      {mode === 'location' && (() => {
+      {mode === 'place' && (() => {
         // Extract unique location types from the locations data
         const seen = new Set();
         const locationTypes = [];

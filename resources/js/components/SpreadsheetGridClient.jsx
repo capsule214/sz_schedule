@@ -91,7 +91,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     device: ['serials'],
     worker: ['workers'],
     task: ['tasks'],
-    location: ['resources'],
+    place: ['resources'],
   }), []);
 
   const hasMastersForMode = useCallback((mode) => (
@@ -160,13 +160,13 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   async function handleSave() {
-    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'location' ? locationGridRef : taskGridRef;
+    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.saveChanges();
     setIsDirty(false);
   }
 
   async function handleCancel() {
-    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'location' ? locationGridRef : taskGridRef;
+    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.cancelChanges();
     setIsDirty(false);
   }
@@ -379,12 +379,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
           />
         </GridTabPane>
 
-        <GridTabPane active={tab === 'location'}>
+        <GridTabPane active={tab === 'place'}>
           <SpreadsheetGrid
             {...gridProps}
-            active={tab === 'location'}
+            active={tab === 'place'}
             ref={locationGridRef}
-            mode="location"
+            mode="place"
             jumpTarget={null}
             onRangeChange={r => { locationRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}

@@ -73,8 +73,8 @@ export default function SpreadsheetGridBars({
       if (x + w < scrollLeft || x > scrollLeft + containerW) continue;
       if (absRow < visRowStart || absRow > visRowEnd) continue;
 
-      const bg = getColor(mode === 'location' ? plan.backColor : plan.taskBackColor);
-      const fg = getColor(mode === 'location' ? plan.fontColor : plan.taskFontColor);
+      const bg = getColor(mode === 'place' ? plan.backColor : plan.taskBackColor);
+      const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
@@ -117,7 +117,7 @@ export default function SpreadsheetGridBars({
         </div>
       );
 
-      const label = mode === 'location'
+      const label = mode === 'place'
         ? (plan.serialNo ? `${plan.kisyuName} ${plan.serialNo}` : '')
         : (plan.workerName ? `${plan.taskName} ${plan.workerName}` : plan.taskName);
 

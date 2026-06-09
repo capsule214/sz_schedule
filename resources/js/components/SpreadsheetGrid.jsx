@@ -110,7 +110,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
   const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
   const leftHdrW = mode === 'device' ? DEV_HDR_W + deviceExtraW
-           : (mode === 'worker' || mode === 'task' || mode === 'location') ? ASGN_HDR_W * 2
+           : (mode === 'worker' || mode === 'task' || mode === 'place') ? ASGN_HDR_W * 2
            : ASGN_HDR_W;
 
   // 場所タブのフロアフィルタ（ローカル状態、displaySettings.pllocation で初期化）
@@ -118,7 +118,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (displaySettings?.pllocation != null) setPllocation(displaySettings.pllocation);
   }, [displaySettings?.pllocation]); // eslint-disable-line react-hooks/exhaustive-deps
-  const planEndpoint = mode === 'location' ? '/reserve' : '/plan';
+  const planEndpoint = mode === 'place' ? '/reserve' : '/plan';
   const planSearchEndpoint = mode === 'device'
     ? '/plan/search/device'
     : mode === 'worker'
@@ -126,7 +126,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       : mode === 'task'
         ? '/plan/search/task'
         : '/reserve/search';
-  const planMinRows  = mode === 'location' ? MIN_ROWS_LOCATION : mode === 'worker' ? 2 : MIN_ROWS;
+  const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
@@ -192,7 +192,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }
       }
       return baseDeviceGroups;
-    } else if (mode === 'location') {
+    } else if (mode === 'place') {
       let locs = resources || [];
       if (pllocation) locs = locs.filter(loc => loc.locationTypeId === pllocation);
       return locs.map(loc => ({
@@ -233,7 +233,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [mode, serials, workers, resources, displaySettings, baseDeviceGroups, forcedSerialId, pllocation]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
-    const groupKey = mode === 'device' ? 'device' : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'location';
+    const groupKey = mode === 'device' ? 'device' : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
     const locPlans = extraLocationRow ? locationOverlayPlans : null;
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
@@ -400,7 +400,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const ids = [...new Set(serialIds.map(Number).filter(Number.isFinite))];
     if (ids.length === 0) return;
     const body = { serial_ids: ids };
-    const key = JSON.stringify({ mode: 'location-overlay', from, to, body });
+    const key = JSON.stringify({ mode: 'place-overlay', from, to, body });
     if (fetchedLocKeysRef.current.has(key)) return;
     fetchedLocKeysRef.current.add(key);
     try {
@@ -828,7 +828,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
 
       // API は呼ばず、ローカル state を即時更新して保留リストに積む
-      const payload = mode === 'location'
+      const payload = mode === 'place'
         ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate }
         : { serialId: newSerialId, taskId: dp.taskId, workerId: newWorkerId, startDate: newStartDate, endDate: newEndDate };
       setPlans(prev => prev.map(p =>
@@ -868,7 +868,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           openScheduleDialog({
             plan: null,
             initialData: {
-              resourceId: mode === 'location' ? g?.id : null,
+              resourceId: mode === 'place' ? g?.id : null,
               serialId:   mode === 'device'   ? g?.id : null,
               kisyuId:    mode === 'device'   ? g?.kisyuId : null,
               workerId:   mode === 'worker'   ? g?.id : null,
@@ -965,7 +965,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     // 貼り付け先の serialId / workerId / locationId（全プランに共通で適用）
     const targetSerialId   = mode === 'device'   ? targetGroup.id : null;
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
-    const targetLocationId = mode === 'location' ? targetGroup.id : null;
+    const targetLocationId = mode === 'place' ? targetGroup.id : null;
 
     // 先頭プランの開始列を基準に列オフセットを算出
     const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
@@ -981,9 +981,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 全プランを貼り付け先の場所/装置/担当者に統一する
       const newSerialId   = mode === 'device'   ? targetSerialId   : p.serialId;
       const newWorkerId   = mode === 'worker'   ? targetWorkerId   : p.workerId;
-      const newLocationId = mode === 'location' ? targetLocationId : p.resourceId;
+      const newLocationId = mode === 'place' ? targetLocationId : p.resourceId;
 
-      const payload = mode === 'location'
+      const payload = mode === 'place'
         ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
         : { serialId: newSerialId, taskId: p.taskId, workerId: newWorkerId, startDate: newStart, endDate: newEnd };
       const tempId = tempIdCounterRef.current--;
@@ -1008,7 +1008,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   async function savePlan(data) {
     const dialog = scheduleDialog;
     setScheduleDialog(null);
-    const payload = mode === 'location'
+    const payload = mode === 'place'
       ? {
         resourceId: data.resourceId || dialog.initialData?.resourceId,
         serialId:   data.serialId,
@@ -1258,7 +1258,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
               {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
               {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
             </div>
-          ) : '装置') : mode === 'location' ? (
+          ) : '装置') : mode === 'place' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
               <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>フロア名</div>
               <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>場所名</div>

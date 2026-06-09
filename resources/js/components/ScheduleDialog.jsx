@@ -52,7 +52,7 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
         const requests = [
           apiArray('/serial/kisyu'),
         ];
-        if (gridMode !== 'location') {
+        if (gridMode !== 'place') {
           requests.push(apiArray('/task'), apiArray('/worker/team'));
         } else if (!resources?.length) {
           requests.push(apiArray('/resource'));
@@ -60,7 +60,7 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
         const results = await Promise.all(requests);
         if (cancelled) return;
         setKisyuList(results[0]);
-        if (gridMode !== 'location') {
+        if (gridMode !== 'place') {
           setTasks(results[1]);
           setTeamList(results[2]);
           if (!taskId && results[1]?.[0]) setTaskId(results[1][0].taskId);
@@ -101,7 +101,7 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
 
   useEffect(() => {
     let cancelled = false;
-    if (gridMode === 'location') return () => { cancelled = true; };
+    if (gridMode === 'place') return () => { cancelled = true; };
     const initialWorkerId = init.workerId ?? initialData?.workerId;
     if (!initialWorkerId) return () => { cancelled = true; };
     apiJson(`/worker/${initialWorkerId}`)
@@ -114,7 +114,7 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
 
   useEffect(() => {
     let cancelled = false;
-    if (gridMode === 'location') return () => { cancelled = true; };
+    if (gridMode === 'place') return () => { cancelled = true; };
     if (teamId === '') {
       setWorkers([]);
       setWorkerId('');
@@ -155,10 +155,10 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
     const ed2 = toDateStr(endDate, endHm);
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!serialId) { setError('製番を選択してください'); return; }
-    if (gridMode !== 'location' && !taskId) { setError('工程を選択してください'); return; }
-    if (gridMode === 'location' && !resourceId) { setError('場所を選択してください'); return; }
+    if (gridMode !== 'place' && !taskId) { setError('工程を選択してください'); return; }
+    if (gridMode === 'place' && !resourceId) { setError('場所を選択してください'); return; }
     setError('');
-    if (gridMode === 'location') {
+    if (gridMode === 'place') {
       onSave({ resourceId: Number(resourceId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
     } else {
       onSave({ serialId: Number(serialId), taskId: Number(taskId), workerId: workerId !== '' ? Number(workerId) : null, startDate: sd2, endDate: ed2 });
@@ -236,7 +236,7 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {gridMode === 'location' ? (
+          {gridMode === 'place' ? (
             <>
               <div>
                 <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>場所</label>
