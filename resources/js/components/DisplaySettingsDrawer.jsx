@@ -1,10 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DisplaySettingsSlotPicker from './DisplaySettingsSlotPicker';
-
-const BTN = {
-  fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
-  borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
-};
+import DeviceSettingsTab from './dspsetting/DeviceSettingsTab';
+import TaskSettingsTab from './dspsetting/TaskSettingsTab';
+import WorkerSettingsTab from './dspsetting/WorkerSettingsTab';
 
 
 export default function DisplaySettingsDrawer({ open, onClose, activeTab, serials, workers, tasks, settings, settingsList = [], onEnsureMasters, onSave }) {
@@ -134,17 +132,6 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
       .sort((a, b) => a.kisyuName.localeCompare(b.kisyuName, 'ja'));
   }, [serials, sbequiptype, sbstatuslist]);
 
-  // プロセス別タスクリスト（タスクドロワータブ用）
-  const tasksByProcess = useMemo(() => {
-    const map = {};
-    for (const t of tasks) {
-      const key = t.processName || '(プロセス未設定)';
-      if (!map[key]) map[key] = { processName: key, processSortNo: t.processSortNo || 0, tasks: [] };
-      map[key].tasks.push(t);
-    }
-    return Object.values(map).sort((a, b) => a.processSortNo - b.processSortNo);
-  }, [tasks]);
-
   // チームリスト（製造部署・チーム名で絞り込み）
   const teamList = useMemo(() => {
     const map = workers.reduce((acc, w) => {
@@ -160,20 +147,6 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
       .filter(t => t.teamName.includes(teamFilter))
       .sort((a, b) => a.teamName.localeCompare(b.teamName, 'ja'));
   }, [workers, sygroup, teamFilter]);
-
-  function toggleKisyu(id) {
-    // id は number
-    setSbmodellist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
-  function toggleTeam(id) {
-    setSyteamlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
-  function toggleSyTask(id) {
-    setSytasklist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
-  function toggleTkTask(id) {
-    setTktasklist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
 
   function handleSave() {
     const trimmedName = settingName.trim() || `表示設定${settingNo + 1}`;
@@ -266,508 +239,123 @@ export default function DisplaySettingsDrawer({ open, onClose, activeTab, serial
         {/* コンテンツ */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 20px 0' }}>
 
-          {/* ── 装置タブ ── */}
           {tab === 'device' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
-
-              {/* 1行目：製品表示 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
-                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
-                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-                  {[['製番', 0], ['M番', 1]].map(([label, val]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setSbsbmb(val)}
-                      style={{
-                        padding: '4px 14px',
-                        border: 'none',
-                        borderRight: val === 0 ? '1px solid #d1d5db' : 'none',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: sbsbmb === val ? 600 : 400,
-                        background: sbsbmb === val ? '#2563eb' : '#fff',
-                        color: sbsbmb === val ? '#fff' : '#374151',
-                        transition: 'background 0.15s, color 0.15s',
-                      }}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2行目：装置区分 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
-                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>装置区分</span>
-                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-                  {[['全て', -1], ['AAA', 1], ['BBB', 2], ['CCC', 3]].map(([label, val], i, arr) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setSbequiptype(val)}
-                      style={{
-                        padding: '4px 14px',
-                        border: 'none',
-                        borderRight: i < arr.length - 1 ? '1px solid #d1d5db' : 'none',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: sbequiptype === val ? 600 : 400,
-                        background: sbequiptype === val ? '#2563eb' : '#fff',
-                        color: sbequiptype === val ? '#fff' : '#374151',
-                        transition: 'background 0.15s, color 0.15s',
-                      }}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3カラム横並び */}
-              <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-
-                {/* 左：機種セレクト */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
-                  {/* 生産状態チェックボックス */}
-                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                    {[['試作機', 0], ['量産機', 1], ['生産終了機', 2]].map(([label, val]) => (
-                      <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                        <input
-                          type="checkbox"
-                          checked={sbstatuslist.includes(val)}
-                          onChange={e => setSbstatuslist(prev =>
-                            e.target.checked ? [...prev, val] : prev.filter(v => v !== val)
-                          )}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setSbmodellist(kisyuList.map(k => k.kisyuId))}
-                    style={{ ...BTN, width: '100%' }}
-                  >全選択</button>
-                  <select
-                    multiple
-                    value={sbmodellist.map(String)}
-                    onChange={e => {
-                      setSbmodellist([...e.target.selectedOptions].map(o => Number(o.value)));
-                    }}
-                    style={{
-                      flex: 1, width: '100%', minHeight: 0,
-                      border: '1px solid #d1d5db', borderRadius: 6,
-                      fontSize: 13, padding: '2px 0',
-                    }}
-                  >
-                    {kisyuList.map(k => (
-                      <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 中：工程担当絞り込み */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>工程担当絞り込み</div>
-                  <div style={{
-                    display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'flex-start',
-                    padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6,
-                    background: '#fff', minHeight: 34,
-                  }}>
-                    {sbinchargelist.map(code => (
-                      <span key={code} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 3,
-                        padding: '1px 6px', borderRadius: 4,
-                        background: '#dbeafe', color: '#1d4ed8', fontSize: 12, fontWeight: 600,
-                      }}>
-                        {code}
-                        <button
-                          type="button"
-                          onClick={() => setSbinchargelist(prev => prev.filter(c => c !== code))}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#1d4ed8', fontSize: 13 }}
-                        >×</button>
-                      </span>
-                    ))}
-                    <input
-                      value={sbinchargeInput}
-                      onChange={e => setSbinchargeInput(e.target.value)}
-                      onKeyDown={e => {
-                        if ((e.key === 'Enter' || e.key === ',') && sbinchargeInput.trim()) {
-                          e.preventDefault();
-                          const code = sbinchargeInput.trim();
-                          if (!sbinchargelist.includes(code)) {
-                            setSbinchargelist(prev => [...prev, code]);
-                          }
-                          setSbinchargeInput('');
-                        } else if (e.key === 'Backspace' && sbinchargeInput === '' && sbinchargelist.length > 0) {
-                          setSbinchargelist(prev => prev.slice(0, -1));
-                        }
-                      }}
-                      placeholder={sbinchargelist.length === 0 ? '社員番号 + Enter' : ''}
-                      style={{
-                        flex: 1, minWidth: 80, border: 'none', outline: 'none',
-                        fontSize: 13, background: 'transparent', padding: '1px 2px',
-                      }}
-                    />
-                  </div>
-                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
-                    Enterまたは「,」で追加
-                  </p>
-
-                  {/* 装置グループ絞込 */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginTop: 4 }}>装置グループ絞込</div>
-                  <button
-                    onClick={() => setSbszgrouplist([1, 2, 3])}
-                    style={{ ...BTN, width: '100%' }}
-                  >全選択</button>
-                  <select
-                    multiple
-                    value={sbszgrouplist.map(String)}
-                    onChange={e => setSbszgrouplist([...e.target.selectedOptions].map(o => Number(o.value)))}
-                    style={{
-                      width: '100%', border: '1px solid #d1d5db', borderRadius: 6,
-                      fontSize: 13, padding: '2px 0',
-                    }}
-                    size={3}
-                  >
-                    <option value="1">1部</option>
-                    <option value="2">2部</option>
-                    <option value="3">3部</option>
-                  </select>
-                </div>
-
-                {/* 右：表示オプション1 ＋ 表示オプション2 */}
-                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 120 }}>
-
-                  {/* 表示オプション1 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション1</div>
-
-                    {/* 表示期間 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示期間</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        value={duration}
-                        onChange={e => setDuration(Math.max(1, Number(e.target.value)))}
-                        style={{
-                          width: 52, padding: '4px 6px',
-                          border: '1px solid #d1d5db', borderRadius: 6,
-                          fontSize: 13, textAlign: 'right',
-                        }}
-                      />
-                      <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>ヶ月</span>
-                    </div>
-
-                    {/* 表示順 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示順</span>
-                      <select
-                        value={sborder}
-                        onChange={e => setSborder(Number(e.target.value))}
-                        style={{
-                          flex: 1, padding: '4px 6px',
-                          border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13,
-                        }}
-                      >
-                        <option value={0}>製番順</option>
-                        <option value={1}>着工日順</option>
-                        <option value={2}>出荷日順</option>
-                      </select>
-                    </div>
-
-                    {/* タスク表示色 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>タスク表示色</span>
-                      <select
-                        value={sbcolor}
-                        onChange={e => setSbcolor(Number(e.target.value))}
-                        style={{
-                          flex: 1, padding: '4px 6px',
-                          border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13,
-                        }}
-                      >
-                        <option value={0}>タスクカラー</option>
-                        <option value={1}>機種カラー</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* 表示オプション2 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション2</div>
-                    {[
-                      [sboption,    e => setSboption(e.target.checked),    '完了製品も表示'],
-                      [synobody,    e => setSynobody(e.target.checked),    '社員未定も表示'],
-                      [sbdspplplan, e => setSbdspplplan(e.target.checked), '場所予定も表示'],
-                      [sbdspdate,   e => setSbdspdate(e.target.checked),   '出荷日を表示'],
-                      [sbdspincharge, e => setSbdspincharge(e.target.checked), '責任者を表示'],
-                      [flgsyoyo,    e => setFlgsyoyo(e.target.checked),    '所要日連動を表示'],
-                      [flgukeoi,    e => setFlgukeoi(e.target.checked),    '請負発注状態を表示'],
-                      [flgkeppin,   e => setFlgkeppin(e.target.checked),   '部品欠品状態を表示'],
-                      [flggoso,     e => setFlggoso(e.target.checked),     '後送有無を表示'],
-                      [flgdiff,     e => setFlgdiff(e.target.checked),     '当日変更状態を表示'],
-                    ].map(([checked, onChange, label]) => (
-                      <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                        <input type="checkbox" checked={checked} onChange={onChange} />
-                        <span style={{ fontSize: 13, color: '#374151' }}>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
+            <DeviceSettingsTab
+              duration={duration}
+              setDuration={setDuration}
+              sborder={sborder}
+              setSborder={setSborder}
+              sbcolor={sbcolor}
+              setSbcolor={setSbcolor}
+              sbsbmb={sbsbmb}
+              setSbsbmb={setSbsbmb}
+              sbequiptype={sbequiptype}
+              setSbequiptype={setSbequiptype}
+              sbstatuslist={sbstatuslist}
+              setSbstatuslist={setSbstatuslist}
+              sbinchargelist={sbinchargelist}
+              setSbinchargelist={setSbinchargelist}
+              sbinchargeInput={sbinchargeInput}
+              setSbinchargeInput={setSbinchargeInput}
+              sbszgrouplist={sbszgrouplist}
+              setSbszgrouplist={setSbszgrouplist}
+              sbmodellist={sbmodellist}
+              setSbmodellist={setSbmodellist}
+              sboption={sboption}
+              setSboption={setSboption}
+              synobody={synobody}
+              setSynobody={setSynobody}
+              sbdspplplan={sbdspplplan}
+              setSbdspplplan={setSbdspplplan}
+              sbdspdate={sbdspdate}
+              setSbdspdate={setSbdspdate}
+              sbdspincharge={sbdspincharge}
+              setSbdspincharge={setSbdspincharge}
+              flgsyoyo={flgsyoyo}
+              setFlgsyoyo={setFlgsyoyo}
+              flgukeoi={flgukeoi}
+              setFlgukeoi={setFlgukeoi}
+              flgkeppin={flgkeppin}
+              setFlgkeppin={setFlgkeppin}
+              flggoso={flggoso}
+              setFlggoso={setFlggoso}
+              flgdiff={flgdiff}
+              setFlgdiff={setFlgdiff}
+              kisyuList={kisyuList}
+            />
           )}
 
-          {/* ── 担当者タブ ── */}
           {tab === 'worker' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
-
-              {/* 1行目：製造部署 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製造部署</span>
-                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-                  {[[-1, '全て'], [1, '1部'], [2, '2部'], [3, '3部']].map(([val, label], idx, arr) => {
-                    const v = val === -1 ? 0 : val;
-                    const active = sygroup === v;
-                    return (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setSygroup(v)}
-                        style={{
-                          padding: '4px 14px', border: 'none',
-                          borderRight: idx < arr.length - 1 ? '1px solid #d1d5db' : 'none',
-                          background: active ? '#2563eb' : '#fff',
-                          color: active ? '#fff' : '#374151',
-                          fontSize: 13, cursor: 'pointer', fontWeight: active ? 600 : 400,
-                          transition: 'background 0.15s, color 0.15s',
-                        }}
-                      >{label}</button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 3カラム横並び */}
-              <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-
-                {/* 左：チームリスト */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>チームリスト</div>
-                  <input
-                    placeholder="チーム名で絞り込み"
-                    value={teamFilter}
-                    onChange={e => setTeamFilter(e.target.value)}
-                    style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13, flexShrink: 0 }}
-                  />
-                  <button onClick={() => setSyteamlist(teamList.map(t => t.teamId))} style={{ ...BTN, width: '100%' }}>全選択</button>
-                  <select
-                    multiple
-                    value={syteamlist.map(String)}
-                    onChange={e => setSyteamlist([...e.target.selectedOptions].map(o => Number(o.value)))}
-                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-                  >
-                    {teamList.map(t => (
-                      <option key={t.teamId} value={t.teamId}>{t.teamName}（{t.count}人）</option>
-                    ))}
-                  </select>
-
-                </div>
-
-                {/* 中：表示タスクリスト */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>表示タスクリスト</div>
-                  <button onClick={() => setSytasklist(tasks.map(t => t.taskId))} style={{ ...BTN, width: '100%' }}>全選択</button>
-                  <select
-                    multiple
-                    value={sytasklist.map(String)}
-                    onChange={e => setSytasklist([...e.target.selectedOptions].map(o => Number(o.value)))}
-                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-                  >
-                    {tasks.map(t => (
-                      <option key={t.taskId} value={t.taskId}>{t.taskName}</option>
-                    ))}
-                  </select>
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は全タスクを表示します</p>
-                </div>
-
-                {/* 右：表示オプション1 ＋ 表示オプション2 */}
-                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 120 }}>
-
-                  {/* 表示オプション1 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション1</div>
-
-                    {/* 表示期間 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示期間</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        value={duration}
-                        onChange={e => setDuration(Math.max(1, Number(e.target.value)))}
-                        style={{
-                          width: 52, padding: '4px 6px',
-                          border: '1px solid #d1d5db', borderRadius: 6,
-                          fontSize: 13, textAlign: 'right',
-                        }}
-                      />
-                      <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>ヶ月</span>
-                    </div>
-
-                    {/* タスク表示色 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>タスク表示色</span>
-                      <select
-                        value={sycolor}
-                        onChange={e => setSycolor(Number(e.target.value))}
-                        style={{
-                          flex: 1, padding: '4px 6px',
-                          border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13,
-                        }}
-                      >
-                        <option value={0}>タスクカラー</option>
-                        <option value={1}>機種カラー</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* 表示オプション2 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション2</div>
-                    {[
-                      [sboption,      e => setSboption(e.target.checked),      '完了製品も表示'],
-                      [synobody,      e => setSynobody(e.target.checked),      '社員未定も表示'],
-                      [sbdspplplan,   e => setSbdspplplan(e.target.checked),   '場所予定も表示'],
-                      [sbdspdate,     e => setSbdspdate(e.target.checked),     '出荷日を表示'],
-                      [sbdspincharge, e => setSbdspincharge(e.target.checked), '責任者を表示'],
-                      [flgsyoyo,      e => setFlgsyoyo(e.target.checked),      '所要日連動を表示'],
-                      [flgukeoi,      e => setFlgukeoi(e.target.checked),      '請負発注状態を表示'],
-                      [flgkeppin,     e => setFlgkeppin(e.target.checked),     '部品欠品状態を表示'],
-                      [flggoso,       e => setFlggoso(e.target.checked),       '後送有無を表示'],
-                      [flgdiff,       e => setFlgdiff(e.target.checked),       '当日変更状態を表示'],
-                    ].map(([checked, onChange, label]) => (
-                      <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                        <input type="checkbox" checked={checked} onChange={onChange} />
-                        <span style={{ fontSize: 13, color: '#374151' }}>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
+            <WorkerSettingsTab
+              duration={duration}
+              setDuration={setDuration}
+              sycolor={sycolor}
+              setSycolor={setSycolor}
+              sygroup={sygroup}
+              setSygroup={setSygroup}
+              syteamlist={syteamlist}
+              setSyteamlist={setSyteamlist}
+              sytasklist={sytasklist}
+              setSytasklist={setSytasklist}
+              teamFilter={teamFilter}
+              setTeamFilter={setTeamFilter}
+              teamList={teamList}
+              tasks={tasks}
+              sboption={sboption}
+              setSboption={setSboption}
+              synobody={synobody}
+              setSynobody={setSynobody}
+              sbdspplplan={sbdspplplan}
+              setSbdspplplan={setSbdspplplan}
+              sbdspdate={sbdspdate}
+              setSbdspdate={setSbdspdate}
+              sbdspincharge={sbdspincharge}
+              setSbdspincharge={setSbdspincharge}
+              flgsyoyo={flgsyoyo}
+              setFlgsyoyo={setFlgsyoyo}
+              flgukeoi={flgukeoi}
+              setFlgukeoi={setFlgukeoi}
+              flgkeppin={flgkeppin}
+              setFlgkeppin={setFlgkeppin}
+              flggoso={flggoso}
+              setFlggoso={setFlggoso}
+              flgdiff={flgdiff}
+              setFlgdiff={setFlgdiff}
+            />
           )}
 
-          {/* ── タスクタブ ── */}
           {tab === 'task' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-              {/* 1行目：製品表示 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
-                <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-                  {[['製番', 0], ['M番', 1], ['すべて', 2]].map(([label, val], idx, arr) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setTksbmb(val)}
-                      style={{
-                        padding: '4px 14px', border: 'none',
-                        borderRight: idx < arr.length - 1 ? '1px solid #d1d5db' : 'none',
-                        background: tksbmb === val ? '#2563eb' : '#fff',
-                        color: tksbmb === val ? '#fff' : '#374151',
-                        fontSize: 13, cursor: 'pointer', fontWeight: tksbmb === val ? 600 : 400,
-                        transition: 'background 0.15s, color 0.15s',
-                      }}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2カラム横並び */}
-              <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-
-                {/* 左：表示タスクリスト */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>表示タスクリスト</div>
-                  <select
-                    multiple
-                    value={tktasklist.map(String)}
-                    onChange={e => setTktasklist([...e.target.selectedOptions].map(o => Number(o.value)))}
-                    style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-                  >
-                    {tasks.map(t => (
-                      <option key={t.taskId} value={t.taskId}>{t.taskTypeName || '(未設定)'} | {t.processName || '(未設定)'} | {t.taskName}</option>
-                    ))}
-                  </select>
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は何も表示しません</p>
-                </div>
-
-                {/* 右：表示オプション1 ＋ 表示オプション2 */}
-                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 120 }}>
-
-                  {/* 表示オプション1 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション1</div>
-
-                    {/* 表示期間 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>表示期間</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        value={duration}
-                        onChange={e => setDuration(Math.max(1, Number(e.target.value)))}
-                        style={{ width: 52, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, textAlign: 'right' }}
-                      />
-                      <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>ヶ月</span>
-                    </div>
-
-                    {/* タスク表示色 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}>タスク表示色</span>
-                      <select
-                        value={sycolor}
-                        onChange={e => setSycolor(Number(e.target.value))}
-                        style={{ flex: 1, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
-                      >
-                        <option value={0}>タスクカラー</option>
-                        <option value={1}>機種カラー</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* 表示オプション2 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>表示オプション2</div>
-                    {[
-                      [sboption,      e => setSboption(e.target.checked),      '完了製品も表示'],
-                      [synobody,      e => setSynobody(e.target.checked),      '社員未定も表示'],
-                      [sbdspplplan,   e => setSbdspplplan(e.target.checked),   '場所予定も表示'],
-                      [sbdspdate,     e => setSbdspdate(e.target.checked),     '出荷日を表示'],
-                      [sbdspincharge, e => setSbdspincharge(e.target.checked), '責任者を表示'],
-                      [flgsyoyo,      e => setFlgsyoyo(e.target.checked),      '所要日連動を表示'],
-                      [flgukeoi,      e => setFlgukeoi(e.target.checked),      '請負発注状態を表示'],
-                      [flgkeppin,     e => setFlgkeppin(e.target.checked),     '部品欠品状態を表示'],
-                      [flggoso,       e => setFlggoso(e.target.checked),       '後送有無を表示'],
-                      [flgdiff,       e => setFlgdiff(e.target.checked),       '当日変更状態を表示'],
-                    ].map(([checked, onChange, label]) => (
-                      <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                        <input type="checkbox" checked={checked} onChange={onChange} />
-                        <span style={{ fontSize: 13, color: '#374151' }}>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
+            <TaskSettingsTab
+              duration={duration}
+              setDuration={setDuration}
+              sycolor={sycolor}
+              setSycolor={setSycolor}
+              tksbmb={tksbmb}
+              setTksbmb={setTksbmb}
+              tktasklist={tktasklist}
+              setTktasklist={setTktasklist}
+              tasks={tasks}
+              sboption={sboption}
+              setSboption={setSboption}
+              synobody={synobody}
+              setSynobody={setSynobody}
+              sbdspplplan={sbdspplplan}
+              setSbdspplplan={setSbdspplplan}
+              sbdspdate={sbdspdate}
+              setSbdspdate={setSbdspdate}
+              sbdspincharge={sbdspincharge}
+              setSbdspincharge={setSbdspincharge}
+              flgsyoyo={flgsyoyo}
+              setFlgsyoyo={setFlgsyoyo}
+              flgukeoi={flgukeoi}
+              setFlgukeoi={setFlgukeoi}
+              flgkeppin={flgkeppin}
+              setFlgkeppin={setFlgkeppin}
+              flggoso={flggoso}
+              setFlggoso={setFlggoso}
+              flgdiff={flgdiff}
+              setFlgdiff={setFlgdiff}
+            />
           )}
         </div>
 
