@@ -6,7 +6,7 @@ function fmt(y, m, d) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function DatePicker({ value, onChange, minDate, maxDate, rangeStart, rangeEnd }) {
+export default function DatePicker({ value, onChange, minDate, maxDate, rangeStart, rangeEnd, calendarData }) {
   const init = value ? new Date(value + 'T00:00:00') : new Date();
   const [viewYear, setViewYear] = useState(init.getFullYear());
   const [viewMonth, setViewMonth] = useState(init.getMonth() + 1);
@@ -38,10 +38,13 @@ export default function DatePicker({ value, onChange, minDate, maxDate, rangeSta
     const isToday = ds === TODAY;
     const inRange = rangeStart && rangeEnd && ds >= rangeStart && ds <= rangeEnd;
 
+    const dayType = calendarData?.get(ds)?.dayType;
+    const isHoliday = dayType === 3 || dayType === 4;
+
     let bg = 'transparent', color = '#111', cursor = 'pointer', opacity = 1;
     if (disabled) { opacity = 0.35; cursor = 'default'; }
-    if (dow === 0) color = '#ef4444';
-    if (dow === 6) color = '#3b82f6';
+    if (dow === 0 || isHoliday) color = '#ef4444';
+    if (dow === 6 && !isHoliday) color = '#3b82f6';
     if (inRange) bg = '#bfdbfe';
     if (isToday) { bg = '#ef4444'; color = '#fff'; }
     if (isSelected) { bg = '#2563eb'; color = '#fff'; }

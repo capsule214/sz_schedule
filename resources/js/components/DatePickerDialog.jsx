@@ -1,14 +1,38 @@
 import { useEffect, useState } from 'react';
 import DatePicker from './DatePicker';
+import { apiArray } from '../lib/api';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
 export default function DatePickerDialog({ open, value, title = '日付を選択', onCancel, onConfirm }) {
   const [draft, setDraft] = useState(value);
+  const [calendarData, setCalendarData] = useState(new Map());
 
   useEffect(() => {
     if (open) setDraft(value);
   }, [open, value]);
+
+  // ダイアログを開いたとき、基準日±1年のカレンダーデータを取得
+  useEffect(() => {
+    if (!open) return;
+    const base = value || TODAY;
+    const baseDate = new Date(base + 'T00:00:00');
+    const from = new Date(baseDate);
+    from.setFullYear(from.getFullYear() - 1);
+    const to = new Date(baseDate);
+    to.setFullYear(to.getFullYear() + 1);
+    const fromStr = from.toISOString().slice(0, 10);
+    const toStr   = to.toISOString().slice(0, 10);
+
+    apiArray('/calendar/search', {
+      method: 'POST',
+      body: JSON.stringify({ from: fromStr, to: toStr }),
+    }).then(data => {
+      const map = new Map();
+      for (const c of data) map.set(c.date, { dayType: c.dayType });
+      setCalendarData(map);
+    }).catch(() => {});
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
 
@@ -27,6 +51,7 @@ export default function DatePickerDialog({ open, value, title = '日付を選択
         <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</div>
         <DatePicker
           value={draft}
+          calendarData={calendarData}
           onChange={(date) => {
             setDraft(date);
             onConfirm(date);
