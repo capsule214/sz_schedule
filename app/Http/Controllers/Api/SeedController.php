@@ -12,7 +12,7 @@ use App\Models\KmTask;
 use App\Models\KdPlan;
 use App\Models\KmResource;
 use App\Models\KkLocationType;
-use App\Models\KdLocationPlan;
+use App\Models\KdReserve;
 use App\Models\DrCalendar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +114,7 @@ class SeedController extends Controller
     $this->lcgSeed = $seedNum;
 
     DB::statement('PRAGMA foreign_keys = OFF');
-    KdLocationPlan::truncate();
+    KdReserve::truncate();
     KdPlan::truncate();
     KdSerial::truncate();
     KmWorker::truncate();
@@ -251,7 +251,7 @@ class SeedController extends Controller
     }
 
     foreach (array_chunk($locationPlans, 200) as $chunk) {
-      KdLocationPlan::insert($chunk);
+      KdReserve::insert($chunk);
     }
 
     return response()->json([
@@ -273,7 +273,7 @@ class SeedController extends Controller
     $this->lcgSeed = $seedNum;
 
     DB::statement('PRAGMA foreign_keys = OFF');
-    KdLocationPlan::truncate();
+    KdReserve::truncate();
     KdPlan::truncate();
     KdSerial::truncate();
     KmWorker::truncate();
@@ -462,7 +462,7 @@ class SeedController extends Controller
     }
 
     foreach (array_chunk($reserves, 200) as $chunk) {
-      KdLocationPlan::insert($chunk);
+      KdReserve::insert($chunk);
     }
 
     return response()->json([

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\KdLocationPlan;
+use App\Models\KdReserve;
 use App\Models\KdSerial;
 use Illuminate\Http\Request;
 
@@ -29,14 +29,14 @@ class ReserveController extends Controller
     ];
   }
 
-  private function formatReserve(KdLocationPlan $reserve): array
+  private function formatReserve(KdReserve $reserve): array
   {
     $resource = $reserve->km_resource;
     $serial   = $reserve->kd_serial;
 
     return [
-      'reserveId'    => $reserve->location_plan_id,
-      'planId'       => $reserve->location_plan_id,
+      'reserveId'    => $reserve->reserve_id,
+      'planId'       => $reserve->reserve_id,
       'resourceId'   => $reserve->resource_id,
       'resourceName' => $resource ? $resource->resource_name : '',
       'serialId'     => $reserve->serial_id,
@@ -52,7 +52,7 @@ class ReserveController extends Controller
 
   public function index()
   {
-    $query = KdLocationPlan::with(['km_resource', 'kd_serial.dm_kisyu'])
+    $query = KdReserve::with(['km_resource', 'kd_serial.dm_kisyu'])
       ->where('deleted', 0);
 
     return response()->json($query->get()->map(fn($p) => $this->formatReserve($p)));
@@ -71,7 +71,7 @@ class ReserveController extends Controller
       'kisyu_ids.*'    => 'integer|min:1',
     ]);
 
-    $query = KdLocationPlan::with(['km_resource', 'kd_serial.dm_kisyu'])
+    $query = KdReserve::with(['km_resource', 'kd_serial.dm_kisyu'])
       ->where('deleted', 0)
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
@@ -94,7 +94,7 @@ class ReserveController extends Controller
   {
     $data = $request->validate($this->reserveRules());
 
-    $reserve = KdLocationPlan::create([
+    $reserve = KdReserve::create([
       ...$this->payload($data),
       'deleted' => 0,
     ]);
@@ -106,7 +106,7 @@ class ReserveController extends Controller
 
   public function update(Request $request, int $id)
   {
-    $reserve = KdLocationPlan::findOrFail($id);
+    $reserve = KdReserve::findOrFail($id);
     $data = $request->validate($this->reserveRules());
 
     $reserve->update($this->payload($data));
@@ -122,7 +122,7 @@ class ReserveController extends Controller
       'ids.*' => 'integer|min:1',
     ]);
 
-    $deleted = KdLocationPlan::whereIn('location_plan_id', $data['ids'])->update(['deleted' => 1]);
+    $deleted = KdReserve::whereIn('reserve_id', $data['ids'])->update(['deleted' => 1]);
     return response()->json(['deleted' => $deleted]);
   }
 }

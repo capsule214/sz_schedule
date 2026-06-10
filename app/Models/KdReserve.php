@@ -4,10 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class KdLocationPlan extends Model
+class KdReserve extends Model
 {
-  protected $table = 'kd_location_plan';
-  protected $primaryKey = 'location_plan_id';
+  protected $table = 'kd_reserve';
+  protected $primaryKey = 'reserve_id';
   public $timestamps = false;
   protected $fillable = ['resource_id', 'serial_id', 'start_date', 'end_date', 'deleted'];
 

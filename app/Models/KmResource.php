@@ -11,9 +11,9 @@ class KmResource extends Model
   public $timestamps = false;
   protected $fillable = ['resource_name', 'sort_no', 'location_type_id', 'back_color', 'font_color'];
 
-  public function kd_location_plans()
+  public function reserves()
   {
-    return $this->hasMany(KdLocationPlan::class, 'resource_id', 'resource_id');
+    return $this->hasMany(KdReserve::class, 'resource_id', 'resource_id');
   }
 
   public function locationType()
