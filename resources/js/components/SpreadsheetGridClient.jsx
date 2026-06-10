@@ -59,8 +59,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbscale: 1, sbequiptype: -1,
     flgsyoyo: false, flgukeoi: false, flgkeppin: false, flgdiff: false,
     sbinchargelist: [], sbmodellist: [], sbstatuslist: [], sbszgrouplist: [],
-    sycolor: 0, sygroup: 0, syslace: 1, syteamlist: [], sytasklist: [],
-    tksbmb: 0, tkslace: 1, tktasklist: [],
+    sycolor: 0, sygroup: 0, syscale: 1, syteamlist: [], sytasklist: [],
+    tksbmb: 0, tkscale: 1, tktasklist: [],
   });
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);

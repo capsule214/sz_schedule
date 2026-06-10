@@ -56,11 +56,11 @@ class DisplaySettingsStore
             'sbszgrouplist' => [],
             'sycolor' => 0,
             'sygroup' => 0,
-            'syslace' => 1,
+            'syscale' => 1,
             'syteamlist' => [],
             'sytasklist' => [],
             'tksbmb' => 0,
-            'tkslace' => 1,
+            'tkscale' => 1,
             'tktasklist' => [],
         ];
     }
@@ -131,9 +131,9 @@ class DisplaySettingsStore
             'sbequiptype',
             'sycolor',
             'sygroup',
-            'syslace',
+            'syscale',
             'tksbmb',
-            'tkslace',
+            'tkscale',
         ] as $key) {
             $d[$key] = (int) $d[$key];
         }
@@ -242,11 +242,11 @@ class DisplaySettingsStore
             'sbszgrouplist' => $this->intList($row->sbszgrouplist ?? []),
             'sycolor' => $row->sycolor ?? 0,
             'sygroup' => $row->sygroup ?? 0,
-            'syslace' => $row->syslace ?? 1,
+            'syscale' => $row->syscale ?? 1,
             'syteamlist' => $this->intList($row->syteamlist ?? []),
             'sytasklist' => $this->intList($row->sytasklist ?? []),
             'tksbmb' => $row->tksbmb ?? 0,
-            'tkslace' => $row->tkslace ?? 1,
+            'tkscale' => $row->tkscale ?? 1,
             'tktasklist' => $this->intList($row->tktasklist ?? []),
         ]);
     }
@@ -283,11 +283,11 @@ class DisplaySettingsStore
             'sbszgrouplist' => $this->intArrayValue($s['sbszgrouplist']),
             'sycolor' => $s['sycolor'],
             'sygroup' => $s['sygroup'],
-            'syslace' => $s['syslace'],
+            'syscale' => $s['syscale'],
             'syteamlist' => $this->intArrayValue($s['syteamlist']),
             'sytasklist' => $this->intArrayValue($s['sytasklist']),
             'tksbmb' => $s['tksbmb'],
-            'tkslace' => $s['tkslace'],
+            'tkscale' => $s['tkscale'],
             'tktasklist' => $this->intArrayValue($s['tktasklist']),
         ];
     }

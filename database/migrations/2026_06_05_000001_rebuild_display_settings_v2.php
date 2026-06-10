@@ -25,7 +25,7 @@ return new class extends Migration
 
       // 場所タブ
       $table->smallInteger('pllocation')->default(3);             // 表示階層
-      $table->smallInteger('plslace')->default(1);                // 1:日単位 6:時間単位
+      $table->smallInteger('plscale')->default(1);                // 1:日単位 6:時間単位
 
       // 装置タブ
       $table->smallInteger('sbcolor')->default(0);                // 0:タスクカラー 1:機種カラー
@@ -36,17 +36,17 @@ return new class extends Migration
       $table->smallInteger('sboption')->default(0);               // 0:未完了のみ 1:完了も表示
       $table->smallInteger('sborder')->default(0);                // 0:製番順 1:着工日順 2:出荷日順
       $table->smallInteger('sbsbmb')->default(0);                 // 0:製番 1:M番
-      $table->smallInteger('sbslace')->default(1);                // 1:日単位 6:時間単位
+      $table->smallInteger('sbscale')->default(1);                // 1:日単位 6:時間単位
       $table->smallInteger('sbequiptype')->default(-1);           // 装置区分 -1:全て 1:AAA 2:BBB 3:CCC
 
       // 担当者タブ
       $table->smallInteger('sycolor')->default(0);                // 0:タスクカラー 1:機種カラー
       $table->smallInteger('sygroup')->default(0);                // 製造部署
-      $table->smallInteger('syslace')->default(1);                // 1:日単位 6:時間単位
+      $table->smallInteger('syscale')->default(1);                // 1:日単位 6:時間単位
 
       // タスクタブ
       $table->smallInteger('tksbmb')->default(0);                 // 0:製番 1:M番
-      $table->smallInteger('tkslace')->default(1);                // 1:日単位 6:時間単位
+      $table->smallInteger('tkscale')->default(1);                // 1:日単位 6:時間単位
 
       $table->timestamps();
 

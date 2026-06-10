@@ -83,7 +83,7 @@ export default function SpreadsheetGridBars({
       const rowArr = rowStartXMap.get(absRow) || [];
       const myIdx = rowArr.findIndex(r => r.planId === plan.planId);
       const nextBarX = (myIdx >= 0 && myIdx + 1 < rowArr.length) ? rowArr[myIdx + 1].startX : null;
-      const labelLeft = Math.max(barX + HANDLE_W, 0);
+      const labelLeft = Math.max(barX + 1);
       const maxWToNextBar = nextBarX !== null ? Math.max(0, nextBarX - labelLeft) : Infinity;
       const maxWToContent = Math.max(0, contentRight - labelLeft);
       const labelWidth = Math.min(maxWToNextBar, maxWToContent);
@@ -127,7 +127,7 @@ export default function SpreadsheetGridBars({
           style={{
             position: 'absolute', left: labelLeft, top: barY, width: labelWidth, height: CELL_SIZE,
             display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap',
-            fontSize: 13, color: fg, pointerEvents: 'none', zIndex: 5, paddingLeft: 2, userSelect: 'none',
+            fontSize: 13, color: fg, pointerEvents: 'none', zIndex: 5, paddingLeft: 1, userSelect: 'none',
           }}
         >
           {label}
