@@ -3,6 +3,7 @@ import DisplaySettingsSlotPicker from './DisplaySettingsSlotPicker';
 import DeviceSettingsTab from './dspsetting/DeviceSettingsTab';
 import TaskSettingsTab from './dspsetting/TaskSettingsTab';
 import WorkerSettingsTab from './dspsetting/WorkerSettingsTab';
+import DprSettingsTab from './dspsetting/DprSettingsTab';
 import { useSettingsForm } from '../lib/settingsForm';
 
 export default function DisplaySettingsDrawer({
@@ -111,7 +112,7 @@ export default function DisplaySettingsDrawer({
 
         {/* タブ */}
         <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb', flexShrink: 0 }}>
-          {[['device', '装置'], ['worker', '担当者'], ['task', 'タスク']].map(([key, label]) => (
+          {[['device', '装置'], ['worker', '担当者'], ['task', 'タスク'], ['dpr', 'DPR']].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -130,6 +131,7 @@ export default function DisplaySettingsDrawer({
           {tab === 'device' && <DeviceSettingsTab form={form} setField={setField} serials={serials} />}
           {tab === 'worker' && <WorkerSettingsTab form={form} setField={setField} workers={workers} tasks={tasks} />}
           {tab === 'task'   && <TaskSettingsTab   form={form} setField={setField} tasks={tasks} />}
+          {tab === 'dpr'    && <DprSettingsTab    form={form} setField={setField} />}
         </div>
 
         {/* フッター */}

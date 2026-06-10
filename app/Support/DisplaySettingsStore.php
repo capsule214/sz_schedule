@@ -18,6 +18,8 @@ class DisplaySettingsStore
     'sbdspplplan',
     'flggoso',
     'synobody',
+    // DPR
+    'dprflgseiban',
   ];
 
   private const INT_LIST_KEYS = [
@@ -27,6 +29,21 @@ class DisplaySettingsStore
     'syteamlist',
     'sytasklist',
     'tktasklist',
+    // DPR
+    'dprdeliverytypelist',
+    'dprformtypelist',
+  ];
+
+  private const STR_LIST_KEYS = [
+    'sbinchargelist',
+    // DPR
+    'dprmodellist',
+    'dprsaleslocationlist',
+    'dprpublicationyearlist',
+    'dprclassificationlist',
+    'dprstatuslist',
+    'dprinchargelist',
+    'dprszgrouplist',
   ];
 
   public function defaults(): array
@@ -62,6 +79,20 @@ class DisplaySettingsStore
       'tksbmb' => 0,
       'tkscale' => 1,
       'tktasklist' => [],
+      // DPR
+      'dprduration' => 4,
+      'dprorder' => 0,
+      'dprcolor' => 0,
+      'dprflgseiban' => false,
+      'dprmodellist' => [],
+      'dprsaleslocationlist' => [],
+      'dprpublicationyearlist' => [],
+      'dprdeliverytypelist' => [],
+      'dprformtypelist' => [],
+      'dprclassificationlist' => [],
+      'dprstatuslist' => [],
+      'dprinchargelist' => [],
+      'dprszgrouplist' => [],
     ];
   }
 
@@ -134,10 +165,15 @@ class DisplaySettingsStore
       'syscale',
       'tksbmb',
       'tkscale',
+      // DPR
+      'dprduration',
+      'dprorder',
+      'dprcolor',
     ] as $key) {
       $d[$key] = (int) $d[$key];
     }
-    $d['duration'] = max(1, $d['duration']);
+    $d['duration']    = max(1, $d['duration']);
+    $d['dprduration'] = max(1, $d['dprduration']);
 
     foreach (self::BOOL_KEYS as $key) {
       $d[$key] = (bool) $d[$key];
@@ -147,7 +183,9 @@ class DisplaySettingsStore
       $d[$key] = $this->intList($d[$key]);
     }
 
-    $d['sbinchargelist'] = $this->strList($d['sbinchargelist']);
+    foreach (self::STR_LIST_KEYS as $key) {
+      $d[$key] = $this->strList($d[$key]);
+    }
 
     return $d;
   }
@@ -248,6 +286,20 @@ class DisplaySettingsStore
       'tksbmb' => $row->tksbmb ?? 0,
       'tkscale' => $row->tkscale ?? 1,
       'tktasklist' => $this->intList($row->tktasklist ?? []),
+      // DPR
+      'dprduration' => $row->dprduration ?? 4,
+      'dprorder' => $row->dprorder ?? 0,
+      'dprcolor' => $row->dprcolor ?? 0,
+      'dprflgseiban' => $row->dprflgseiban ?? false,
+      'dprmodellist' => $this->strList($row->dprmodellist ?? []),
+      'dprsaleslocationlist' => $this->strList($row->dprsaleslocationlist ?? []),
+      'dprpublicationyearlist' => $this->strList($row->dprpublicationyearlist ?? []),
+      'dprdeliverytypelist' => $this->intList($row->dprdeliverytypelist ?? []),
+      'dprformtypelist' => $this->intList($row->dprformtypelist ?? []),
+      'dprclassificationlist' => $this->strList($row->dprclassificationlist ?? []),
+      'dprstatuslist' => $this->strList($row->dprstatuslist ?? []),
+      'dprinchargelist' => $this->strList($row->dprinchargelist ?? []),
+      'dprszgrouplist' => $this->strList($row->dprszgrouplist ?? []),
     ]);
   }
 
@@ -289,6 +341,20 @@ class DisplaySettingsStore
       'tksbmb' => $s['tksbmb'],
       'tkscale' => $s['tkscale'],
       'tktasklist' => $this->intArrayValue($s['tktasklist']),
+      // DPR
+      'dprduration' => $s['dprduration'],
+      'dprorder' => $s['dprorder'],
+      'dprcolor' => $s['dprcolor'],
+      'dprflgseiban' => $s['dprflgseiban'],
+      'dprmodellist' => $this->strArrayValue($s['dprmodellist']),
+      'dprsaleslocationlist' => $this->strArrayValue($s['dprsaleslocationlist']),
+      'dprpublicationyearlist' => $this->strArrayValue($s['dprpublicationyearlist']),
+      'dprdeliverytypelist' => $this->intArrayValue($s['dprdeliverytypelist']),
+      'dprformtypelist' => $this->intArrayValue($s['dprformtypelist']),
+      'dprclassificationlist' => $this->strArrayValue($s['dprclassificationlist']),
+      'dprstatuslist' => $this->strArrayValue($s['dprstatuslist']),
+      'dprinchargelist' => $this->strArrayValue($s['dprinchargelist']),
+      'dprszgrouplist' => $this->strArrayValue($s['dprszgrouplist']),
     ];
   }
 

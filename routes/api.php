@@ -58,4 +58,5 @@ Route::middleware('auth:web')->group(function () {
   Route::post('/seed',                     [SeedController::class, 'seed']);
   Route::post('/seed/master',              [SeedController::class, 'seedMaster']);
   Route::post('/seed/plans',               [SeedController::class, 'seedPlans']);
+  Route::post('/seed/dpr',                 [SeedController::class, 'seedDpr']);
 });

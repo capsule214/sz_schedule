@@ -27,6 +27,20 @@ export function normalizeSettings(s = {}) {
     // タスクタブ
     tksbmb:         Number(s.tksbmb        ?? 0),
     tktasklist:     (s.tktasklist  || []).map(Number),
+    // DPR タブ
+    dprduration:           Math.max(1, Number(s.dprduration           ?? 4)),
+    dprorder:              Number(s.dprorder              ?? 0),
+    dprcolor:              Number(s.dprcolor              ?? 0),
+    dprflgseiban:          !!s.dprflgseiban,
+    dprmodellist:          (s.dprmodellist           || []).map(String),
+    dprsaleslocationlist:  (s.dprsaleslocationlist   || []).map(String),
+    dprpublicationyearlist:(s.dprpublicationyearlist || []).map(String),
+    dprdeliverytypelist:   (s.dprdeliverytypelist    || []).map(Number),
+    dprformtypelist:       (s.dprformtypelist        || []).map(Number),
+    dprclassificationlist: (s.dprclassificationlist  || []).map(String),
+    dprstatuslist:         (s.dprstatuslist          || []).map(String),
+    dprinchargelist:       (s.dprinchargelist        || []).map(String),
+    dprszgrouplist:        (s.dprszgrouplist         || []).map(String),
     // 表示オプション2（全タブ共通）
     sboption:       !!s.sboption,
     synobody:       !!s.synobody,

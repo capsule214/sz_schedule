@@ -14,6 +14,7 @@ use App\Models\KmResource;
 use App\Models\KkLocationType;
 use App\Models\KdReserve;
 use App\Models\DrCalendar;
+use App\Models\MDpr;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -470,5 +471,100 @@ class SeedController extends Controller
       'plans'    => count($plans),
       'reserves' => count($reserves),
     ]);
+  }
+  public function seedDpr(Request $request): \Illuminate\Http\JsonResponse
+  {
+    $count = (int) $request->input('count', 1000);
+    $this->lcgSeed = (int) $request->input('seed', 999);
+
+    MDpr::truncate();
+
+    $countries       = ['CH', 'KR', 'NA', 'OS', 'PH', 'SD', 'SG', 'SW'];
+    $years           = ['24', '25', '26'];
+    $classifications = ['A', 'B', 'AtoB'];
+    $formtypes       = [1, 2, 3];
+    $deliverytypes   = [1, 2];
+    $machines        = array_map(fn($n) => '機種' . str_pad($n, 3, '0', STR_PAD_LEFT), range(1, 20));
+    $statuses        = ['オークション中', '設計中', 'A完了', '枝番発行済', '設計完了', '中止'];
+    $customerNames   = ['株式会社アルファ', '株式会社ベータ', 'ガンマ工業株式会社', 'デルタ製作所',
+                        'イプシロン電機株式会社', 'ゼータ精機', 'イータ産業株式会社', 'シータ技術',
+                        'イオタシステム株式会社', 'カッパ製造'];
+    $subjects        = ['特別仕様品対応', '機能改善版', 'カスタム仕様', 'オプション追加対応', '海外向け仕様',
+                        '試作品対応', '量産移行対応', '不具合改修版', '新機能追加', 'コスト削減版'];
+
+    // 国ごとの連番カウンタ
+    $counters = array_fill_keys($countries, 1);
+
+    $rows = [];
+    for ($i = 0; $i < $count; $i++) {
+      $country  = $countries[$this->lcgRange(0, count($countries) - 1)];
+      $year     = $years[$this->lcgRange(0, count($years) - 1)];
+      $seq      = str_pad($counters[$country]++, 6, '0', STR_PAD_LEFT);
+      $dprno    = $country . $year . $seq;
+
+      $issueYear  = 2024 + intval($year) - 24;
+      $issueMonth = $this->lcgRange(1, 12);
+      $issueDay   = $this->lcgRange(1, 28);
+      $issueDate  = sprintf('%04d/%02d/%02d', $issueYear, $issueMonth, $issueDay);
+      $issueTs    = mktime(0, 0, 0, $issueMonth, $issueDay, $issueYear);
+
+      $designOffset = $this->lcgRange(30, 120);
+      $partsOffset  = $this->lcgRange(60, 150);
+      $pplOffset    = $this->lcgRange(90, 180);
+      $fmtDate = fn(int $ts) => date('Y/m/d', $ts);
+
+      $hasMech  = (bool) $this->lcgRange(0, 1);
+      $hasElec  = (bool) $this->lcgRange(0, 1);
+      $hasSoft  = (bool) $this->lcgRange(0, 1);
+      $hasOther = $this->lcgRange(0, 3) === 0;
+
+      $status = $statuses[$this->lcgRange(0, count($statuses) - 1)];
+      $isDone = in_array($status, ['A完了', '設計完了', '枝番発行済'], true);
+
+      $empNo = fn() => str_pad($this->lcgRange(10000, 99999), 5, '0', STR_PAD_LEFT);
+      $ca    = chr(ord('a') + $this->lcgRange(0, 25)) . chr(ord('a') + $this->lcgRange(0, 25));
+      $cn    = str_pad($this->lcgRange(1000, 9999), 4, '0', STR_PAD_LEFT);
+
+      $rows[] = [
+        'dprno'                      => $dprno,
+        'classification'             => $classifications[$this->lcgRange(0, count($classifications) - 1)],
+        'formtype'                   => $formtypes[$this->lcgRange(0, count($formtypes) - 1)],
+        'deliverytype'               => $deliverytypes[$this->lcgRange(0, count($deliverytypes) - 1)],
+        'machine'                    => $machines[$this->lcgRange(0, count($machines) - 1)],
+        'customer_code'              => $ca . $cn,
+        'subject'                    => $subjects[$this->lcgRange(0, count($subjects) - 1)],
+        'dprleader_sytx'             => $empNo(),
+        'mechanism_sytx'             => $hasMech  ? $empNo() : null,
+        'electricity_sytx'           => $hasElec  ? $empNo() : null,
+        'soft_sytx'                  => $hasSoft  ? $empNo() : null,
+        'other_sytx'                 => $hasOther ? $empNo() : null,
+        'status'                     => $status,
+        'issue_date'                 => $issueDate,
+        'orderno'                    => strtoupper($ca) . str_pad($this->lcgRange(100000, 999999), 6, '0', STR_PAD_LEFT),
+        'qty'                        => $this->lcgRange(1, 10),
+        'mechanism_design_date'      => $hasMech  ? $fmtDate($issueTs + $designOffset * 86400) : null,
+        'electricity_design_date'    => $hasElec  ? $fmtDate($issueTs + ($designOffset + $this->lcgRange(-10, 10)) * 86400) : null,
+        'soft_design_date'           => $hasSoft  ? $fmtDate($issueTs + ($designOffset + $this->lcgRange(-10, 10)) * 86400) : null,
+        'other_design_date'          => $hasOther ? $fmtDate($issueTs + $designOffset * 86400) : null,
+        'mechanism_parts_schedule'   => $hasMech  ? $fmtDate($issueTs + $partsOffset * 86400) : null,
+        'electricity_parts_schedule' => $hasElec  ? $fmtDate($issueTs + $partsOffset * 86400) : null,
+        'soft_parts_schedule'        => $hasSoft  ? $fmtDate($issueTs + $partsOffset * 86400) : null,
+        'other_parts_schedule'       => $hasOther ? $fmtDate($issueTs + $partsOffset * 86400) : null,
+        'customer_name'              => $customerNames[$this->lcgRange(0, count($customerNames) - 1)],
+        'mechanism_ppl_date'         => ($hasMech  && $isDone) ? $fmtDate($issueTs + $pplOffset * 86400) : null,
+        'electricity_ppl_date'       => ($hasElec  && $isDone) ? $fmtDate($issueTs + $pplOffset * 86400) : null,
+        'soft_ppl_date'              => ($hasSoft  && $isDone) ? $fmtDate($issueTs + $pplOffset * 86400) : null,
+        'other_ppl_date'             => ($hasOther && $isDone) ? $fmtDate($issueTs + $pplOffset * 86400) : null,
+        'outputlistflag_m'           => ($hasMech  && $this->lcgRange(0, 1)) ? 'm' : null,
+        'outputlistflag_e'           => ($hasElec  && $this->lcgRange(0, 1)) ? 'e' : null,
+        'outputlistflag_s'           => ($hasSoft  && $this->lcgRange(0, 1)) ? 's' : null,
+      ];
+    }
+
+    foreach (array_chunk($rows, 200) as $chunk) {
+      MDpr::insert($chunk);
+    }
+
+    return response()->json(['ok' => true, 'inserted' => count($rows)]);
   }
 }
