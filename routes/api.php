@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SeedController;
 use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\ReserveController;
 use App\Http\Controllers\Api\CalendarController;
+use App\Http\Controllers\Api\DprController;
 
 // 認証不要
 Route::post('/login', [AuthController::class, 'login']);
@@ -59,4 +60,9 @@ Route::middleware('auth:web')->group(function () {
   Route::post('/seed/master',              [SeedController::class, 'seedMaster']);
   Route::post('/seed/plans',               [SeedController::class, 'seedPlans']);
   Route::post('/seed/dpr',                 [SeedController::class, 'seedDpr']);
+
+  Route::get('/dpr/machines',              [DprController::class, 'machines']);
+  Route::get('/dpr/locations',             [DprController::class, 'salesLocations']);
+  Route::get('/dpr/years',                 [DprController::class, 'publicationYears']);
+  Route::get('/dpr/filter-options',        [DprController::class, 'filterOptions']);
 });

@@ -49,6 +49,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [resources, setResources] = useState([]);
+  const [dprMachines, setDprMachines] = useState([]);
+  const [dprSalesLocations, setDprSalesLocations] = useState([]);
+  const [dprPublicationYears, setDprPublicationYears] = useState([]);
   const [displaySettings, setDisplaySettings] = useState({
     settingNo: 0,
     settingName: '表示設定1',
@@ -65,7 +68,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false });
+  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
   const [seeding, setSeeding] = useState(false);
   const [jumpTarget, setJumpTarget] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -99,7 +102,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   ), [loadedMasters, masterRequirements]);
 
   const ensureMasters = useCallback(async (keys) => {
-    const dataByKey = { serials, workers, tasks, resources };
+    const dataByKey = { serials, workers, tasks, resources, dprMachines, dprSalesLocations, dprPublicationYears };
     const missing = keys.filter(key => !loadedMasters[key]);
     if (missing.length === 0) return dataByKey;
 
@@ -108,6 +111,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       if (key === 'workers') return [key, await apiArray('/worker')];
       if (key === 'tasks') return [key, await apiArray('/task')];
       if (key === 'resources') return [key, await apiArray('/resource')];
+      if (key === 'dprMachines') return [key, await apiArray('/dpr/machines')];
+      if (key === 'dprSalesLocations') return [key, await apiArray('/dpr/locations')];
+      if (key === 'dprPublicationYears') return [key, await apiArray('/dpr/years')];
       throw new Error(`Unknown master key: ${key}`);
     }));
 
@@ -117,6 +123,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       else if (key === 'workers') setWorkers(data);
       else if (key === 'tasks') setTasks(data);
       else if (key === 'resources') setResources(data);
+      else if (key === 'dprMachines') setDprMachines(data);
+      else if (key === 'dprSalesLocations') setDprSalesLocations(data);
+      else if (key === 'dprPublicationYears') setDprPublicationYears(data);
     }
 
     setLoadedMasters(prev => ({
@@ -180,7 +189,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       setWorkers([]);
       setTasks([]);
       setResources([]);
-      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false });
+      setDprMachines([]);
+      setDprSalesLocations([]);
+      setDprPublicationYears([]);
+      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
       await reloadDisplaySettings();
       await handleCancel();
       showAlert('初期データを生成しました');
@@ -422,6 +434,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         serials={serials}
         workers={workers}
         tasks={tasks}
+        dprMachines={dprMachines}
+        dprSalesLocations={dprSalesLocations}
+        dprPublicationYears={dprPublicationYears}
         settings={displaySettings}
         settingsList={displaySettingsList}
         onEnsureMasters={ensureMasters}

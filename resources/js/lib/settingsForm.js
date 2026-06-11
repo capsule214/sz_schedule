@@ -40,7 +40,7 @@ export function normalizeSettings(s = {}) {
     dprclassificationlist: (s.dprclassificationlist  || []).map(String),
     dprstatuslist:         (s.dprstatuslist          || []).map(String),
     dprinchargelist:       (s.dprinchargelist        || []).map(String),
-    dprszgrouplist:        (s.dprszgrouplist         || []).map(String),
+    dprszgrouplist:        (s.dprszgrouplist         || []).map(Number),
     // 表示オプション2（全タブ共通）
     sboption:       !!s.sboption,
     synobody:       !!s.synobody,

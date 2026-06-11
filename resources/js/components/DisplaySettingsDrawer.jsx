@@ -8,7 +8,7 @@ import { useSettingsForm } from '../lib/settingsForm';
 
 export default function DisplaySettingsDrawer({
   open, onClose, activeTab,
-  serials, workers, tasks,
+  serials, workers, tasks, dprMachines = [], dprSalesLocations = [], dprPublicationYears = [],
   settings, settingsList = [],
   onEnsureMasters, onSave,
 }) {
@@ -57,7 +57,9 @@ export default function DisplaySettingsDrawer({
       ? ['serials']
       : tab === 'worker'
         ? ['workers', 'tasks']
-        : ['tasks'];
+        : tab === 'dpr'
+          ? ['dprMachines', 'dprSalesLocations', 'dprPublicationYears']
+          : ['tasks'];
     onEnsureMasters?.(requirements)?.catch(() => {});
   }, [open, tab, onEnsureMasters]);
 
@@ -131,7 +133,7 @@ export default function DisplaySettingsDrawer({
           {tab === 'device' && <DeviceSettingsTab form={form} setField={setField} serials={serials} />}
           {tab === 'worker' && <WorkerSettingsTab form={form} setField={setField} workers={workers} tasks={tasks} />}
           {tab === 'task'   && <TaskSettingsTab   form={form} setField={setField} tasks={tasks} />}
-          {tab === 'dpr'    && <DprSettingsTab    form={form} setField={setField} />}
+          {tab === 'dpr'    && <DprSettingsTab    form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
         </div>
 
         {/* フッター */}

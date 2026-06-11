@@ -32,6 +32,7 @@ class DisplaySettingsStore
     // DPR
     'dprdeliverytypelist',
     'dprformtypelist',
+    'dprszgrouplist',
   ];
 
   private const STR_LIST_KEYS = [
@@ -43,7 +44,6 @@ class DisplaySettingsStore
     'dprclassificationlist',
     'dprstatuslist',
     'dprinchargelist',
-    'dprszgrouplist',
   ];
 
   public function defaults(): array
@@ -299,7 +299,7 @@ class DisplaySettingsStore
       'dprclassificationlist' => $this->strList($row->dprclassificationlist ?? []),
       'dprstatuslist' => $this->strList($row->dprstatuslist ?? []),
       'dprinchargelist' => $this->strList($row->dprinchargelist ?? []),
-      'dprszgrouplist' => $this->strList($row->dprszgrouplist ?? []),
+      'dprszgrouplist' => $this->intList($row->dprszgrouplist ?? []),
     ]);
   }
 
@@ -354,7 +354,7 @@ class DisplaySettingsStore
       'dprclassificationlist' => $this->strArrayValue($s['dprclassificationlist']),
       'dprstatuslist' => $this->strArrayValue($s['dprstatuslist']),
       'dprinchargelist' => $this->strArrayValue($s['dprinchargelist']),
-      'dprszgrouplist' => $this->strArrayValue($s['dprszgrouplist']),
+      'dprszgrouplist' => $this->intArrayValue($s['dprszgrouplist']),
     ];
   }
 
