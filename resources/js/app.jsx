@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import SpreadsheetGridClient from './components/SpreadsheetGridClient';
 import LoginPage from './components/LoginPage';
+import LoadingScreen from './components/LoadingScreen';
 import { initCsrf, apiJson } from './lib/api';
 import '../css/app.css';
 
@@ -43,11 +44,7 @@ function App() {
   }, []);
 
   if (!checked) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 14, color: '#6b7280' }}>
-        読み込み中...
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {

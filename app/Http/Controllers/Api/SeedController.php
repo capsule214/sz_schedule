@@ -152,7 +152,7 @@ class SeedController extends Controller
     $kisyuNames = ['機種A', '機種B', '機種C', '機種D', '機種E'];
     $kisyuIds = [];
     foreach ($kisyuNames as $i => $name) {
-      $k = DmKisyu::create(['kisyu_name' => $name, 'sort_no' => $i + 1]);
+      $k = DmKisyu::create(['kisyu_name' => $name, 'sort_no' => $i + 1, 'waku_display' => ($i + 1) % 3]);
       $kisyuIds[] = $k->kisyu_id;
     }
 
@@ -160,16 +160,18 @@ class SeedController extends Controller
     for ($i = 1; $i <= 100; $i++) {
       $kisyuIdx = $this->lcgRange(0, 4);
       $s = KdSerial::create([
-        'kisyu_id'   => $kisyuIds[$kisyuIdx],
-        'serial_no'  => 'SN-' . str_pad($i, 3, '0', STR_PAD_LEFT),
-        'back_color' => $kisyuIdx + 1,
-        'font_color' => 6,
+        'kisyu_id'      => $kisyuIds[$kisyuIdx],
+        'serial_no'     => 'SN-' . str_pad($i, 3, '0', STR_PAD_LEFT),
+        'equip_type_id' => ($i % 3) + 1,
+        'szgroup_id'    => (($i + 1) % 3) + 1,
+        'back_color'    => $kisyuIdx + 1,
+        'font_color'    => 6,
       ]);
       $serialIds[] = $s->serial_id;
     }
 
-    $teamA = KmTeam::create(['team_name' => 'チームA', 'sort_no' => 1]);
-    $teamB = KmTeam::create(['team_name' => 'チームB', 'sort_no' => 2]);
+    $teamA = KmTeam::create(['team_name' => 'チームA', 'sort_no' => 1, 'equip_group_id' => 1]);
+    $teamB = KmTeam::create(['team_name' => 'チームB', 'sort_no' => 2, 'equip_group_id' => 2]);
 
     $workerDefs = [
       ['山田太郎', $teamA->team_id],
@@ -309,8 +311,9 @@ class SeedController extends Controller
     $kisyuIds = [];
     for ($i = 1; $i <= 100; $i++) {
       $kisyu = DmKisyu::create([
-        'kisyu_name' => '機種' . str_pad($i, 3, '0', STR_PAD_LEFT),
-        'sort_no'    => $i,
+        'kisyu_name'   => '機種' . str_pad($i, 3, '0', STR_PAD_LEFT),
+        'sort_no'      => $i,
+        'waku_display' => $i % 3,
       ]);
       $kisyuIds[] = $kisyu->kisyu_id;
     }
@@ -318,8 +321,9 @@ class SeedController extends Controller
     $teamIds = [];
     for ($i = 1; $i <= 20; $i++) {
       $team = KmTeam::create([
-        'team_name' => 'チーム' . str_pad($i, 2, '0', STR_PAD_LEFT),
-        'sort_no'   => $i,
+        'team_name'      => 'チーム' . str_pad($i, 2, '0', STR_PAD_LEFT),
+        'sort_no'        => $i,
+        'equip_group_id' => ($i % 3) + 1,
       ]);
       $teamIds[] = $team->team_id;
     }
@@ -361,6 +365,8 @@ class SeedController extends Controller
       $serial = KdSerial::create([
         'kisyu_id'       => $kisyuIds[($i - 1) % count($kisyuIds)],
         'serial_no'      => 'SN-' . str_pad($i, 5, '0', STR_PAD_LEFT),
+        'equip_type_id'  => ($i % 3) + 1,
+        'szgroup_id'     => (($i + 1) % 3) + 1,
         'shipping_date'  => $shippingDate,
         'responsible'    => (string) $workerIds[($i - 1) % count($workerIds)],
         'back_color'     => (($i - 1) % 6) + 1,
