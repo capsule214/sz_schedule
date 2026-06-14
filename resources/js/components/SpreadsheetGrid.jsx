@@ -109,6 +109,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
   const isMorderDevice = mode === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1;
+  const isMorderTask = mode === 'task' && Number(displaySettings.tksbmb ?? 0) === 1;
   const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
   const leftHdrW = mode === 'device' ? (isMorderDevice ? ASGN_HDR_W * 2 : DEV_HDR_W + deviceExtraW)
            : (mode === 'worker' || mode === 'task' || mode === 'place') ? ASGN_HDR_W * 2
@@ -192,6 +193,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         label2: plan.morderNo || '',
         label3: plan.publicRemark || '',
         label4: plan.morderShippingDate || null,
+        morderOrderTypeName: plan.morderOrderTypeName || '',
+        morderNo: plan.morderNo || '',
+        partsNo: plan.partsNo || '',
+        requiredDate: plan.morderShippingDate || null,
+        inspectionDate: plan.morderInspectionDate || null,
+        shippingDate: plan.morderActualShippingDate || null,
+        kouteiPicNo: plan.morderKouteiPicNo || '',
+        publicRemark: plan.publicRemark || '',
       });
     }
 
@@ -377,6 +386,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (sytasklist.length > 0) body.task_ids = sytasklist;
       if (synobody) body.show_unassigned_worker = true;
     } else if (mode === 'task') {
+      if (isMorderTask) body.product_display = 'morder';
       if (tktasklist.length > 0) body.task_ids = tktasklist;
     }
     return body;
@@ -1239,6 +1249,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (mode !== 'device') return;
     event.stopPropagation();
     const rect = event.currentTarget?.getBoundingClientRect?.();
+    if (group.isMorder) {
+      setDeviceDetail({
+        isMorder: true,
+        orderTypeName: group.morderOrderTypeName,
+        morderNo: group.morderNo,
+        partsNo: group.partsNo,
+        requiredDate: group.requiredDate,
+        inspectionDate: group.inspectionDate,
+        shippingDate: group.shippingDate,
+        kouteiPicNo: group.kouteiPicNo,
+        publicRemark: group.publicRemark,
+        x: event.clientX,
+        y: event.clientY,
+        anchorRect: rect ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null,
+      });
+      return;
+    }
     setDeviceDetail({
       kisyuName: group.label1,
       serialNo: group.label2,

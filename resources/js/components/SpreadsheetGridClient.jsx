@@ -206,10 +206,15 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function handleSeedPlans() {
     setSeeding(true);
     try {
+      const productDisplay =
+        (tab === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1)
+        || (tab === 'task' && Number(displaySettings.tksbmb ?? 0) === 1)
+          ? 'morder'
+          : 'serial';
       await apiJson('/seed/plans', {
         method: 'POST',
         body: JSON.stringify({
-          product_display: tab === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1 ? 'morder' : 'serial',
+          product_display: productDisplay,
         }),
       });
       await handleCancel();

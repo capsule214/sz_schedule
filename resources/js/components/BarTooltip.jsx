@@ -35,6 +35,7 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
 
   const taskBg = getColor(plan.taskBackColor);
   const taskFg = getColor(plan.taskFontColor);
+  const isMorderPlan = Number(plan.morderId) > 0;
 
   return (
     <div
@@ -53,8 +54,8 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <tbody>
           {[
-            ['機種', plan.kisyuName],
-            ['製番', plan.serialNo],
+            [isMorderPlan ? '手配区分' : '機種', isMorderPlan ? plan.morderOrderTypeName : plan.kisyuName],
+            [isMorderPlan ? 'M番' : '製番', isMorderPlan ? plan.morderNo : plan.serialNo],
             ['担当者', plan.workerName],
             ['開始', fmtDT(plan.startDate)],
             ['終了', fmtDT(plan.endDate)],

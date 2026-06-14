@@ -43,15 +43,22 @@ class PlanController extends Controller
         $task = $plan->km_task;
         $worker = $plan->km_worker;
         $morder = $plan->kd_morder;
+        $morderOrderTypeNames = [
+            11 => '直送DPR',
+            21 => '加工オーダー',
+        ];
 
         return [
             'planId' => $plan->plan_id,
             'serialId' => $plan->serial_id,
             'morderId' => $plan->morder_id,
             'morderNo' => $morder ? $morder->morder_no : '',
+            'morderOrderTypeId' => $morder ? $morder->order_type_id : null,
+            'morderOrderTypeName' => $morder ? ($morderOrderTypeNames[$morder->order_type_id] ?? (string) $morder->order_type_id) : '',
             'partsNo' => $morder ? $morder->parts_no : '',
             'publicRemark' => $morder ? $morder->public_remark : '',
             'morderShippingDate' => $morder ? $morder->shipping_date : null,
+            'morderKouteiPicNo' => $morder ? $morder->koutei_pic_no : '',
             'taskId' => $plan->task_id,
             'taskName' => $task ? $task->task_name : '',
             'kisyuId' => $kisyu ? $kisyu->kisyu_id : null,
@@ -150,6 +157,10 @@ class PlanController extends Controller
             }
 
             return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));
+        }
+
+        if ($mode === 'task' && $isMorderDisplay) {
+            $query->where('morder_id', '>', 0);
         }
 
         if (! empty($data['serial_ids'])) {

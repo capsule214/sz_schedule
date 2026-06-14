@@ -28,11 +28,11 @@ export default function SpreadsheetGridLeftHeader({
         background: g.isUnassigned ? '#fef9c3' : '#f9fafb',
         boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden',
-        cursor: mode === 'device' && !g.isMorder ? 'pointer' : 'default',
+        cursor: mode === 'device' ? 'pointer' : 'default',
       }}
-      data-device-header={mode === 'device' && !g.isMorder ? '1' : undefined}
+      data-device-header={mode === 'device' ? '1' : undefined}
       onClick={(e) => {
-        if (mode === 'device' && !g.isMorder) onGroupClick?.(g, e);
+        if (mode === 'device') onGroupClick?.(g, e);
       }}>
         {mode === 'device' ? (g.isMorder ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
