@@ -167,24 +167,20 @@ class PlanController extends Controller
             $query->whereIn('serial_id', $data['serial_ids']);
         }
         if (! empty($data['kisyu_ids'])) {
-            $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
-            $query->whereIn('serial_id', $serialIds);
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->select('serial_id'));
         }
         if (! empty($data['equip_type_id'])) {
             $kisyuIds = DmKisyu::whereHas('dm_equip', function ($q) use ($data) {
                 $q->where('equip_type_id', $data['equip_type_id']);
-            })->pluck('kisyu_id');
-            $serialIds = KdSerial::whereIn('kisyu_id', $kisyuIds)->pluck('serial_id');
-            $query->whereIn('serial_id', $serialIds);
+            })->select('kisyu_id');
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
         }
         if (! empty($data['szgroup_ids'])) {
-            $serialIds = KdSerial::whereIn('seizo_group_id', $data['szgroup_ids'])->pluck('serial_id');
-            $query->whereIn('serial_id', $serialIds);
+            $query->whereIn('serial_id', KdSerial::whereIn('seizo_group_id', $data['szgroup_ids'])->select('serial_id'));
         }
         if (! empty($data['seizo_statuses'])) {
-            $kisyuIds = DmKisyu::whereIn('waku_display', $data['seizo_statuses'])->pluck('kisyu_id');
-            $serialIds = KdSerial::whereIn('kisyu_id', $kisyuIds)->pluck('serial_id');
-            $query->whereIn('serial_id', $serialIds);
+            $kisyuIds = DmKisyu::whereIn('waku_display', $data['seizo_statuses'])->select('kisyu_id');
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
         }
         if (! empty($data['worker_ids'])) {
             if (! empty($data['show_unassigned_worker'])) {
