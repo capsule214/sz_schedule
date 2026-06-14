@@ -33,6 +33,8 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
   const [workers, setWorkers] = useState([]);
   const [dialogResources, setDialogResources] = useState(resources);
   const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || '');
+  const [morderId] = useState(init.morderId || initialData?.morderId || null);
+  const isMorderPlan = gridMode !== 'place' && Number(morderId) > 0;
   const [taskId, setTaskId] = useState(init.taskId || '');
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
   const [resourceId, setResourceId] = useState(init.resourceId || initialData?.resourceId || resources?.[0]?.resourceId || '');
@@ -154,14 +156,14 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
-    if (!serialId) { setError('製番を選択してください'); return; }
+    if (!isMorderPlan && !serialId) { setError('製番を選択してください'); return; }
     if (gridMode !== 'place' && !taskId) { setError('工程を選択してください'); return; }
     if (gridMode === 'place' && !resourceId) { setError('場所を選択してください'); return; }
     setError('');
     if (gridMode === 'place') {
       onSave({ resourceId: Number(resourceId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
     } else {
-      onSave({ serialId: Number(serialId), taskId: Number(taskId), workerId: workerId !== '' ? Number(workerId) : null, startDate: sd2, endDate: ed2 });
+      onSave({ serialId: isMorderPlan ? -1 : Number(serialId), morderId: isMorderPlan ? Number(morderId) : -1, taskId: Number(taskId), workerId: workerId !== '' ? Number(workerId) : null, startDate: sd2, endDate: ed2 });
     }
   }
 

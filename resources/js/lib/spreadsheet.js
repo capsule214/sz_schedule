@@ -100,6 +100,7 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
   const sorted = [...plans].sort((a, b) => parseApiDate(a.startDate) - parseApiDate(b.startDate));
   for (const plan of sorted) {
     const gid = groupKey === 'device' ? plan.serialId
+          : groupKey === 'morder' ? plan.morderId
           : groupKey === 'worker' ? plan.workerId
           : groupKey === 'task'   ? plan.taskId
           : plan.resourceId;

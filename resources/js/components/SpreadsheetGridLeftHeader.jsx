@@ -28,13 +28,30 @@ export default function SpreadsheetGridLeftHeader({
         background: g.isUnassigned ? '#fef9c3' : '#f9fafb',
         boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden',
-        cursor: mode === 'device' ? 'pointer' : 'default',
+        cursor: mode === 'device' && !g.isMorder ? 'pointer' : 'default',
       }}
-      data-device-header={mode === 'device' ? '1' : undefined}
+      data-device-header={mode === 'device' && !g.isMorder ? '1' : undefined}
       onClick={(e) => {
-        if (mode === 'device') onGroupClick?.(g, e);
+        if (mode === 'device' && !g.isMorder) onGroupClick?.(g, e);
       }}>
-        {mode === 'device' ? (showShippingDate || showResponsible ? (
+        {mode === 'device' ? (g.isMorder ? (
+          <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+            <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
+              {[g.label1 || '-', g.label2 || '-', g.label3 || '-', ''].map((value, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 3 ? '#9ca3af' : '#374151' }}>
+                  {value}
+                </div>
+              ))}
+            </div>
+            <div style={{ width: 80, display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
+              {['', g.label4 || '-', '', ''].map((value, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 1 ? '#374151' : '#9ca3af' }}>
+                  {value}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (showShippingDate || showResponsible ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: DEV_HDR_W, borderRight: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', boxSizing: 'border-box' }}>
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label1}</div>
@@ -56,7 +73,7 @@ export default function SpreadsheetGridLeftHeader({
             <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label1}</div>
             <div style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label2}</div>
           </>
-        )) : mode === 'task' ? (
+        ))) : mode === 'task' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
               {g.label1}

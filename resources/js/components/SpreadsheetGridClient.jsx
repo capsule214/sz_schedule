@@ -206,7 +206,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function handleSeedPlans() {
     setSeeding(true);
     try {
-      await apiJson('/seed/plans', { method: 'POST', body: JSON.stringify({}) });
+      await apiJson('/seed/plans', {
+        method: 'POST',
+        body: JSON.stringify({
+          product_display: tab === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1 ? 'morder' : 'serial',
+        }),
+      });
       await handleCancel();
       showAlert('予定データを生成しました');
     } catch (e) {
@@ -267,6 +272,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   const handleJumpToOtherTab = useCallback(async (plan, targetMode) => {
+    const useDeviceModelFilters = Number(displaySettings.sbsbmb ?? 0) !== 1;
     const sbmodellist = displaySettings.sbmodellist || [];
     const syteamlist  = displaySettings.syteamlist  || [];
 
@@ -278,7 +284,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         showAlert('表示対象データがありませんでした');
         return;
       }
-      if (sbmodellist.length > 0 && !sbmodellist.includes(Number(serial.kisyuId))) {
+      if (useDeviceModelFilters && sbmodellist.length > 0 && !sbmodellist.includes(Number(serial.kisyuId))) {
         showAlert('表示対象データがありませんでした（表示設定で非表示の機種です）');
         return;
       }

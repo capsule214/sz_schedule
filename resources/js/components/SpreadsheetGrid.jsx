@@ -108,8 +108,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
+  const isMorderDevice = mode === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1;
   const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
-  const leftHdrW = mode === 'device' ? DEV_HDR_W + deviceExtraW
+  const leftHdrW = mode === 'device' ? (isMorderDevice ? ASGN_HDR_W * 2 : DEV_HDR_W + deviceExtraW)
            : (mode === 'worker' || mode === 'task' || mode === 'place') ? ASGN_HDR_W * 2
            : ASGN_HDR_W;
 
@@ -126,7 +127,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       : mode === 'task'
         ? '/plan/search/task'
         : '/reserve/search';
-  const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : mode === 'worker' ? 2 : MIN_ROWS;
+  const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : isMorderDevice ? 4 : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
@@ -143,24 +144,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const baseDeviceGroups = useMemo(() => {
     if (mode !== 'device') return [];
+    if (isMorderDevice) return [];
+    const useModelFilters = true;
     const sbmodellist   = displaySettings.sbmodellist   || [];
     const sbequiptype   = displaySettings.sbequiptype;   // -1:全て 1/2/3
     const sbszgrouplist = displaySettings.sbszgrouplist  || [];
     const sbstatuslist  = displaySettings.sbstatuslist   || [];
     let s = serials;
-    if (sbmodellist.length > 0) {
+    if (useModelFilters && sbmodellist.length > 0) {
       s = s.filter(ser => sbmodellist.includes(Number(ser.kisyuId)));
     }
-    if (sbequiptype != null && sbequiptype !== -1) {
+    if (useModelFilters && sbequiptype != null && sbequiptype !== -1) {
       s = s.filter(ser => ser.equipTypeId === sbequiptype);
     }
     if (sbszgrouplist.length > 0) {
       s = s.filter(ser => sbszgrouplist.includes(ser.szgroupId));
     }
-    if (sbstatuslist.length === 0) {
+    if (useModelFilters && sbstatuslist.length === 0) {
       return []; // 全チェックOFFのときは何も表示しない
     }
-    s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
+    if (useModelFilters) {
+      s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
+    }
     s = [...s].sort((a, b) => {
       if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
       return a.serialNo.localeCompare(b.serialNo, 'ja', { numeric: true });
@@ -173,11 +178,33 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       label4: ser.responsible || null,
       kisyuId: ser.kisyuId,
     }));
-  }, [mode, serials, displaySettings, deviceCount]);
+  }, [mode, serials, displaySettings, deviceCount, isMorderDevice]);
+
+  const baseMorderGroups = useMemo(() => {
+    if (!isMorderDevice) return [];
+    const byId = new Map();
+    for (const plan of plans) {
+      if (plan.deleted || Number(plan.morderId) <= 0 || byId.has(plan.morderId)) continue;
+      byId.set(plan.morderId, {
+        id: plan.morderId,
+        isMorder: true,
+        label1: plan.partsNo || '',
+        label2: plan.morderNo || '',
+        label3: plan.publicRemark || '',
+        label4: plan.morderShippingDate || null,
+      });
+    }
+
+    return [...byId.values()].sort((a, b) => {
+      const sd = (a.label4 || '').localeCompare(b.label4 || '');
+      return sd !== 0 ? sd : (a.label2 || '').localeCompare(b.label2 || '', 'ja', { numeric: true });
+    });
+  }, [isMorderDevice, plans]);
 
   const filteredGroups = useMemo(() => {
     const syteamlist = displaySettings.syteamlist || [];
     if (mode === 'device') {
+      if (isMorderDevice) return baseMorderGroups;
       if (forcedSerialId != null) {
         const ser = serials.find(s => s.serialId === forcedSerialId);
         if (ser) {
@@ -230,10 +257,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
     }
-  }, [mode, serials, workers, resources, displaySettings, baseDeviceGroups, forcedSerialId, pllocation]);
+  }, [mode, serials, workers, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
-    const groupKey = mode === 'device' ? 'device' : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
+    const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device') : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
     const locPlans = extraLocationRow ? locationOverlayPlans : null;
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
@@ -292,7 +319,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       uaStartRow += numRows;
     }
     return { groups: [...result.groups, ...extraGroups], totalRows: uaStartRow };
-  }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 矩形選択のクロージャ内から常に最新レイアウトを参照できるようにする
   layoutGroupsRef.current = layoutGroups;
@@ -327,6 +354,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   // 表示設定から API 検索ボディのフィルタ部分を構築する
   function buildFilterBody() {
+    const useModelFilters = !isMorderDevice;
     const sbmodellist   = displaySettings.sbmodellist   || [];
     const sbequiptype   = displaySettings.sbequiptype;
     const sbszgrouplist = displaySettings.sbszgrouplist || [];
@@ -338,10 +366,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const synobody      = displaySettings.synobody      || false;
     const body = {};
     if (mode === 'device') {
-      if (sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
-      if (sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;
+      if (isMorderDevice) body.product_display = 'morder';
+      if (useModelFilters && sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
+      if (useModelFilters && sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;
       if (sbszgrouplist.length > 0) body.szgroup_ids = sbszgrouplist;
-      if (sbstatuslist.length > 0) body.seizo_statuses = sbstatuslist;
+      if (useModelFilters && sbstatuslist.length > 0) body.seizo_statuses = sbstatuslist;
     } else if (mode === 'worker') {
       if (sygroup > 0) body.team_szgroup_id = sygroup;
       if (syteamlist.length > 0) body.team_ids = syteamlist;
@@ -355,12 +384,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const buildVisibleFilterBody = useCallback((groupIds) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
+    if (mode === 'device' && isMorderDevice) return {};
     if (ids.length === 0) return null;
     if (mode === 'device') return { serial_ids: ids };
     if (mode === 'worker') return { worker_ids: ids };
     if (mode === 'task') return { task_ids: ids };
     return { resource_ids: ids };
-  }, [mode]);
+  }, [mode, isMorderDevice]);
 
   const makeFetchKey = useCallback((from, to, body) => {
     return JSON.stringify({ mode, from, to, body });
@@ -819,10 +849,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
       // 移動先グループが確定している場合は全プランを同一グループへ
       let newSerialId   = dp.serialId;
+      let newMorderId   = dp.morderId;
       let newWorkerId   = dp.workerId;
       let newLocationId = dp.resourceId;
       if (destGroupId !== null) {
-        if (mode === 'device')   newSerialId   = destGroupId;
+        if (mode === 'device' && isMorderDevice) newMorderId = destGroupId;
+        else if (mode === 'device') newSerialId = destGroupId;
         else if (mode === 'worker') newWorkerId = destGroupId;
         else newLocationId = destGroupId;
       }
@@ -830,7 +862,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // API は呼ばず、ローカル state を即時更新して保留リストに積む
       const payload = mode === 'place'
         ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate }
-        : { serialId: newSerialId, taskId: dp.taskId, workerId: newWorkerId, startDate: newStartDate, endDate: newEndDate };
+        : { serialId: newSerialId, morderId: newMorderId, taskId: dp.taskId, workerId: newWorkerId, startDate: newStartDate, endDate: newEndDate };
       setPlans(prev => prev.map(p =>
         p.planId === dp.planId ? { ...p, ...payload } : p
       ));
@@ -869,8 +901,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             plan: null,
             initialData: {
               resourceId: mode === 'place' ? g?.id : null,
-              serialId:   mode === 'device'   ? g?.id : null,
-              kisyuId:    mode === 'device'   ? g?.kisyuId : null,
+              serialId:   mode === 'device' && !isMorderDevice ? g?.id : null,
+              morderId:   mode === 'device' && isMorderDevice ? g?.id : null,
+              kisyuId:    mode === 'device' && !isMorderDevice ? g?.kisyuId : null,
               workerId:   mode === 'worker'   ? g?.id : null,
               startDate: dateStr,
               endDate: endStr,
@@ -963,7 +996,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!targetGroup) return; // グループが特定できない場合は貼り付けしない
 
     // 貼り付け先の serialId / workerId / locationId（全プランに共通で適用）
-    const targetSerialId   = mode === 'device'   ? targetGroup.id : null;
+    const targetSerialId   = mode === 'device' && !isMorderDevice ? targetGroup.id : null;
+    const targetMorderId   = mode === 'device' && isMorderDevice ? targetGroup.id : null;
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
     const targetLocationId = mode === 'place' ? targetGroup.id : null;
 
@@ -979,13 +1013,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const newEnd   = colToDateTime(startDate, Math.max(0, ec), 'end', viewMode);
 
       // 全プランを貼り付け先の場所/装置/担当者に統一する
-      const newSerialId   = mode === 'device'   ? targetSerialId   : p.serialId;
+      const newSerialId   = mode === 'device' && !isMorderDevice ? targetSerialId : p.serialId;
+      const newMorderId   = mode === 'device' && isMorderDevice ? targetMorderId : p.morderId;
       const newWorkerId   = mode === 'worker'   ? targetWorkerId   : p.workerId;
       const newLocationId = mode === 'place' ? targetLocationId : p.resourceId;
 
       const payload = mode === 'place'
         ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
-        : { serialId: newSerialId, taskId: p.taskId, workerId: newWorkerId, startDate: newStart, endDate: newEnd };
+        : { serialId: newSerialId, morderId: newMorderId, taskId: p.taskId, workerId: newWorkerId, startDate: newStart, endDate: newEnd };
       const tempId = tempIdCounterRef.current--;
       newPlans.push({ ...p, planId: tempId, ...payload });
       pendingCreatesRef.current.set(tempId, payload);
@@ -1017,6 +1052,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       : {
         serialId:  data.serialId || dialog.initialData?.serialId,
+        morderId:  data.morderId || dialog.initialData?.morderId || dialog.plan?.morderId || null,
         taskId:    data.taskId,
         workerId:  data.workerId,
         startDate: data.startDate,
@@ -1252,13 +1288,26 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {/* 左固定ヘッダー上部コーナー */}
         <div style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
-          {mode === 'device' ? (showShippingDate || showResponsible ? (
+          {mode === 'device' ? (isMorderDevice ? (
+            <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+              <div style={{ width: ASGN_HDR_W, borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
+                {['品番', 'オーダーNo', '備考', ''].map((label, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
+                ))}
+              </div>
+              <div style={{ width: ASGN_HDR_W, display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
+                {['', '要求納期', '', ''].map((label, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
+                ))}
+              </div>
+            </div>
+          ) : (showShippingDate || showResponsible ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
               <div style={{ width: DEV_HDR_W, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>装置</div>
               {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
               {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
             </div>
-          ) : '装置') : mode === 'place' ? (
+          ) : '装置')) : mode === 'place' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
               <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>フロア名</div>
               <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>場所名</div>

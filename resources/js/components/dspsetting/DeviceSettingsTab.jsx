@@ -9,6 +9,7 @@ const BTN = {
 export default function DeviceSettingsTab({ form, setField, serials }) {
   // 工程担当コード入力欄はタブローカルな UI 状態
   const [sbinchargeInput, setSbinchargeInput] = useState('');
+  const showModelFilters = form.sbsbmb !== 1;
 
   // 装置区分・生産状態でフィルタした機種リスト
   const kisyuList = useMemo(() => {
@@ -54,64 +55,66 @@ export default function DeviceSettingsTab({ form, setField, serials }) {
         </div>
       </div>
 
-      {/* 装置区分 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>装置区分</span>
-        <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-          {[['全て', -1], ['AAA', 1], ['BBB', 2], ['CCC', 3]].map(([label, val], i, arr) => (
-            <button
-              key={val}
-              type="button"
-              onClick={() => setField('sbequiptype', val)}
-              style={{
-                padding: '4px 14px', border: 'none',
-                borderRight: i < arr.length - 1 ? '1px solid #d1d5db' : 'none',
-                cursor: 'pointer', fontSize: 13,
-                fontWeight: form.sbequiptype === val ? 600 : 400,
-                background: form.sbequiptype === val ? '#2563eb' : '#fff',
-                color: form.sbequiptype === val ? '#fff' : '#374151',
-                transition: 'background 0.15s, color 0.15s',
-              }}
-            >{label}</button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
-        {/* 機種リスト */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-            {[['試作機', 0], ['量産機', 1], ['生産終了機', 2]].map(([label, val]) => (
-              <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-                <input
-                  type="checkbox"
-                  checked={form.sbstatuslist.includes(val)}
-                  onChange={e => setField(
-                    'sbstatuslist',
-                    e.target.checked
-                      ? [...form.sbstatuslist, val]
-                      : form.sbstatuslist.filter(v => v !== val),
-                  )}
-                />
-                {label}
-              </label>
+      {showModelFilters && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>装置区分</span>
+          <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
+            {[['全て', -1], ['AAA', 1], ['BBB', 2], ['CCC', 3]].map(([label, val], i, arr) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setField('sbequiptype', val)}
+                style={{
+                  padding: '4px 14px', border: 'none',
+                  borderRight: i < arr.length - 1 ? '1px solid #d1d5db' : 'none',
+                  cursor: 'pointer', fontSize: 13,
+                  fontWeight: form.sbequiptype === val ? 600 : 400,
+                  background: form.sbequiptype === val ? '#2563eb' : '#fff',
+                  color: form.sbequiptype === val ? '#fff' : '#374151',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >{label}</button>
             ))}
           </div>
-          <button
-            onClick={() => setField('sbmodellist', kisyuList.map(k => k.kisyuId))}
-            style={{ ...BTN, width: '100%' }}
-          >全選択</button>
-          <select
-            multiple
-            value={form.sbmodellist.map(String)}
-            onChange={e => setField('sbmodellist', [...e.target.selectedOptions].map(o => Number(o.value)))}
-            style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-          >
-            {kisyuList.map(k => (
-              <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
-            ))}
-          </select>
         </div>
+      )}
+
+      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+        {showModelFilters && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+              {[['試作機', 0], ['量産機', 1], ['生産終了機', 2]].map(([label, val]) => (
+                <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.sbstatuslist.includes(val)}
+                    onChange={e => setField(
+                      'sbstatuslist',
+                      e.target.checked
+                        ? [...form.sbstatuslist, val]
+                        : form.sbstatuslist.filter(v => v !== val),
+                    )}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={() => setField('sbmodellist', kisyuList.map(k => k.kisyuId))}
+              style={{ ...BTN, width: '100%' }}
+            >全選択</button>
+            <select
+              multiple
+              value={form.sbmodellist.map(String)}
+              onChange={e => setField('sbmodellist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+              style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
+            >
+              {kisyuList.map(k => (
+                <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* 工程担当 / 装置グループ */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
