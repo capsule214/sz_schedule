@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SoftDeleteFlag;
 use Illuminate\Database\Eloquent\Model;
 
 class KdReserve extends Model
 {
+  use SoftDeleteFlag;
+
   protected $table = 'kd_reserve';
   protected $primaryKey = 'reserve_id';
   public $timestamps = false;

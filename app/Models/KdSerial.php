@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SoftDeleteFlag;
 use Illuminate\Database\Eloquent\Model;
 
 class KdSerial extends Model
 {
+    use SoftDeleteFlag;
+
     protected $table = 'kd_serial';
 
     protected $primaryKey = 'serial_id';

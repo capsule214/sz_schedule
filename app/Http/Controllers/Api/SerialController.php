@@ -78,6 +78,7 @@ class SerialController extends Controller
             ->join('dm_kisyu', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
             ->leftJoin('dm_equip', 'dm_kisyu.equip_id', '=', 'dm_equip.equip_id')
             ->where('kd_serial.deleted', 0)
+            ->where('dm_kisyu.deleted', 0)
             ->select('kd_serial.*');
 
         if (! empty($data['kisyu_ids'])) {

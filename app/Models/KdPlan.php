@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SoftDeleteFlag;
 use Illuminate\Database\Eloquent\Model;
 
 class KdPlan extends Model
 {
+  use SoftDeleteFlag;
+
   protected $table = 'kd_plan';
 
   protected $primaryKey = 'plan_id';
