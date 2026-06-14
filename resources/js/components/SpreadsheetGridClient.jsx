@@ -91,7 +91,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const prevTabRef = useRef('device');
 
   const masterRequirements = useMemo(() => ({
-    device: ['serials'],
+    device: [],
     worker: ['workers'],
     task: ['tasks'],
     place: ['resources'],

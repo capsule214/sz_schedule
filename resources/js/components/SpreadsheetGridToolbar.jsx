@@ -60,7 +60,7 @@ export default function SpreadsheetGridToolbar({
       {mode !== 'place' && mode !== 'task' && (
         <>
           <select value={deviceCount} onChange={e => onDeviceCountChange(Number(e.target.value))} style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}>
-            {[100, 200, 500, 1000, 2000, 5000].map(n => (
+            {[100, 200, 500, 1000, 2000, 5000, 10000, 20000].map(n => (
               <option key={n} value={n}>{n}件</option>
             ))}
           </select>
