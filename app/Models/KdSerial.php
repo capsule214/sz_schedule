@@ -6,13 +6,37 @@ use Illuminate\Database\Eloquent\Model;
 
 class KdSerial extends Model
 {
-  protected $table = 'kd_serial';
-  protected $primaryKey = 'serial_id';
-  public $timestamps = false;
-  protected $fillable = ['kisyu_id', 'serial_no', 'equip_type_id', 'szgroup_id', 'shipping_date', 'responsible', 'back_color', 'font_color'];
+    protected $table = 'kd_serial';
 
-  public function dm_kisyu()
-  {
-    return $this->belongsTo(DmKisyu::class, 'kisyu_id', 'kisyu_id');
-  }
+    protected $primaryKey = 'serial_id';
+
+    public $timestamps = false;
+
+    protected $fillable = [
+        'deleted',
+        'back_color',
+        'font_color',
+        'serial_no',
+        'kisyu_id',
+        'order_no',
+        'original_no',
+        'r_no',
+        'flg_public',
+        'flg_goso',
+        'flg_finish',
+        'flg_syoyo',
+        'koujun_id',
+        'koutei_pic_no',
+        'mechanic_pic_no',
+        'electric_pic_no',
+        'shipping_date',
+        'public_remark',
+        'customer_name',
+        'seizo_group_id',
+    ];
+
+    public function dm_kisyu()
+    {
+        return $this->belongsTo(DmKisyu::class, 'kisyu_id', 'kisyu_id');
+    }
 }

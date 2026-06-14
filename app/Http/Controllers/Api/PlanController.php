@@ -76,7 +76,7 @@ class PlanController extends Controller
 
     public function index(Request $request)
     {
-        $query = KdPlan::with(['kd_serial.dm_kisyu', 'kd_morder', 'km_task', 'km_worker'])
+        $query = KdPlan::with(['kd_serial.dm_kisyu.dm_equip', 'kd_morder', 'km_task', 'km_worker'])
             ->where('deleted', 0);
 
         return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));
@@ -130,7 +130,7 @@ class PlanController extends Controller
         ]);
         $isMorderDisplay = ($data['product_display'] ?? 'serial') === 'morder';
 
-        $query = KdPlan::with(['kd_serial.dm_kisyu', 'kd_morder', 'km_task', 'km_worker'])
+        $query = KdPlan::with(['kd_serial.dm_kisyu.dm_equip', 'kd_morder', 'km_task', 'km_worker'])
             ->where('deleted', 0)
             ->where('start_date', '<=', $data['to'])
             ->where('end_date', '>=', $data['from']);
@@ -171,11 +171,14 @@ class PlanController extends Controller
             $query->whereIn('serial_id', $serialIds);
         }
         if (! empty($data['equip_type_id'])) {
-            $serialIds = KdSerial::where('equip_type_id', $data['equip_type_id'])->pluck('serial_id');
+            $kisyuIds = DmKisyu::whereHas('dm_equip', function ($q) use ($data) {
+                $q->where('equip_type_id', $data['equip_type_id']);
+            })->pluck('kisyu_id');
+            $serialIds = KdSerial::whereIn('kisyu_id', $kisyuIds)->pluck('serial_id');
             $query->whereIn('serial_id', $serialIds);
         }
         if (! empty($data['szgroup_ids'])) {
-            $serialIds = KdSerial::whereIn('szgroup_id', $data['szgroup_ids'])->pluck('serial_id');
+            $serialIds = KdSerial::whereIn('seizo_group_id', $data['szgroup_ids'])->pluck('serial_id');
             $query->whereIn('serial_id', $serialIds);
         }
         if (! empty($data['seizo_statuses'])) {
@@ -233,7 +236,7 @@ class PlanController extends Controller
             'deleted' => 0,
         ]);
 
-        $plan->load(['kd_serial.dm_kisyu', 'kd_morder', 'km_task', 'km_worker']);
+        $plan->load(['kd_serial.dm_kisyu.dm_equip', 'kd_morder', 'km_task', 'km_worker']);
 
         return response()->json($this->formatPlan($plan), 201);
     }
@@ -246,7 +249,7 @@ class PlanController extends Controller
 
         $plan->update($this->planPayload($data));
 
-        $plan->load(['kd_serial.dm_kisyu', 'kd_morder', 'km_task', 'km_worker']);
+        $plan->load(['kd_serial.dm_kisyu.dm_equip', 'kd_morder', 'km_task', 'km_worker']);
 
         return response()->json($this->formatPlan($plan));
     }
@@ -274,7 +277,7 @@ class PlanController extends Controller
     /** 製番IDで予定を全件取得（日付フィルタなし） */
     public function bySerial(int $serialId)
     {
-        $plans = KdPlan::with(['kd_serial.dm_kisyu', 'kd_morder', 'km_task', 'km_worker'])
+        $plans = KdPlan::with(['kd_serial.dm_kisyu.dm_equip', 'kd_morder', 'km_task', 'km_worker'])
             ->where('serial_id', $serialId)
             ->where('deleted', 0)
             ->orderBy('start_date')

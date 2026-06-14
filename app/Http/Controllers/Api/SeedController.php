@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DmEquip;
 use App\Models\DmKisyu;
 use App\Models\DrCalendar;
 use App\Models\KdMorder;
@@ -155,6 +156,7 @@ class SeedController extends Controller
         KmTask::truncate();
         KmProcess::truncate();
         DmKisyu::truncate();
+        DmEquip::truncate();
         KmResource::truncate();
         KkLocationType::truncate();
         DB::statement('PRAGMA foreign_keys = ON');
@@ -182,9 +184,17 @@ class SeedController extends Controller
         }
 
         $kisyuNames = ['機種A', '機種B', '機種C', '機種D', '機種E'];
+        $equipIds = [];
+        foreach ([1, 2, 3] as $typeId) {
+            $equip = DmEquip::create([
+                'equip_name' => '装置区分'.$typeId,
+                'equip_type_id' => $typeId,
+            ]);
+            $equipIds[] = $equip->equip_id;
+        }
         $kisyuIds = [];
         foreach ($kisyuNames as $i => $name) {
-            $k = DmKisyu::create(['kisyu_name' => $name, 'sort_no' => $i + 1, 'waku_display' => ($i + 1) % 3]);
+            $k = DmKisyu::create(['kisyu_name' => $name, 'equip_id' => $equipIds[$i % count($equipIds)], 'sort_no' => $i + 1, 'waku_display' => ($i + 1) % 3]);
             $kisyuIds[] = $k->kisyu_id;
         }
 
@@ -194,8 +204,11 @@ class SeedController extends Controller
             $s = KdSerial::create([
                 'kisyu_id' => $kisyuIds[$kisyuIdx],
                 'serial_no' => 'SN-'.str_pad($i, 3, '0', STR_PAD_LEFT),
-                'equip_type_id' => ($i % 3) + 1,
-                'szgroup_id' => (($i + 1) % 3) + 1,
+                'seizo_group_id' => (($i + 1) % 3) + 1,
+                'order_no' => 'YG'.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                'koutei_pic_no' => str_pad((string) $this->lcgRange(1, 99999), 5, '0', STR_PAD_LEFT),
+                'public_remark' => '製番備考'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'customer_name' => '顧客'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
                 'back_color' => $kisyuIdx + 1,
                 'font_color' => 6,
             ]);
@@ -321,6 +334,7 @@ class SeedController extends Controller
         KmTask::truncate();
         KmProcess::truncate();
         DmKisyu::truncate();
+        DmEquip::truncate();
         KmResource::truncate();
         KkLocationType::truncate();
         DrCalendar::truncate();
@@ -345,10 +359,20 @@ class SeedController extends Controller
             $locationIds[] = $loc->resource_id;
         }
 
+        $equipIds = [];
+        foreach ([1, 2, 3] as $typeId) {
+            $equip = DmEquip::create([
+                'equip_name' => '装置区分'.$typeId,
+                'equip_type_id' => $typeId,
+            ]);
+            $equipIds[] = $equip->equip_id;
+        }
+
         $kisyuIds = [];
         for ($i = 1; $i <= 100; $i++) {
             $kisyu = DmKisyu::create([
                 'kisyu_name' => '機種'.str_pad($i, 3, '0', STR_PAD_LEFT),
+                'equip_id' => $equipIds[($i - 1) % count($equipIds)],
                 'sort_no' => $i,
                 'waku_display' => $i % 3,
             ]);
@@ -402,10 +426,21 @@ class SeedController extends Controller
             $serial = KdSerial::create([
                 'kisyu_id' => $kisyuIds[($i - 1) % count($kisyuIds)],
                 'serial_no' => 'SN-'.str_pad($i, 5, '0', STR_PAD_LEFT),
-                'equip_type_id' => ($i % 3) + 1,
-                'szgroup_id' => (($i + 1) % 3) + 1,
+                'seizo_group_id' => (($i + 1) % 3) + 1,
+                'order_no' => 'YG'.str_pad((string) $i, 5, '0', STR_PAD_LEFT),
+                'original_no' => $i % 7 === 0 ? 'OLD-'.str_pad((string) $i, 5, '0', STR_PAD_LEFT) : '',
+                'r_no' => $i % 5 === 0 ? 'R'.str_pad((string) $i, 4, '0', STR_PAD_LEFT) : '',
+                'flg_public' => $i % 4 === 0 ? 0 : 1,
+                'flg_goso' => $i % 10 === 0 ? 1 : 0,
+                'flg_finish' => $i % 12 === 0 ? 1 : 0,
+                'flg_syoyo' => $i % 3 === 0 ? 1 : 0,
+                'koujun_id' => $i,
+                'koutei_pic_no' => str_pad((string) $workerIds[($i - 1) % count($workerIds)], 5, '0', STR_PAD_LEFT),
+                'mechanic_pic_no' => str_pad((string) $this->lcgRange(1, 99999), 5, '0', STR_PAD_LEFT),
+                'electric_pic_no' => str_pad((string) $this->lcgRange(1, 99999), 5, '0', STR_PAD_LEFT),
                 'shipping_date' => $shippingDate,
-                'responsible' => (string) $workerIds[($i - 1) % count($workerIds)],
+                'public_remark' => '製番備考'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'customer_name' => '顧客'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
                 'back_color' => (($i - 1) % 6) + 1,
                 'font_color' => 6,
             ]);

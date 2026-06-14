@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DmEquip;
 use App\Models\DmKisyu;
 use App\Models\KdSerial;
 use App\Models\User;
@@ -20,13 +21,13 @@ class SerialDeviceGroupsApiTest extends TestCase
             'email' => 'serial-device-user',
             'password' => Hash::make('12345'),
         ]);
-        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'sort_no' => 1, 'waku_display' => 1]);
+        $equip = DmEquip::create(['equip_name' => '装置A', 'equip_type_id' => 1]);
+        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'equip_id' => $equip->equip_id, 'sort_no' => 1, 'waku_display' => 1]);
         for ($i = 1; $i <= 5; $i++) {
             KdSerial::create([
                 'kisyu_id' => $kisyu->kisyu_id,
                 'serial_no' => 'SN-'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
-                'equip_type_id' => 1,
-                'szgroup_id' => 2,
+                'seizo_group_id' => 2,
             ]);
         }
 
@@ -52,13 +53,13 @@ class SerialDeviceGroupsApiTest extends TestCase
             'email' => 'serial-search-user',
             'password' => Hash::make('12345'),
         ]);
-        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'sort_no' => 1, 'waku_display' => 1]);
+        $equip = DmEquip::create(['equip_name' => '装置A', 'equip_type_id' => 1]);
+        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'equip_id' => $equip->equip_id, 'sort_no' => 1, 'waku_display' => 1]);
         foreach (['SN-001', 'SN-002', 'SN-003'] as $serialNo) {
             KdSerial::create([
                 'kisyu_id' => $kisyu->kisyu_id,
                 'serial_no' => $serialNo,
-                'equip_type_id' => 1,
-                'szgroup_id' => 1,
+                'seizo_group_id' => 1,
             ]);
         }
 
