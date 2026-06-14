@@ -16,6 +16,7 @@ export default function SpreadsheetGridToolbar({
   serialSearchText,
   onSerialSearchTextChange,
   onSerialSearch,
+  serialSearchPlaceholder = '製番検索',
   pllocation,
   onPlLocationChange,
   resources,
@@ -101,7 +102,7 @@ export default function SpreadsheetGridToolbar({
             onKeyDown={e => {
               if (e.key === 'Enter') onSerialSearch();
             }}
-            placeholder="製番検索"
+            placeholder={serialSearchPlaceholder}
             style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, minWidth: 140 }}
           />
           <button onClick={onSerialSearch} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>検索</button>

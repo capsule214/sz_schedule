@@ -569,6 +569,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
 
+    if (isMorderDevice) {
+      const hit = baseMorderGroups.find(g => String(g.morderNo || g.label2) === q || String(g.partsNo || g.label1) === q);
+      if (!hit) return;
+
+      setForcedSerialId(null);
+      pendingScrollSerialIdRef.current = hit.id;
+      setSerialSearchTick(t => t + 1);
+      return;
+    }
+
     const exact = serials.find(s => String(s.serialNo) === q);
     const partial = serials.find(s => String(s.serialNo).includes(q));
     const hit = exact || partial;
@@ -582,7 +592,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
     pendingScrollSerialIdRef.current = hit.serialId;
     setSerialSearchTick(t => t + 1);
-  }, [mode, serialSearchText, serials, baseDeviceGroups]);
+  }, [mode, serialSearchText, serials, baseDeviceGroups, baseMorderGroups, isMorderDevice]);
 
   const onScroll = useCallback(e => {
     const sl = e.currentTarget.scrollLeft;
@@ -1306,6 +1316,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialSearchText={serialSearchText}
         onSerialSearchTextChange={setSerialSearchText}
         onSerialSearch={handleSerialSearch}
+        serialSearchPlaceholder={isMorderDevice ? 'M番/品番検索' : '製番検索'}
         pllocation={pllocation}
         onPlLocationChange={setPllocation}
         resources={resources}
