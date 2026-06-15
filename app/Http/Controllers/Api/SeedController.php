@@ -211,6 +211,7 @@ class SeedController extends Controller
                 'customer_name' => '顧客'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
                 'back_color' => $kisyuIdx + 1,
                 'font_color' => 6,
+                'flg_finish' => $i % 12 === 0 ? 1 : 0,  // 完了製品は flg_finish=1 として登録
             ]);
             $serialIds[] = $s->serial_id;
         }

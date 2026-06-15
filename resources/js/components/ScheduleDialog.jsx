@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DatePicker from './DatePicker';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 import { apiArray, apiJson } from '../lib/api';
@@ -39,6 +39,12 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
   const [resourceId, setResourceId] = useState(init.resourceId || initialData?.resourceId || resources?.[0]?.resourceId || '');
   const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
+  // 機種・製番リストは「セレクトを開いたとき」に遅延取得する。
+  // 取得前は既知の名称（追加時は行情報、編集時は予定情報）を現在値として表示する。
+  const [kisyuName, setKisyuName] = useState(init.kisyuName ?? initialData?.kisyuName ?? '');
+  const [serialNo, setSerialNo] = useState(init.serialNo ?? initialData?.serialNo ?? '');
+  const [kisyuListFetched, setKisyuListFetched] = useState(false);
+  const serialFetchedKisyuRef = useRef(null);
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(true);
   const [serialLoading, setSerialLoading] = useState(false);
@@ -48,29 +54,27 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
   useEffect(() => {
     let cancelled = false;
     async function loadInitialMasters() {
+      // 機種・製番リストは遅延取得のためここでは取得しない
+      const requests = [];
+      if (gridMode !== 'place') {
+        requests.push(apiArray('/task'), apiArray('/worker/team'));
+      } else if (!resources?.length) {
+        requests.push(apiArray('/resource'));
+      }
+      if (requests.length === 0) { setLoading(false); return; }
       setLoading(true);
       setError('');
       try {
-        const requests = [
-          apiArray('/serial/kisyu'),
-        ];
-        if (gridMode !== 'place') {
-          requests.push(apiArray('/task'), apiArray('/worker/team'));
-        } else if (!resources?.length) {
-          requests.push(apiArray('/resource'));
-        }
         const results = await Promise.all(requests);
         if (cancelled) return;
-        setKisyuList(results[0]);
         if (gridMode !== 'place') {
-          setTasks(results[1]);
-          setTeamList(results[2]);
-          if (!taskId && results[1]?.[0]) setTaskId(results[1][0].taskId);
-        } else if (!resources?.length) {
-          setDialogResources(results[1]);
-          if (!resourceId && results[1]?.[0]) setResourceId(results[1][0].resourceId);
+          setTasks(results[0]);
+          setTeamList(results[1]);
+          if (!taskId && results[0]?.[0]) setTaskId(results[0][0].taskId);
+        } else {
+          setDialogResources(results[0]);
+          if (!resourceId && results[0]?.[0]) setResourceId(results[0][0].resourceId);
         }
-        if (!kisyuId && results[0]?.[0]) setKisyuId(results[0][0].kisyuId);
       } catch {
         if (!cancelled) setError('入力に必要なマスタデータの取得に失敗しました');
       } finally {
@@ -81,25 +85,38 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!kisyuId) {
-      setSerials([]);
-      return;
+  // 機種セレクトを開いたときに機種リストを取得する（既に取得済みなら何もしない）
+  async function ensureKisyuList() {
+    if (kisyuListFetched) return;
+    setKisyuListFetched(true);
+    try {
+      const data = await apiArray('/serial/kisyu');
+      setKisyuList(data);
+    } catch {
+      setKisyuListFetched(false);
+      setError('機種リストの取得に失敗しました');
     }
+  }
+
+  // 製番セレクトを開いたときに、現在の機種に紐づく製番リストを取得する
+  async function ensureSerialList() {
+    if (!kisyuId) return;
+    if (serialFetchedKisyuRef.current === String(kisyuId)) return;
+    serialFetchedKisyuRef.current = String(kisyuId);
     setSerialLoading(true);
-    apiArray(`/serial/kisyu/${kisyuId}`)
-      .then(data => {
-        if (cancelled) return;
-        setSerials(data);
-        const current = init.serialId || initialData?.serialId || serialId;
-        const selected = data.find(s => String(s.serialId) === String(current)) || data[0];
-        setSerialId(selected?.serialId || '');
-      })
-      .catch(() => { if (!cancelled) setError('製番リストの取得に失敗しました'); })
-      .finally(() => { if (!cancelled) setSerialLoading(false); });
-    return () => { cancelled = true; };
-  }, [kisyuId]); // eslint-disable-line react-hooks/exhaustive-deps
+    try {
+      const data = await apiArray(`/serial/kisyu/${kisyuId}`);
+      setSerials(data);
+      // 現在選択中の製番があれば維持し、表示名も同期する
+      const selected = data.find(s => String(s.serialId) === String(serialId));
+      if (selected) setSerialNo(selected.serialNo);
+    } catch {
+      serialFetchedKisyuRef.current = null;
+      setError('製番リストの取得に失敗しました');
+    } finally {
+      setSerialLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -137,9 +154,19 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
   }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKisyuChange(newKisyuId) {
+    const k = kisyuList.find(k => String(k.kisyuId) === String(newKisyuId));
     setKisyuId(newKisyuId);
+    setKisyuName(k?.kisyuName ?? '');
     setSerialId('');
+    setSerialNo('');
     setSerials([]);
+    serialFetchedKisyuRef.current = null; // 次に製番セレクトを開いたら取得
+  }
+
+  function handleSerialChange(newSerialId) {
+    const s = serials.find(s => String(s.serialId) === String(newSerialId));
+    setSerialId(newSerialId);
+    setSerialNo(s?.serialNo ?? '');
   }
 
   function handleTeamChange(newTeamId) {
@@ -253,10 +280,12 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
-                  disabled={loading}
+                  onMouseDown={ensureKisyuList}
+                  onFocus={ensureKisyuList}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
-                  {loading && <option value="">取得中...</option>}
+                  {kisyuList.length === 0 && kisyuId && <option value={kisyuId}>{kisyuName}</option>}
+                  {kisyuList.length === 0 && !kisyuId && <option value="">（選択してください）</option>}
                   {kisyuList.map(k => (
                     <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
                   ))}
@@ -266,12 +295,15 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
                 <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>整番</label>
                 <select
                   value={serialId}
-                  onChange={e => setSerialId(e.target.value)}
+                  onChange={e => handleSerialChange(e.target.value)}
+                  onMouseDown={ensureSerialList}
+                  onFocus={ensureSerialList}
                   disabled={!kisyuId || serialLoading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}
                 >
                   {serialLoading && <option value="">取得中...</option>}
-                  {!serialLoading && serials.length === 0 && <option value="">（なし）</option>}
+                  {!serialLoading && serials.length === 0 && serialId && <option value={serialId}>{serialNo}</option>}
+                  {!serialLoading && serials.length === 0 && !serialId && <option value="">（なし）</option>}
                   {serials.map(s => (
                     <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>
                   ))}
@@ -285,10 +317,12 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
                 <select
                   value={kisyuId}
                   onChange={e => handleKisyuChange(e.target.value)}
-                  disabled={loading}
+                  onMouseDown={ensureKisyuList}
+                  onFocus={ensureKisyuList}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
                 >
-                  {loading && <option value="">取得中...</option>}
+                  {kisyuList.length === 0 && kisyuId && <option value={kisyuId}>{kisyuName}</option>}
+                  {kisyuList.length === 0 && !kisyuId && <option value="">（選択してください）</option>}
                   {kisyuList.map(k => (
                     <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
                   ))}
@@ -298,12 +332,15 @@ export default function ScheduleDialog({ plan, resources = [], gridMode, initial
                 <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 }}>製番</label>
                 <select
                   value={serialId}
-                  onChange={e => setSerialId(e.target.value)}
+                  onChange={e => handleSerialChange(e.target.value)}
+                  onMouseDown={ensureSerialList}
+                  onFocus={ensureSerialList}
                   disabled={!kisyuId || serialLoading}
                   style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}
                 >
                   {serialLoading && <option value="">取得中...</option>}
-                  {!serialLoading && serials.length === 0 && <option value="">（なし）</option>}
+                  {!serialLoading && serials.length === 0 && serialId && <option value={serialId}>{serialNo}</option>}
+                  {!serialLoading && serials.length === 0 && !serialId && <option value="">（なし）</option>}
                   {serials.map(s => (
                     <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>
                   ))}

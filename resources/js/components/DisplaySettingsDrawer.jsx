@@ -8,7 +8,7 @@ import { useSettingsForm } from '../lib/settingsForm';
 
 export default function DisplaySettingsDrawer({
   open, onClose, activeTab,
-  serials, workers, tasks, dprMachines = [], dprSalesLocations = [], dprPublicationYears = [],
+  tasks, kisyus = [], teams = [], dprMachines = [], dprSalesLocations = [], dprPublicationYears = [],
   settings, settingsList = [],
   onEnsureMasters, onSave,
 }) {
@@ -54,9 +54,9 @@ export default function DisplaySettingsDrawer({
   useEffect(() => {
     if (!open) return;
     const requirements = tab === 'device'
-      ? ['serials']
+      ? ['kisyus']
       : tab === 'worker'
-        ? ['workers', 'tasks']
+        ? ['teams', 'tasks']
         : tab === 'dpr'
           ? ['dprMachines', 'dprSalesLocations', 'dprPublicationYears']
           : ['tasks'];
@@ -130,8 +130,8 @@ export default function DisplaySettingsDrawer({
 
         {/* コンテンツ */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 20px 0' }}>
-          {tab === 'device' && <DeviceSettingsTab form={form} setField={setField} serials={serials} />}
-          {tab === 'worker' && <WorkerSettingsTab form={form} setField={setField} workers={workers} tasks={tasks} />}
+          {tab === 'device' && <DeviceSettingsTab form={form} setField={setField} kisyus={kisyus} />}
+          {tab === 'worker' && <WorkerSettingsTab form={form} setField={setField} teams={teams} tasks={tasks} />}
           {tab === 'task'   && <TaskSettingsTab   form={form} setField={setField} tasks={tasks} />}
           {tab === 'dpr'    && <DprSettingsTab    form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
         </div>

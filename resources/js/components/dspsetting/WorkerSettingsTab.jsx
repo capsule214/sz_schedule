@@ -6,24 +6,18 @@ const BTN = {
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
-export default function WorkerSettingsTab({ form, setField, workers, tasks }) {
+export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
   // チームリストの絞り込みテキストはタブローカルな UI 状態
   const [teamFilter, setTeamFilter] = useState('');
 
-  // 製造部署・チーム名でフィルタしたチームリスト
+  // 製造部署・チーム名でフィルタしたチームリスト（チームマスタから直接構築）
   const teamList = useMemo(() => {
-    const map = workers.reduce((acc, w) => {
-      if (!w.teamId) return acc;
-      if (form.sygroup > 0 && w.szgroupId !== form.sygroup) return acc;
-      const k = w.teamId;
-      if (!acc[k]) acc[k] = { teamId: k, teamName: w.teamName || '(未設定)', count: 0 };
-      acc[k].count++;
-      return acc;
-    }, {});
-    return Object.values(map)
-      .filter(t => t.teamName.includes(teamFilter))
+    return teams
+      .filter(t => form.sygroup <= 0 || t.szgroupId === form.sygroup)
+      .filter(t => (t.teamName || '').includes(teamFilter))
+      .map(t => ({ teamId: t.teamId, teamName: t.teamName || '(未設定)' }))
       .sort((a, b) => a.teamName.localeCompare(b.teamName, 'ja'));
-  }, [workers, form.sygroup, teamFilter]);
+  }, [teams, form.sygroup, teamFilter]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
@@ -74,7 +68,7 @@ export default function WorkerSettingsTab({ form, setField, workers, tasks }) {
             style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
           >
             {teamList.map(t => (
-              <option key={t.teamId} value={t.teamId}>{t.teamName}（{t.count}人）</option>
+              <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
             ))}
           </select>
         </div>

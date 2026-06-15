@@ -127,6 +127,7 @@ class PlanController extends Controller
             'product_display' => 'nullable|string|in:serial,morder',
             'morder_ids' => 'nullable|array',
             'morder_ids.*' => 'integer|min:1',
+            'show_finished' => 'nullable|boolean',
         ]);
         $isMorderDisplay = ($data['product_display'] ?? 'serial') === 'morder';
 
@@ -135,7 +136,9 @@ class PlanController extends Controller
             ->where('start_date', '<=', $data['to'])
             ->where('end_date', '>=', $data['from']);
 
-        if ($mode === 'device' && ! $isMorderDisplay && empty($data['serial_ids']) && empty($data['kisyu_ids'])) {
+        if ($mode === 'device' && ! $isMorderDisplay
+            && empty($data['serial_ids']) && empty($data['kisyu_ids'])
+            && empty($data['szgroup_ids']) && empty($data['seizo_statuses']) && empty($data['equip_type_id'])) {
             return response()->json([]);
         }
         if ($mode === 'worker' && empty($data['worker_ids']) && empty($data['team_ids']) && empty($data['team_szgroup_id']) && empty($data['show_unassigned_worker'])) {
@@ -143,6 +146,15 @@ class PlanController extends Controller
         }
         if ($mode === 'task' && empty($data['task_ids'])) {
             return response()->json([]);
+        }
+
+        // 「完了製品も表示」OFF のときは flg_finish=0 の製番の予定のみ表示する。
+        // morder 予定やセンチネル（serial_id <= 0）は製番を持たないため対象外とする。
+        if (empty($data['show_finished'])) {
+            $query->where(function ($q) {
+                $q->where('serial_id', '<=', 0)
+                    ->orWhereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'));
+            });
         }
 
         if ($mode === 'device' && $isMorderDisplay) {

@@ -6,29 +6,26 @@ const BTN = {
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
-export default function DeviceSettingsTab({ form, setField, serials }) {
+export default function DeviceSettingsTab({ form, setField, kisyus }) {
   // 工程担当コード入力欄はタブローカルな UI 状態
   const [sbinchargeInput, setSbinchargeInput] = useState('');
   const showModelFilters = form.sbsbmb !== 1;
 
-  // 装置区分・生産状態でフィルタした機種リスト
+  // 装置区分・生産状態でフィルタした機種リスト（機種マスタから直接構築）
   const kisyuList = useMemo(() => {
-    let src = serials;
+    let src = kisyus;
     if (form.sbequiptype !== -1) {
-      src = src.filter(s => s.equipTypeId === form.sbequiptype);
+      src = src.filter(k => k.equipTypeId === form.sbequiptype);
     }
     if (form.sbstatuslist.length === 0) {
       src = [];
     } else {
-      src = src.filter(s => form.sbstatuslist.includes(s.seizoStatus));
+      src = src.filter(k => form.sbstatuslist.includes(k.seizoStatus));
     }
-    const map = src.reduce((acc, s) => {
-      const k = Number(s.kisyuId);
-      if (!acc[k]) acc[k] = { kisyuId: k, kisyuName: s.kisyuName };
-      return acc;
-    }, {});
-    return Object.values(map).sort((a, b) => a.kisyuName.localeCompare(b.kisyuName, 'ja'));
-  }, [serials, form.sbequiptype, form.sbstatuslist]);
+    return [...src]
+      .map(k => ({ kisyuId: Number(k.kisyuId), kisyuName: k.kisyuName }))
+      .sort((a, b) => a.kisyuName.localeCompare(b.kisyuName, 'ja'));
+  }, [kisyus, form.sbequiptype, form.sbstatuslist]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>

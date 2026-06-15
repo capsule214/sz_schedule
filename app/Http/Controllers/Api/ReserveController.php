@@ -69,6 +69,7 @@ class ReserveController extends Controller
       'serial_ids.*'   => 'integer|min:1',
       'kisyu_ids'      => 'nullable|array',
       'kisyu_ids.*'    => 'integer|min:1',
+      'show_finished'  => 'nullable|boolean',
     ]);
 
     $query = KdReserve::with(['km_resource', 'kd_serial.dm_kisyu'])
@@ -83,8 +84,11 @@ class ReserveController extends Controller
       $query->whereIn('serial_id', $data['serial_ids']);
     }
     if (!empty($data['kisyu_ids'])) {
-      $serialIds = KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->pluck('serial_id');
-      $query->whereIn('serial_id', $serialIds);
+      $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->select('serial_id'));
+    }
+    if (empty($data['show_finished'])) {
+      // 「完了製品も表示」OFF のときは flg_finish=0 の製番の予約のみ
+      $query->whereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'));
     }
 
     return response()->json($query->get()->map(fn($p) => $this->formatReserve($p)));

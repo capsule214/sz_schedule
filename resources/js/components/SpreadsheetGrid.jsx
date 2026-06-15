@@ -394,6 +394,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const tktasklist    = displaySettings.tktasklist    || [];
     const synobody      = displaySettings.synobody      || false;
     const body = {};
+    // 「完了製品も表示」(sboption) OFF のときは flg_finish=0 の製番のみ取得する
+    body.show_finished = displaySettings.sboption ? 1 : 0;
     if (mode === 'device') {
       if (isMorderDevice) body.product_display = 'morder';
       if (useModelFilters && sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
@@ -463,10 +465,17 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [mode]);
 
   const fetchPlans = useCallback(async (from, to, groupIds = []) => {
-    const visibleFilter = buildVisibleFilterBody(groupIds);
-    if (!visibleFilter) return;
     const filter = buildFilterBody();
-    const body = { ...filter, ...visibleFilter };
+    let body;
+    if (mode === 'device' || mode === 'worker') {
+      // 装置／担当者は表示設定の機種リスト・チームリストで取得する。
+      // 可視行の serial_ids / worker_ids は送らない（クエリパラメータ肥大を回避）。
+      body = filter;
+    } else {
+      const visibleFilter = buildVisibleFilterBody(groupIds);
+      if (!visibleFilter) return;
+      body = { ...filter, ...visibleFilter };
+    }
     const key = makeFetchKey(from, to, body);
     if (fetchedPlanKeysRef.current.has(key)) return;
     fetchedPlanKeysRef.current.add(key);
@@ -484,7 +493,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       fetchedPlanKeysRef.current.delete(key);
       console.error('fetchPlans error', e);
     }
-  }, [buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {
@@ -492,10 +501,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setPlans([]);
   }, [startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchLocationOverlayPlans = useCallback(async (from, to, serialIds = []) => {
-    const ids = [...new Set(serialIds.map(Number).filter(Number.isFinite))];
-    if (ids.length === 0) return;
-    const body = { serial_ids: ids };
+  const fetchLocationOverlayPlans = useCallback(async (from, to) => {
+    // 場所予定オーバーレイも表示設定の機種リストで取得する（serial_ids は送らない）
+    const filter = buildFilterBody();
+    const body = { show_finished: filter.show_finished };
+    if (filter.kisyu_ids) body.kisyu_ids = filter.kisyu_ids;
     const key = JSON.stringify({ mode: 'place-overlay', from, to, body });
     if (fetchedLocKeysRef.current.has(key)) return;
     fetchedLocKeysRef.current.add(key);
@@ -513,7 +523,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       fetchedLocKeysRef.current.delete(key);
       console.error('fetchLocationOverlayPlans error', e);
     }
-  }, []);
+  }, [displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCalendar = useCallback(async (from, to) => {
     const gaps = computeGaps(fetchedCalendarRangesRef.current, from, to);
@@ -544,11 +554,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   // showLocationInDevice の ON/OFF 切り替え、または表示期間・設定変更時に場所予定をフェッチ
   useEffect(() => {
-    if (!extraLocationRow) {
-      setLocationOverlayPlans([]);
-      fetchedLocKeysRef.current = new Set();
-      return;
-    }
+    // 表示期間・表示設定の変更で機種フィルタが変わるため、古いオーバーレイ予定を破棄して取り直す
+    setLocationOverlayPlans([]);
     fetchedLocKeysRef.current = new Set();
   }, [extraLocationRow, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -740,7 +747,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const timer = setTimeout(() => {
       fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
       if (extraLocationRow) {
-        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
+        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to);
       }
       fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
     }, 250);
@@ -1019,8 +1026,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             initialData: {
               resourceId: mode === 'place' ? g?.id : null,
               serialId:   mode === 'device' && !isMorderDevice ? g?.id : null,
+              serialNo:   mode === 'device' && !isMorderDevice ? g?.label2 : null,
               morderId:   mode === 'device' && isMorderDevice ? g?.id : null,
               kisyuId:    mode === 'device' && !isMorderDevice ? g?.kisyuId : null,
+              kisyuName:  mode === 'device' && !isMorderDevice ? g?.label1 : null,
               workerId:   mode === 'worker'   ? g?.id : null,
               startDate: dateStr,
               endDate: endStr,

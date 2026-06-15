@@ -34,9 +34,10 @@ class WorkerController extends Controller
     $teams = KmTeam::orderBy('sort_no')->orderBy('team_id')->get();
 
     return response()->json($teams->map(fn($t) => [
-      'teamId'   => $t->team_id,
-      'teamName' => $t->team_name,
-      'sortNo'   => $t->sort_no,
+      'teamId'    => $t->team_id,
+      'teamName'  => $t->team_name,
+      'sortNo'    => $t->sort_no,
+      'szgroupId' => $t->equip_group_id,
     ]));
   }
 

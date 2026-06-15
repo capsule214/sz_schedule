@@ -9,6 +9,21 @@ use Illuminate\Http\Request;
 
 class SerialController extends Controller
 {
+    /** 装置タブの行描画に必要な最小項目のみを返す（予定描画に不要な製番情報は含めない） */
+    private function formatDeviceGroup(KdSerial $s): array
+    {
+        $kisyu = $s->dm_kisyu;
+
+        return [
+            'serialId' => $s->serial_id,
+            'kisyuId' => $s->kisyu_id,
+            'kisyuName' => $kisyu ? $kisyu->kisyu_name : '',
+            'serialNo' => $s->serial_no,
+            'shippingDate' => $s->shipping_date,
+            'responsible' => $s->koutei_pic_no,
+        ];
+    }
+
     private function formatSerial(KdSerial $s): array
     {
         $kisyu = $s->dm_kisyu;
@@ -69,12 +84,13 @@ class SerialController extends Controller
             'szgroup_ids.*' => 'integer|min:1',
             'seizo_statuses' => 'nullable|array',
             'seizo_statuses.*' => 'integer|min:0|max:2',
+            'show_finished' => 'nullable|boolean',
         ]);
 
         $offset = (int) ($data['offset'] ?? 0);
         $limit = (int) ($data['limit'] ?? 200);
 
-        $query = KdSerial::with('dm_kisyu.dm_equip')
+        $query = KdSerial::with('dm_kisyu')
             ->join('dm_kisyu', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
             ->leftJoin('dm_equip', 'dm_kisyu.equip_id', '=', 'dm_equip.equip_id')
             ->where('kd_serial.deleted', 0)
@@ -93,6 +109,10 @@ class SerialController extends Controller
         if (! empty($data['seizo_statuses'])) {
             $query->whereIn('dm_kisyu.waku_display', $data['seizo_statuses']);
         }
+        if (empty($data['show_finished'])) {
+            // 「完了製品も表示」OFF のときは flg_finish=0 の製番のみ
+            $query->where('kd_serial.flg_finish', 0);
+        }
         $ordered = $query
             ->orderBy('dm_kisyu.sort_no')
             ->orderBy('kd_serial.serial_no');
@@ -106,7 +126,7 @@ class SerialController extends Controller
                 'total' => count($ids),
                 'offset' => $index === false ? 0 : (int) $index,
                 'limit' => 1,
-                'groups' => $target ? [$this->formatSerial($target)] : [],
+                'groups' => $target ? [$this->formatDeviceGroup($target)] : [],
             ]);
         }
 
@@ -115,7 +135,7 @@ class SerialController extends Controller
             ->offset($offset)
             ->limit($limit)
             ->get()
-            ->map(fn ($s) => $this->formatSerial($s));
+            ->map(fn ($s) => $this->formatDeviceGroup($s));
 
         return response()->json([
             'total' => $total,
@@ -127,12 +147,14 @@ class SerialController extends Controller
 
     public function kisyu()
     {
-        $kisyus = DmKisyu::orderBy('sort_no')->orderBy('kisyu_id')->get();
+        $kisyus = DmKisyu::with('dm_equip')->orderBy('sort_no')->orderBy('kisyu_id')->get();
 
         return response()->json($kisyus->map(fn ($k) => [
             'kisyuId' => $k->kisyu_id,
             'kisyuName' => $k->kisyu_name,
             'sortNo' => $k->sort_no,
+            'equipTypeId' => $k->dm_equip ? $k->dm_equip->equip_type_id : null,
+            'seizoStatus' => $k->waku_display,
         ]));
     }
 
