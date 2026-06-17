@@ -19,6 +19,7 @@ class SerialController extends Controller
             'kisyuId' => $s->kisyu_id,
             'kisyuName' => $kisyu ? $kisyu->kisyu_name : '',
             'serialNo' => $s->serial_no,
+            'receiptNo' => $s->order_no,
             'shippingDate' => $s->shipping_date,
             'responsible' => $s->koutei_pic_no,
         ];

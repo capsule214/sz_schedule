@@ -13,6 +13,7 @@ import SpreadsheetGridLeftHeader from './SpreadsheetGridLeftHeader';
 import SpreadsheetGridLocationOverlayBars from './SpreadsheetGridLocationOverlayBars';
 import DeviceHeaderTooltip from './DeviceHeaderTooltip';
 import AlertToast from './AlertToast';
+import { loadLeftColWidths, saveLeftColWidth, visibleLeftColumns, clampLeftColW } from '../lib/leftHeaderColumns';
 import {
   CELL_SIZE,
   HDR_H,
@@ -20,8 +21,6 @@ import {
   MIN_ROWS,
   MIN_ROWS_LOCATION,
   BUFFER_ROWS,
-  DEV_HDR_W,
-  ASGN_HDR_W,
   SLOT_COUNT,
   HANDLE_W,
   SLOT_LABELS,
@@ -116,10 +115,51 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
   const isMorderDevice = mode === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1;
   const isMorderTask = mode === 'task' && Number(displaySettings.tksbmb ?? 0) === 1;
-  const deviceExtraW = (showShippingDate ? ASGN_HDR_W : 0) + (showResponsible ? ASGN_HDR_W : 0);
-  const leftHdrW = mode === 'device' ? (isMorderDevice ? ASGN_HDR_W * 2 : DEV_HDR_W + deviceExtraW)
-           : (mode === 'worker' || mode === 'task' || mode === 'place') ? ASGN_HDR_W * 2
-           : ASGN_HDR_W;
+
+  // 左ヘッダ各列の幅（cookie 永続化・最低80px/最大160px、マウスでリサイズ可能）
+  const [colWidths, setColWidths] = useState(() => loadLeftColWidths(mode));
+  const colWidthsRef = useRef(colWidths);
+  colWidthsRef.current = colWidths;
+  const leftColumns = useMemo(
+    () => visibleLeftColumns(mode, { isMorderDevice, showShippingDate, showResponsible }),
+    [mode, isMorderDevice, showShippingDate, showResponsible],
+  );
+  const lcw = (key) => colWidths[key] ?? 80;
+  const leftHdrW = leftColumns.reduce((sum, key) => sum + lcw(key), 0);
+
+  // 列境界をドラッグして幅を変更する
+  const colResizeRef = useRef(null);
+  const handleColResizeMove = useCallback((e) => {
+    const r = colResizeRef.current;
+    if (!r) return;
+    const w = clampLeftColW(r.startW + (e.clientX - r.startX));
+    r.lastW = w;
+    setColWidths(prev => (prev[r.key] === w ? prev : { ...prev, [r.key]: w }));
+  }, []);
+  const handleColResizeUp = useCallback(() => {
+    const r = colResizeRef.current;
+    if (r) saveLeftColWidth(mode, r.key, r.lastW ?? r.startW);
+    colResizeRef.current = null;
+    window.removeEventListener('pointermove', handleColResizeMove);
+    window.removeEventListener('pointerup', handleColResizeUp);
+    document.body.style.cursor = '';
+  }, [mode, handleColResizeMove]);
+  const startColResize = useCallback((key, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    colResizeRef.current = { key, startX: e.clientX, startW: colWidthsRef.current[key] ?? 80, lastW: colWidthsRef.current[key] ?? 80 };
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('pointermove', handleColResizeMove);
+    window.addEventListener('pointerup', handleColResizeUp);
+  }, [handleColResizeMove, handleColResizeUp]);
+
+  // 左固定ヘッダ（列見出し・行見出し）上のホイール操作を本体スクロールへ転送する
+  const forwardHeaderWheel = useCallback((e) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop += e.deltaY;
+    el.scrollLeft += e.deltaX;
+  }, []);
 
   // 場所タブのフロアフィルタ（ローカル状態、displaySettings.pllocation で初期化）
   const [pllocation, setPllocation] = useState(() => displaySettings?.pllocation ?? null);
@@ -420,6 +460,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     label2: ser.serialNo,
     label3: ser.shippingDate || null,
     label4: ser.responsible || null,
+    receiptNo: ser.receiptNo ?? null,
     kisyuId: ser.kisyuId,
   }), []);
 
@@ -1431,42 +1472,56 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       {/* グリッド本体 */}
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {/* 左固定ヘッダー上部コーナー */}
-        <div style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+        <div onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
           {mode === 'device' ? (isMorderDevice ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: ASGN_HDR_W, borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
+              <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
                 {['品番', 'オーダーNo', '備考', ''].map((label, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
                 ))}
               </div>
-              <div style={{ width: ASGN_HDR_W, display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
+              <div style={{ width: lcw('sub'), boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
                 {['', '要求納期', '', ''].map((label, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
                 ))}
               </div>
             </div>
-          ) : (showShippingDate || showResponsible ? (
+          ) : (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: DEV_HDR_W, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>装置</div>
-              {showShippingDate && <div style={{ width: ASGN_HDR_W, borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
-              {showResponsible  && <div style={{ width: ASGN_HDR_W, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
+              <div style={{ width: lcw('device'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>装置</div>
+              <div style={{ width: lcw('receipt'), borderRight: (showShippingDate || showResponsible) ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>受付No</div>
+              {showShippingDate && <div style={{ width: lcw('shipping'), borderRight: showResponsible ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>出荷日</div>}
+              {showResponsible  && <div style={{ width: lcw('responsible'), boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>責任者</div>}
             </div>
-          ) : '装置')) : mode === 'place' ? (
+          )) : mode === 'place' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>フロア名</div>
-              <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>場所名</div>
+              <div style={{ width: lcw('floor'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>フロア名</div>
+              <div style={{ width: lcw('place'), boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>場所名</div>
             </div>
           ) : mode === 'task' ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>プロセス名</div>
-              <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>タスク名</div>
+              <div style={{ width: lcw('process'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>プロセス名</div>
+              <div style={{ width: lcw('task'), boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>タスク名</div>
             </div>
           ) : (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: 80, borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>チーム名</div>
-              <div style={{ width: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>担当者名</div>
+              <div style={{ width: lcw('team'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>チーム名</div>
+              <div style={{ width: lcw('name'), boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>担当者名</div>
             </div>
           )}
+
+          {/* 列幅リサイズハンドル（各列の右端をドラッグ） */}
+          {leftColumns.map((key, i) => {
+            const right = leftColumns.slice(0, i + 1).reduce((s, k) => s + lcw(k), 0);
+            return (
+              <div
+                key={`rsz-${key}`}
+                onPointerDown={(e) => startColResize(key, e)}
+                title="ドラッグで列幅を変更"
+                style={{ position: 'absolute', top: 0, left: right - 3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 25 }}
+              />
+            );
+          })}
         </div>
 
         {/* Canvas・左固定列はアクティブ時のみ描画 */}
@@ -1499,7 +1554,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             </div>
 
             {/* 左固定列（行）*/}
-            <div style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, width: leftHdrW, height: containerH - TOTAL_HDR_H, overflow: 'hidden', zIndex: 10, background: '#f9fafb', borderRight: '1px solid #d1d5db' }}>
+            <div onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, width: leftHdrW, height: containerH - TOTAL_HDR_H, overflow: 'hidden', zIndex: 10, background: '#f9fafb', borderRight: '1px solid #d1d5db' }}>
               <div style={{ position: 'relative', height: totalH }}>
                 <SpreadsheetGridLeftHeader
                   layoutGroups={layoutGroups}
@@ -1507,6 +1562,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   containerH={containerH}
                   leftHdrW={leftHdrW}
                   mode={mode}
+                  colWidths={colWidths}
                   onGroupClick={handleDeviceHeaderClick}
                   showShippingDate={showShippingDate}
                   showResponsible={showResponsible}
