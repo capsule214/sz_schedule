@@ -39,7 +39,7 @@ import {
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
-  mode, serials, workers, tasks, resources, displaySettings,
+  mode, serials, workers, tasks, resources, morders = [], displaySettings,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange,
 }, ref) {
@@ -113,7 +113,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
-  const isMorderDevice = mode === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1;
+  // 製品表示: 0=製番, 1=M番(加工オーダー order_type_id=21), 2=直送DPR(order_type_id=11)
+  const sbsbmb = Number(displaySettings.sbsbmb ?? 0);
+  const isMorderDevice = mode === 'device' && (sbsbmb === 1 || sbsbmb === 2);
+  const morderOrderTypeId = sbsbmb === 2 ? 11 : sbsbmb === 1 ? 21 : null;
   const isMorderTask = mode === 'task' && Number(displaySettings.tksbmb ?? 0) === 1;
 
   // 左ヘッダ各列の幅（cookie 永続化・最低80px/最大160px、マウスでリサイズ可能）
@@ -177,6 +180,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : isMorderDevice ? 4 : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
+  // M番表示時は公開フラグ=1 の M番マスタを遅延取得する
+  useEffect(() => {
+    if (mode === 'device' && isMorderDevice) {
+      onEnsureMasters?.(['morders'])?.catch(() => {});
+    }
+  }, [mode, isMorderDevice, onEnsureMasters]);
+
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
 
   // 表示範囲を親へ通知（ジャンプ前チェックに使用）
@@ -198,7 +208,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const sbequiptype   = displaySettings.sbequiptype;   // -1:全て 1/2/3
     const sbszgrouplist = displaySettings.sbszgrouplist  || [];
     const sbstatuslist  = displaySettings.sbstatuslist   || [];
-    let s = serials;
+    let s = serials.filter(ser => Number(ser.flgPublic) === 1); // 公開フラグ=1 のみ
     if (useModelFilters && sbmodellist.length > 0) {
       s = s.filter(ser => sbmodellist.includes(Number(ser.kisyuId)));
     }
@@ -228,34 +238,46 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }));
   }, [mode, serials, displaySettings, deviceCount, isMorderDevice, devicePagedGroups, deviceGroupTotal]);
 
+  const MORDER_ORDER_TYPE_NAMES = { 11: '直送DPR', 21: '加工オーダー' };
+
+  // M番の行は予定の有無に依存せず、公開フラグ=1 の M番マスタから構築する。
   const baseMorderGroups = useMemo(() => {
     if (!isMorderDevice) return [];
-    const byId = new Map();
-    for (const plan of plans) {
-      if (plan.deleted || Number(plan.morderId) <= 0 || byId.has(plan.morderId)) continue;
-      byId.set(plan.morderId, {
-        id: plan.morderId,
-        isMorder: true,
-        label1: plan.partsNo || '',
-        label2: plan.morderNo || '',
-        label3: plan.publicRemark || '',
-        label4: plan.morderShippingDate || null,
-        morderOrderTypeName: plan.morderOrderTypeName || '',
-        morderNo: plan.morderNo || '',
-        partsNo: plan.partsNo || '',
-        requiredDate: plan.morderShippingDate || null,
-        inspectionDate: plan.morderInspectionDate || null,
-        shippingDate: plan.morderActualShippingDate || null,
-        kouteiPicNo: plan.morderKouteiPicNo || '',
-        publicRemark: plan.publicRemark || '',
-      });
+    const sbszgrouplist = displaySettings.sbszgrouplist || [];
+    const showFinished  = !!displaySettings.sboption;
+    let m = morders;
+    if (morderOrderTypeId != null) {
+      m = m.filter(x => Number(x.orderTypeId) === morderOrderTypeId);
     }
-
-    return [...byId.values()].sort((a, b) => {
-      const sd = (a.label4 || '').localeCompare(b.label4 || '');
-      return sd !== 0 ? sd : (a.label2 || '').localeCompare(b.label2 || '', 'ja', { numeric: true });
-    });
-  }, [isMorderDevice, plans]);
+    if (sbszgrouplist.length > 0) {
+      m = m.filter(x => sbszgrouplist.includes(x.szgroupId));
+    }
+    if (!showFinished) {
+      m = m.filter(x => Number(x.flgFinish) === 0);
+    }
+    return [...m]
+      .sort((a, b) => {
+        const sd = (a.shippingDate || '').localeCompare(b.shippingDate || '');
+        return sd !== 0 ? sd : (a.morderNo || '').localeCompare(b.morderNo || '', 'ja', { numeric: true });
+      })
+      .slice(0, deviceCount)
+      .map(x => ({
+        id: x.morderId,
+        isMorder: true,
+        label1: x.partsNo || '',
+        label2: x.morderNo || '',
+        label3: x.publicRemark || '',
+        label4: x.shippingDate || null,
+        morderOrderTypeName: MORDER_ORDER_TYPE_NAMES[x.orderTypeId] || '',
+        morderNo: x.morderNo || '',
+        partsNo: x.partsNo || '',
+        requiredDate: x.shippingDate || null,
+        inspectionDate: null,
+        shippingDate: x.shippingDate || null,
+        kouteiPicNo: x.kouteiPicNo || '',
+        publicRemark: x.publicRemark || '',
+      }));
+  }, [isMorderDevice, morders, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredGroups = useMemo(() => {
     const syteamlist = displaySettings.syteamlist || [];
@@ -437,7 +459,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     // 「完了製品も表示」(sboption) OFF のときは flg_finish=0 の製番のみ取得する
     body.show_finished = displaySettings.sboption ? 1 : 0;
     if (mode === 'device') {
-      if (isMorderDevice) body.product_display = 'morder';
+      if (isMorderDevice) {
+        body.product_display = 'morder';
+        if (morderOrderTypeId != null) body.morder_order_type_id = morderOrderTypeId;
+      }
       if (useModelFilters && sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
       if (useModelFilters && sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;
       if (sbszgrouplist.length > 0) body.szgroup_ids = sbszgrouplist;

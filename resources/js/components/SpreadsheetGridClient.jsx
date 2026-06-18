@@ -49,6 +49,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [resources, setResources] = useState([]);
+  // M番表示の行データ（公開フラグ=1 の M番マスタ、予定の有無に依存しない）
+  const [morders, setMorders] = useState([]);
   // 表示設定の機種リスト・チームリストはマスタ API から取得する（serials/workers の集計に依存しない）
   const [kisyus, setKisyus] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -71,7 +73,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
+  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, morders: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
   const [seeding, setSeeding] = useState(false);
   const [jumpTarget, setJumpTarget] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -105,7 +107,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   ), [loadedMasters, masterRequirements]);
 
   const ensureMasters = useCallback(async (keys) => {
-    const dataByKey = { serials, workers, tasks, resources, kisyus, teams, dprMachines, dprSalesLocations, dprPublicationYears };
+    const dataByKey = { serials, workers, tasks, resources, kisyus, teams, morders, dprMachines, dprSalesLocations, dprPublicationYears };
     const missing = keys.filter(key => !loadedMasters[key]);
     if (missing.length === 0) return dataByKey;
 
@@ -116,6 +118,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       if (key === 'resources') return [key, await apiArray('/resource')];
       if (key === 'kisyus') return [key, await apiArray('/serial/kisyu')];
       if (key === 'teams') return [key, await apiArray('/worker/team')];
+      if (key === 'morders') return [key, await apiArray('/morder')];
       if (key === 'dprMachines') return [key, await apiArray('/dpr/machines')];
       if (key === 'dprSalesLocations') return [key, await apiArray('/dpr/locations')];
       if (key === 'dprPublicationYears') return [key, await apiArray('/dpr/years')];
@@ -130,6 +133,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       else if (key === 'resources') setResources(data);
       else if (key === 'kisyus') setKisyus(data);
       else if (key === 'teams') setTeams(data);
+      else if (key === 'morders') setMorders(data);
       else if (key === 'dprMachines') setDprMachines(data);
       else if (key === 'dprSalesLocations') setDprSalesLocations(data);
       else if (key === 'dprPublicationYears') setDprPublicationYears(data);
@@ -140,7 +144,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       ...Object.fromEntries(entries.map(([key]) => [key, true])),
     }));
     return dataByKey;
-  }, [loadedMasters, resources, serials, tasks, workers, kisyus, teams]);
+  }, [loadedMasters, resources, serials, tasks, workers, kisyus, teams, morders]);
 
   const ensureMastersForMode = useCallback((mode) => (
     ensureMasters(masterRequirements[mode] || [])
@@ -198,10 +202,11 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       setResources([]);
       setKisyus([]);
       setTeams([]);
+      setMorders([]);
       setDprMachines([]);
       setDprSalesLocations([]);
       setDprPublicationYears([]);
-      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
+      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, morders: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
       await reloadDisplaySettings();
       await handleCancel();
       showAlert('初期データを生成しました');
@@ -349,7 +354,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   const gridProps = {
-    serials, workers, tasks, resources, displaySettings,
+    serials, workers, tasks, resources, morders, displaySettings,
     onJumpToOtherTab: handleJumpToOtherTab,
     onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,

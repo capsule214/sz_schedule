@@ -9,7 +9,7 @@ const BTN = {
 export default function DeviceSettingsTab({ form, setField, kisyus }) {
   // 工程担当コード入力欄はタブローカルな UI 状態
   const [sbinchargeInput, setSbinchargeInput] = useState('');
-  const showModelFilters = form.sbsbmb !== 1;
+  const showModelFilters = Number(form.sbsbmb) === 0; // 製番表示のときのみ機種フィルタを表示
 
   // 装置区分・生産状態でフィルタした機種リスト（機種マスタから直接構築）
   const kisyuList = useMemo(() => {
@@ -33,18 +33,18 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
         <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
         <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 6, overflow: 'hidden' }}>
-          {[['製番', 0], ['M番', 1]].map(([label, val]) => (
+          {[['製番', 0], ['M番', 1], ['直送DPR', 2]].map(([label, val], idx, arr) => (
             <button
               key={val}
               type="button"
               onClick={() => setField('sbsbmb', val)}
               style={{
                 padding: '4px 14px', border: 'none',
-                borderRight: val === 0 ? '1px solid #d1d5db' : 'none',
+                borderRight: idx < arr.length - 1 ? '1px solid #d1d5db' : 'none',
                 cursor: 'pointer', fontSize: 13,
-                fontWeight: form.sbsbmb === val ? 600 : 400,
-                background: form.sbsbmb === val ? '#2563eb' : '#fff',
-                color: form.sbsbmb === val ? '#fff' : '#374151',
+                fontWeight: Number(form.sbsbmb) === val ? 600 : 400,
+                background: Number(form.sbsbmb) === val ? '#2563eb' : '#fff',
+                color: Number(form.sbsbmb) === val ? '#fff' : '#374151',
                 transition: 'background 0.15s, color 0.15s',
               }}
             >{label}</button>

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\DisplaySettingsController;
 use App\Http\Controllers\Api\DprController;
+use App\Http\Controllers\Api\MorderController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\ReserveController;
 use App\Http\Controllers\Api\ResourceController;
@@ -31,6 +32,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/worker/{id}', [WorkerController::class, 'show']);
   Route::get('/task', [TaskController::class, 'index']);
   Route::get('/resource', [ResourceController::class, 'index']);
+  Route::get('/morder', [MorderController::class, 'index']);
 
   Route::get('/plan', [PlanController::class, 'index']);
   Route::post('/plan/search', [PlanController::class, 'search']);
