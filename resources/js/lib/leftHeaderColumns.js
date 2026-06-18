@@ -17,9 +17,8 @@ const COLUMN_KEYS = {
   place: ['floor', 'place'],
 };
 
-function cookieName(mode, key) {
-  return `lhcw_${mode}_${key}`;
-}
+// 全 mode・全列の幅を 1 つの cookie に JSON でまとめて保存する
+const COOKIE_NAME = 'lhcw';
 
 function readCookie(name) {
   const value = `; ${document.cookie}`;
@@ -28,21 +27,40 @@ function readCookie(name) {
   return null;
 }
 
+// cookie 全体（{ mode: { key: width } }）を読み込む
+function readAllWidths() {
+  const raw = readCookie(COOKIE_NAME);
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAllWidths(all) {
+  const expires = new Date(Date.now() + 365 * 86400000).toUTCString();
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(all))}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
 // mode の全列幅を cookie から読み込む。値が無ければ最低幅。
 export function loadLeftColWidths(mode) {
   const keys = COLUMN_KEYS[mode] || COLUMN_KEYS.device;
+  const modeWidths = readAllWidths()[mode] || {};
   const widths = {};
   for (const key of keys) {
-    const raw = readCookie(cookieName(mode, key));
-    const n = raw != null ? Number(raw) : NaN;
+    const n = Number(modeWidths[key]);
     widths[key] = Number.isFinite(n) ? clampLeftColW(n) : MIN_LEFT_COL_W;
   }
   return widths;
 }
 
 export function saveLeftColWidth(mode, key, width) {
-  const expires = new Date(Date.now() + 365 * 86400000).toUTCString();
-  document.cookie = `${cookieName(mode, key)}=${clampLeftColW(width)}; expires=${expires}; path=/; SameSite=Lax`;
+  const all = readAllWidths();
+  if (!all[mode] || typeof all[mode] !== 'object') all[mode] = {};
+  all[mode][key] = clampLeftColW(width);
+  writeAllWidths(all);
 }
 
 // 表示中の列キーを左から順に返す
