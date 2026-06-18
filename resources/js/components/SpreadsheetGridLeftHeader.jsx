@@ -39,14 +39,14 @@ export default function SpreadsheetGridLeftHeader({
         {mode === 'device' ? (g.isMorder ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
-              {[g.label1 || '-', g.label2 || '-', g.label3 || '-', ''].map((value, i) => (
+              {[g.partsNo || '-', g.morderNo || '-', g.publicRemark || '-', ''].map((value, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 3 ? '#9ca3af' : '#374151' }}>
                   {value}
                 </div>
               ))}
             </div>
             <div style={{ width: lcw('sub'), display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
-              {['', g.label4 || '-', '', ''].map((value, i) => (
+              {['', g.shippingDate || '-', '', ''].map((value, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 1 ? '#374151' : '#9ca3af' }}>
                   {value}
                 </div>
@@ -56,52 +56,52 @@ export default function SpreadsheetGridLeftHeader({
         ) : (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('device'), borderRight: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', boxSizing: 'border-box' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label1}</div>
-              <div style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label2}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.kisyuName}</div>
+              <div style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.serialNo}</div>
             </div>
             <div style={{ width: lcw('receipt'), borderRight: (showShippingDate || showResponsible) ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {g.receiptNo ?? '-'}
             </div>
             {showShippingDate && (
               <div style={{ width: lcw('shipping'), borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {g.label3 ?? '-'}
+                {g.shippingDate ?? '-'}
               </div>
             )}
             {showResponsible && (
               <div style={{ width: lcw('responsible'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {g.label4 ?? '-'}
+                {g.responsible ?? '-'}
               </div>
             )}
           </div>
         )) : mode === 'task' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('process'), borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
-              {g.label1}
+              {g.processName}
             </div>
             <div style={{ width: lcw('task'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#111827' }}>
-              {g.label2}
+              {g.taskName}
             </div>
           </div>
         ) : mode === 'worker' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('team'), borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
-              {g.isUnassigned ? g.label1 : (g.teamName || '-')}
+              {g.isUnassigned ? g.kisyuName : (g.teamName || '-')}
             </div>
             <div style={{ width: lcw('name'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
-              {g.isUnassigned ? g.label2 : g.label1}
+              {g.isUnassigned ? g.serialNo : g.workerName}
             </div>
           </div>
         ) : mode === 'place' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('floor'), borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
-              {g.label2 || '-'}
+              {g.locationTypeName || '-'}
             </div>
             <div style={{ width: lcw('place'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', background: getColor(g.backColor), color: getColor(g.fontColor) }}>
-              {g.label1}
+              {g.resourceName}
             </div>
           </div>
         ) : (
-          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{g.label1}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{g.serialNo || g.workerName || g.resourceName || ''}</div>
         )}
       </div>
     );

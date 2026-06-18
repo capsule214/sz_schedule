@@ -230,10 +230,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     });
     return s.slice(0, deviceCount).map(ser => ({
       id: ser.serialId,
-      label1: ser.kisyuName,
-      label2: ser.serialNo,
-      label3: ser.shippingDate || null,
-      label4: ser.responsible || null,
+      kisyuName: ser.kisyuName,
+      serialNo: ser.serialNo,
+      receiptNo: ser.orderNo ?? null,
+      shippingDate: ser.shippingDate || null,
+      responsible: ser.responsible || null,
       kisyuId: ser.kisyuId,
     }));
   }, [mode, serials, displaySettings, deviceCount, isMorderDevice, devicePagedGroups, deviceGroupTotal]);
@@ -264,10 +265,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       .map(x => ({
         id: x.morderId,
         isMorder: true,
-        label1: x.partsNo || '',
-        label2: x.morderNo || '',
-        label3: x.publicRemark || '',
-        label4: x.shippingDate || null,
         morderOrderTypeName: MORDER_ORDER_TYPE_NAMES[x.orderTypeId] || '',
         morderNo: x.morderNo || '',
         partsNo: x.partsNo || '',
@@ -288,10 +285,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         if (ser) {
           return [{
             id: ser.serialId,
-            label1: ser.kisyuName,
-            label2: ser.serialNo,
-            label3: ser.shippingDate || null,
-            label4: ser.responsible || null,
+            kisyuName: ser.kisyuName,
+            serialNo: ser.serialNo,
+            receiptNo: ser.orderNo ?? null,
+            shippingDate: ser.shippingDate || null,
+            responsible: ser.responsible || null,
             kisyuId: ser.kisyuId,
           }];
         }
@@ -302,8 +300,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (pllocation) locs = locs.filter(loc => loc.locationTypeId === pllocation);
       return locs.map(loc => ({
         id: loc.resourceId,
-        label1: loc.resourceName,
-        label2: loc.locationTypeName ?? '',
+        resourceName: loc.resourceName,
+        locationTypeName: loc.locationTypeName ?? '',
         backColor: loc.backColor,
         fontColor: loc.fontColor,
       }));
@@ -319,8 +317,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         })
         .map(task => ({
           id: task.taskId,
-          label1: task.processName || '(未設定)',
-          label2: task.taskName,
+          processName: task.processName || '(未設定)',
+          taskName: task.taskName,
         }));
     } else {
       const sygroup = displaySettings.sygroup || 0;
@@ -333,7 +331,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       // 担当者タブは teamId → workerId 昇順固定
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
-      return w.map(wr => ({ id: wr.workerId, label1: wr.workerName, label2: '', teamName: wr.teamName }));
+      return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName }));
     }
   }, [mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
@@ -396,8 +394,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const numRows = Math.max(planMinRows, rows.length);
       extraGroups.push({
         id: `ua-${serialId}`,
-        label1: serial?.kisyuName || '',
-        label2: serial?.serialNo || '',
+        kisyuName: serial?.kisyuName || '',
+        serialNo: serial?.serialNo || '',
         isUnassigned: true,
         teamName: '',
         startRow: uaStartRow,
@@ -481,11 +479,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const mapSerialToDeviceGroup = useCallback((ser) => ({
     id: ser.serialId,
-    label1: ser.kisyuName,
-    label2: ser.serialNo,
-    label3: ser.shippingDate || null,
-    label4: ser.responsible || null,
+    kisyuName: ser.kisyuName,
+    serialNo: ser.serialNo,
     receiptNo: ser.receiptNo ?? null,
+    shippingDate: ser.shippingDate || null,
+    responsible: ser.responsible || null,
     kisyuId: ser.kisyuId,
   }), []);
 
@@ -699,7 +697,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     if (isMorderDevice) {
-      const hit = baseMorderGroups.find(g => String(g.morderNo || g.label2) === q || String(g.partsNo || g.label1) === q);
+      const hit = baseMorderGroups.find(g => String(g.morderNo) === q || String(g.partsNo) === q);
       if (!hit) return;
 
       setForcedSerialId(null);
@@ -708,8 +706,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
 
-    const loadedGroupHit = baseDeviceGroups.find(g => String(g.label2) === q)
-      || baseDeviceGroups.find(g => String(g.label2).includes(q));
+    const loadedGroupHit = baseDeviceGroups.find(g => String(g.serialNo) === q)
+      || baseDeviceGroups.find(g => String(g.serialNo).includes(q));
     if (loadedGroupHit) {
       setForcedSerialId(null);
       pendingScrollSerialIdRef.current = loadedGroupHit.id;
@@ -1092,10 +1090,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             initialData: {
               resourceId: mode === 'place' ? g?.id : null,
               serialId:   mode === 'device' && !isMorderDevice ? g?.id : null,
-              serialNo:   mode === 'device' && !isMorderDevice ? g?.label2 : null,
+              serialNo:   mode === 'device' && !isMorderDevice ? g?.serialNo : null,
               morderId:   mode === 'device' && isMorderDevice ? g?.id : null,
               kisyuId:    mode === 'device' && !isMorderDevice ? g?.kisyuId : null,
-              kisyuName:  mode === 'device' && !isMorderDevice ? g?.label1 : null,
+              kisyuName:  mode === 'device' && !isMorderDevice ? g?.kisyuName : null,
               workerId:   mode === 'worker'   ? g?.id : null,
               startDate: dateStr,
               endDate: endStr,
@@ -1449,8 +1447,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
     setDeviceDetail({
-      kisyuName: group.label1,
-      serialNo: group.label2,
+      kisyuName: group.kisyuName,
+      serialNo: group.serialNo,
       planCount: group.plans?.length ?? 0,
       locationPlanCount: group.locationPlans ? group.locationPlans.length : null,
       x: event.clientX,
