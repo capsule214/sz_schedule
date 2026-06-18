@@ -39,7 +39,7 @@ import {
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
-  mode, serials, workers, tasks, resources, morders = [], displaySettings,
+  mode, serials, workers, tasks, resources, displaySettings,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange,
 }, ref) {
@@ -180,13 +180,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : isMorderDevice ? 4 : mode === 'worker' ? 2 : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
-  // M番表示時は公開フラグ=1 の M番マスタを遅延取得する
-  useEffect(() => {
-    if (mode === 'device' && isMorderDevice) {
-      onEnsureMasters?.(['morders'])?.catch(() => {});
-    }
-  }, [mode, isMorderDevice, onEnsureMasters]);
-
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
 
   // 表示範囲を親へ通知（ジャンプ前チェックに使用）
@@ -242,39 +235,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const MORDER_ORDER_TYPE_NAMES = { 11: '直送DPR', 21: '加工オーダー' };
 
   // M番の行は予定の有無に依存せず、公開フラグ=1 の M番マスタから構築する。
+  // M番/直送DPR も製番と同じくページング取得（スクロールで都度取得した devicePagedGroups を使用）
   const baseMorderGroups = useMemo(() => {
     if (!isMorderDevice) return [];
-    const sbszgrouplist = displaySettings.sbszgrouplist || [];
-    const showFinished  = !!displaySettings.sboption;
-    let m = morders;
-    if (morderOrderTypeId != null) {
-      m = m.filter(x => Number(x.orderTypeId) === morderOrderTypeId);
-    }
-    if (sbszgrouplist.length > 0) {
-      m = m.filter(x => sbszgrouplist.includes(x.szgroupId));
-    }
-    if (!showFinished) {
-      m = m.filter(x => Number(x.flgFinish) === 0);
-    }
-    return [...m]
-      .sort((a, b) => {
-        const sd = (a.shippingDate || '').localeCompare(b.shippingDate || '');
-        return sd !== 0 ? sd : (a.morderNo || '').localeCompare(b.morderNo || '', 'ja', { numeric: true });
-      })
-      .slice(0, deviceCount)
-      .map(x => ({
-        id: x.morderId,
-        isMorder: true,
-        morderOrderTypeName: MORDER_ORDER_TYPE_NAMES[x.orderTypeId] || '',
-        morderNo: x.morderNo || '',
-        partsNo: x.partsNo || '',
-        requiredDate: x.shippingDate || null,
-        inspectionDate: null,
-        shippingDate: x.shippingDate || null,
-        kouteiPicNo: x.kouteiPicNo || '',
-        publicRemark: x.publicRemark || '',
-      }));
-  }, [isMorderDevice, morders, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
+    return devicePagedGroups;
+  }, [isMorderDevice, devicePagedGroups]);
 
   const filteredGroups = useMemo(() => {
     const syteamlist = displaySettings.syteamlist || [];
@@ -341,7 +306,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
 
-    if (mode === 'device' && !isMorderDevice && deviceGroupTotal > 0) {
+    if (mode === 'device' && deviceGroupTotal > 0) {
       const baseRow = deviceGroupOffset * planMinRows;
       const shiftedGroups = result.groups.map(g => ({
         ...g,
@@ -487,8 +452,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     kisyuId: ser.kisyuId,
   }), []);
 
+  const mapMorderToGroup = useCallback((m) => ({
+    id: m.morderId,
+    isMorder: true,
+    morderOrderTypeName: MORDER_ORDER_TYPE_NAMES[m.orderTypeId] || '',
+    morderNo: m.morderNo || '',
+    partsNo: m.partsNo || '',
+    requiredDate: m.shippingDate || null,
+    inspectionDate: null,
+    shippingDate: m.shippingDate || null,
+    kouteiPicNo: m.kouteiPicNo || '',
+    publicRemark: m.publicRemark || '',
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchDeviceGroups = useCallback(async (offset, q = '') => {
-    if (mode !== 'device' || isMorderDevice) return null;
+    if (mode !== 'device') return null;
     const body = {
       ...buildFilterBody(),
       offset,
@@ -497,22 +475,24 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     delete body.product_display;
     if (q) body.q = q;
 
-    const key = JSON.stringify(body);
+    const key = JSON.stringify({ morder: isMorderDevice, ...body });
     if (!q && deviceGroupFetchKeyRef.current === key) return null;
     if (!q) deviceGroupFetchKeyRef.current = key;
 
-    const data = await apiJson('/serial/device-groups', {
+    const endpoint = isMorderDevice ? '/morder/groups' : '/serial/device-groups';
+    const mapper = isMorderDevice ? mapMorderToGroup : mapSerialToDeviceGroup;
+    const data = await apiJson(endpoint, {
       method: 'POST',
       body: JSON.stringify(body),
     });
-    const groups = (data.groups || []).map(mapSerialToDeviceGroup);
+    const groups = (data.groups || []).map(mapper);
     if (!q) {
       setDevicePagedGroups(groups);
       setDeviceGroupTotal(Math.min(Number(data.total || 0), deviceCount));
       setDeviceGroupOffset(Number(data.offset || 0));
     }
     return { ...data, groups };
-  }, [mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildVisibleFilterBody = useCallback((groupIds) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -697,11 +677,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     if (isMorderDevice) {
-      const hit = baseMorderGroups.find(g => String(g.morderNo) === q || String(g.partsNo) === q);
-      if (!hit) return;
-
+      // 読み込み済みページ内を優先検索
+      const loaded = baseMorderGroups.find(g => String(g.morderNo) === q || String(g.partsNo) === q);
+      if (loaded) {
+        setForcedSerialId(null);
+        pendingScrollSerialIdRef.current = loaded.id;
+        setSerialSearchTick(t => t + 1);
+        return;
+      }
+      // サーバ検索（該当ページを取得）
+      const serverHit = await fetchDeviceGroups(0, q);
+      const group = serverHit?.groups?.[0];
+      if (!group) return;
+      setDevicePagedGroups(serverHit.groups);
+      setDeviceGroupTotal(Math.min(Number(serverHit.total || 0), deviceCount));
+      setDeviceGroupOffset(Number(serverHit.offset || 0));
       setForcedSerialId(null);
-      pendingScrollSerialIdRef.current = hit.id;
+      pendingScrollSerialIdRef.current = group.id;
       setSerialSearchTick(t => t + 1);
       return;
     }
@@ -785,7 +777,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [startDate, endDate, scrollLeft, colW, containerW, totalCols, viewMode]);
 
   useEffect(() => {
-    if (mode !== 'device' || isMorderDevice) return;
+    if (mode !== 'device') return;
     setDevicePagedGroups([]);
     setDeviceGroupTotal(0);
     setDeviceGroupOffset(0);
@@ -795,7 +787,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [mode, isMorderDevice, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!active || mode !== 'device' || isMorderDevice) return;
+    if (!active || mode !== 'device') return;
     const estimatedGroupIndex = Math.max(0, Math.floor(scrollTop / (planMinRows * CELL_SIZE)) - DEVICE_GROUP_PREFETCH_ROWS);
     const offset = Math.floor(estimatedGroupIndex / DEVICE_GROUP_PAGE_SIZE) * DEVICE_GROUP_PAGE_SIZE;
     if (deviceGroupTotal > 0 && offset >= deviceGroupTotal) return;
@@ -1333,6 +1325,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     jumpAttemptsRef.current = 0;
 
+    // 遷移先タブで対象の予定バーを選択状態にする
+    setSelected(new Set([plan.planId]));
+    setSelectedCell(null);
+
     const col = planToStartCol(plan, startDate, viewMode);
     const endCol = planToEndCol(plan, startDate, viewMode);
     const absRow = targetGroup.startRow + targetPlanRow.rowIdx;
@@ -1423,7 +1419,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
 
   const planCount = plans.filter(p => !p.deleted).length;
-  const groupCount = mode === 'device' && !isMorderDevice && deviceGroupTotal > 0 ? deviceGroupTotal : filteredGroups.length;
+  const groupCount = mode === 'device' && deviceGroupTotal > 0 ? deviceGroupTotal : filteredGroups.length;
 
   function handleDeviceHeaderClick(group, event) {
     if (mode !== 'device') return;
