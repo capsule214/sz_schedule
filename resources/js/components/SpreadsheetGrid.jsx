@@ -1421,32 +1421,50 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const planCount = plans.filter(p => !p.deleted).length;
   const groupCount = mode === 'device' && deviceGroupTotal > 0 ? deviceGroupTotal : filteredGroups.length;
 
-  function handleDeviceHeaderClick(group, event) {
-    if (mode !== 'device') return;
+  function handleHeaderClick(group, event) {
     event.stopPropagation();
     const rect = event.currentTarget?.getBoundingClientRect?.();
-    if (group.isMorder) {
-      setDeviceDetail({
-        isMorder: true,
-        orderTypeName: group.morderOrderTypeName,
-        morderNo: group.morderNo,
-        partsNo: group.partsNo,
-        requiredDate: group.requiredDate,
-        inspectionDate: group.inspectionDate,
-        shippingDate: group.shippingDate,
-        kouteiPicNo: group.kouteiPicNo,
-        publicRemark: group.publicRemark,
-        x: event.clientX,
-        y: event.clientY,
-        anchorRect: rect ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null,
-      });
-      return;
+    const planCount = group.plans?.length ?? 0;
+    let title = '';
+    let rows = [];
+    if (mode === 'device' && group.isMorder) {
+      title = 'M番詳細';
+      rows = [
+        ['手配区分', group.morderOrderTypeName],
+        ['M番', group.morderNo],
+        ['品番', group.partsNo],
+        ['要求納期', group.requiredDate],
+        ['出荷日', group.shippingDate],
+        ['工程担当', group.kouteiPicNo],
+        ['備考', group.publicRemark],
+        ['表示予定件数', planCount],
+      ];
+    } else if (mode === 'device') {
+      title = '装置詳細';
+      rows = [
+        ['機種', group.kisyuName],
+        ['製番', group.serialNo],
+        ['受付No', group.receiptNo],
+        ['出荷日', group.shippingDate],
+        ['責任者', group.responsible],
+        ['表示予定件数', planCount],
+      ];
+      if (extraLocationRow) rows.push(['場所予定件数', group.locationPlans ? group.locationPlans.length : 0]);
+    } else if (mode === 'worker') {
+      title = '担当者詳細';
+      rows = group.isUnassigned
+        ? [['区分', '担当者未定'], ['機種', group.kisyuName], ['製番', group.serialNo], ['表示予定件数', planCount]]
+        : [['チーム', group.teamName], ['担当者', group.workerName], ['表示予定件数', planCount]];
+    } else if (mode === 'task') {
+      title = 'タスク詳細';
+      rows = [['プロセス', group.processName], ['タスク', group.taskName], ['表示予定件数', planCount]];
+    } else if (mode === 'place') {
+      title = '場所詳細';
+      rows = [['フロア', group.locationTypeName], ['場所', group.resourceName], ['表示予定件数', planCount]];
     }
     setDeviceDetail({
-      kisyuName: group.kisyuName,
-      serialNo: group.serialNo,
-      planCount: group.plans?.length ?? 0,
-      locationPlanCount: group.locationPlans ? group.locationPlans.length : null,
+      title,
+      rows,
       x: event.clientX,
       y: event.clientY,
       anchorRect: rect ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null,
@@ -1457,8 +1475,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const onGlobalPointerDown = (e) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
-      const inHeader = target.closest('[data-device-header="1"]');
-      const inTooltip = target.closest('[data-device-tooltip="1"]');
+      const inHeader = target.closest('[data-row-header="1"]');
+      const inTooltip = target.closest('[data-header-tooltip="1"]');
       if (!inHeader && !inTooltip) setDeviceDetail(null);
     };
     window.addEventListener('pointerdown', onGlobalPointerDown, true);
@@ -1582,7 +1600,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   leftHdrW={leftHdrW}
                   mode={mode}
                   colWidths={colWidths}
-                  onGroupClick={handleDeviceHeaderClick}
+                  onGroupClick={handleHeaderClick}
                   showShippingDate={showShippingDate}
                   showResponsible={showResponsible}
                 />

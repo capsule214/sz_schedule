@@ -1,26 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
 export default function DeviceHeaderTooltip({ detail, onClose }) {
-  if (!detail) return null;
   const rootRef = useRef(null);
-  const [pos, setPos] = useState({ left: 8, top: detail.y + 10, arrow: 'top' });
-  const rows = detail.isMorder ? [
-    ['手配区分', detail.orderTypeName],
-    ['M番', detail.morderNo],
-    ['品番', detail.partsNo],
-    ['要求納期', detail.requiredDate],
-    ['検査日', detail.inspectionDate],
-    ['出荷日', detail.shippingDate],
-    ['工程担当', detail.kouteiPicNo],
-    ['備考', detail.publicRemark],
-  ] : [
-    ['機種', detail.kisyuName],
-    ['製番', detail.serialNo],
-    ['表示予定件数', detail.planCount],
-    ...(detail.locationPlanCount != null ? [['場所予定件数', detail.locationPlanCount]] : []),
-  ];
+  const [pos, setPos] = useState({ left: 8, top: 10, arrow: 'top' });
 
   useLayoutEffect(() => {
+    if (!detail) return;
     const el = rootRef.current;
     if (!el) return;
     const margin = 8;
@@ -52,10 +37,13 @@ export default function DeviceHeaderTooltip({ detail, onClose }) {
     setPos({ left: nextLeft, top: nextTop, arrow });
   }, [detail]);
 
+  if (!detail) return null;
+  const rows = detail.rows || [];
+
   return (
     <div
       ref={rootRef}
-      data-device-tooltip="1"
+      data-header-tooltip="1"
       style={{
         position: 'fixed',
         left: pos.left,
@@ -101,7 +89,7 @@ export default function DeviceHeaderTooltip({ detail, onClose }) {
         />
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div style={{ fontWeight: 700, fontSize: 13 }}>{detail.isMorder ? 'M番詳細' : '装置詳細'}</div>
+        <div style={{ fontWeight: 700, fontSize: 13 }}>{detail.title || '詳細'}</div>
         <button
           onClick={onClose}
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 16, lineHeight: 1 }}

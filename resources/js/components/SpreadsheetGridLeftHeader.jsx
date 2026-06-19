@@ -30,12 +30,10 @@ export default function SpreadsheetGridLeftHeader({
         background: g.isUnassigned ? '#fef9c3' : '#f9fafb',
         boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden',
-        cursor: mode === 'device' ? 'pointer' : 'default',
+        cursor: 'pointer',
       }}
-      data-device-header={mode === 'device' ? '1' : undefined}
-      onClick={(e) => {
-        if (mode === 'device') onGroupClick?.(g, e);
-      }}>
+      data-row-header="1"
+      onClick={(e) => onGroupClick?.(g, e)}>
         {mode === 'device' ? (g.isMorder ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
