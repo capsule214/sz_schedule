@@ -88,6 +88,13 @@ export default function DeviceHeaderTooltip({ detail, onClose }) {
           }}
         />
       )}
+      {detail.badges?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {detail.badges.map(b => (
+            <span key={b.label} style={{ fontSize: 11, lineHeight: 1.4, padding: '1px 6px', borderRadius: 4, color: '#fff', background: b.color, whiteSpace: 'nowrap' }}>{b.label}</span>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <div style={{ fontWeight: 700, fontSize: 13 }}>{detail.title || '詳細'}</div>
         <button

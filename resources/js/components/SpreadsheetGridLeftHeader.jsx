@@ -8,6 +8,7 @@ export default function SpreadsheetGridLeftHeader({
   leftHdrW,
   mode,
   colWidths = {},
+  rowBadges = [],
   onGroupClick,
   showShippingDate = false,
   showResponsible  = false,
@@ -35,39 +36,57 @@ export default function SpreadsheetGridLeftHeader({
       data-row-header="1"
       onClick={(e) => onGroupClick?.(g, e)}>
         {mode === 'device' ? (g.isMorder ? (
-          <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-            <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
-              {[g.partsNo || '-', g.morderNo || '-', g.publicRemark || '-', ''].map((value, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 3 ? '#9ca3af' : '#374151' }}>
-                  {value}
-                </div>
-              ))}
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+            <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+              <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', boxSizing: 'border-box' }}>
+                {[g.partsNo || '-', g.morderNo || '-', g.publicRemark || '-'].map((value, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 2 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: '#374151' }}>
+                    {value}
+                  </div>
+                ))}
+              </div>
+              <div style={{ width: lcw('sub'), display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', boxSizing: 'border-box' }}>
+                {['', g.shippingDate || '-', ''].map((value, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 2 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 1 ? '#374151' : '#9ca3af' }}>
+                    {value}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ width: lcw('sub'), display: 'grid', gridTemplateRows: 'repeat(4, 1fr)', boxSizing: 'border-box' }}>
-              {['', g.shippingDate || '-', '', ''].map((value, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #e5e7eb' : 'none', fontSize: 13, fontWeight: i === 1 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box', color: i === 1 ? '#374151' : '#9ca3af' }}>
-                  {value}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-            <div style={{ width: lcw('device'), borderRight: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', boxSizing: 'border-box' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.kisyuName}</div>
-              <div style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.serialNo}</div>
-            </div>
-            <div style={{ width: lcw('receipt'), borderRight: (showShippingDate || showResponsible) ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {g.receiptNo ?? '-'}
-            </div>
-            {showShippingDate && (
-              <div style={{ width: lcw('shipping'), borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {g.shippingDate ?? '-'}
+            {rowBadges.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: CELL_SIZE, padding: '0 4px', borderTop: '1px solid #e5e7eb', boxSizing: 'border-box', overflow: 'hidden' }}>
+                {rowBadges.map(b => (
+                  <span key={b.label} style={{ fontSize: 10, lineHeight: 1.4, padding: '0 4px', borderRadius: 3, color: '#fff', background: b.color, whiteSpace: 'nowrap' }}>{b.label}</span>
+                ))}
               </div>
             )}
-            {showResponsible && (
-              <div style={{ width: lcw('responsible'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {g.responsible ?? '-'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+            <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+              <div style={{ width: lcw('device'), borderRight: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', boxSizing: 'border-box' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.kisyuName}</div>
+                <div style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.serialNo}</div>
+              </div>
+              <div style={{ width: lcw('receipt'), borderRight: (showShippingDate || showResponsible) ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {g.receiptNo ?? '-'}
+              </div>
+              {showShippingDate && (
+                <div style={{ width: lcw('shipping'), borderRight: showResponsible ? '1px solid #d1d5db' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {g.shippingDate ?? '-'}
+                </div>
+              )}
+              {showResponsible && (
+                <div style={{ width: lcw('responsible'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#374151', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {g.responsible ?? '-'}
+                </div>
+              )}
+            </div>
+            {rowBadges.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: CELL_SIZE, padding: '0 4px', borderTop: '1px solid #e5e7eb', boxSizing: 'border-box', overflow: 'hidden' }}>
+                {rowBadges.map(b => (
+                  <span key={b.label} style={{ fontSize: 10, lineHeight: 1.4, padding: '0 4px', borderRadius: 3, color: '#fff', background: b.color, whiteSpace: 'nowrap' }}>{b.label}</span>
+                ))}
               </div>
             )}
           </div>

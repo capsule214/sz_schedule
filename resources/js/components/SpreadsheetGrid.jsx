@@ -37,6 +37,14 @@ import {
   computeGaps,
 } from '../lib/spreadsheet';
 
+// 表示設定の状態フラグに対応する行バッジ（装置タブ・製番表示）
+const ROW_FLAG_BADGES = [
+  { key: 'flgsyoyo',  label: '所要日連動', color: '#0ea5e9' },
+  { key: 'flgukeoi',  label: '請負発注',   color: '#8b5cf6' },
+  { key: 'flgkeppin', label: '部品欠品',   color: '#ef4444' },
+  { key: 'flggoso',   label: '後送',       color: '#f59e0b' },
+];
+
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
   mode, serials, workers, tasks, resources, displaySettings,
@@ -177,7 +185,18 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       : mode === 'task'
         ? '/plan/search/task'
         : '/reserve/search';
-  const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION : isMorderDevice ? 4 : mode === 'worker' ? 2 : MIN_ROWS;
+  // 装置タブ(製番/M番/直送DPR)で所要日連動/請負発注/部品欠品/後送有無のいずれかON時の行バッジ
+  const rowBadges = useMemo(() => {
+    if (mode !== 'device') return [];
+    return ROW_FLAG_BADGES.filter(b => !!displaySettings[b.key]);
+  }, [mode, displaySettings]);
+  const hasRowFlags = rowBadges.length > 0;
+
+  // 予定バーの最低行数: 製番/M番/直送DPR で基準を統一（デフォルト3行、バッジ表示時4行）
+  const planMinRows  = mode === 'place' ? MIN_ROWS_LOCATION
+    : mode === 'worker' ? 2
+    : mode === 'device' ? (hasRowFlags ? 4 : MIN_ROWS)
+    : MIN_ROWS;
   const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
 
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
@@ -1072,7 +1091,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const g = getGroupAtRow(row);
     const colDate = colToDateStr(startDate, col, viewMode);
     const items = [
-      {
+      // 社員未定の行は予定の新規登録不可（担当者が定まらないため）
+      ...(g?.isUnassigned ? [] : [{
         label: '予定を追加',
         onClick: () => {
           const dateStr = colToDateTime(startDate, col, 'start', viewMode);
@@ -1092,12 +1112,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             }
           });
         }
-      },
+      }]),
       ...(copied.length > 0 ? [{
         label: `貼り付け（${copied.length}件）`,
         onClick: () => pastePlans(col, row),
       }] : []),
     ];
+    if (items.length === 0) return;
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }
 
@@ -1427,6 +1448,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const planCount = group.plans?.length ?? 0;
     let title = '';
     let rows = [];
+    let badges = [];
     if (mode === 'device' && group.isMorder) {
       title = 'M番詳細';
       rows = [
@@ -1439,6 +1461,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         ['備考', group.publicRemark],
         ['表示予定件数', planCount],
       ];
+      badges = rowBadges;
     } else if (mode === 'device') {
       title = '装置詳細';
       rows = [
@@ -1450,6 +1473,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         ['表示予定件数', planCount],
       ];
       if (extraLocationRow) rows.push(['場所予定件数', group.locationPlans ? group.locationPlans.length : 0]);
+      badges = rowBadges;
     } else if (mode === 'worker') {
       title = '担当者詳細';
       rows = group.isUnassigned
@@ -1465,6 +1489,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setDeviceDetail({
       title,
       rows,
+      badges,
       x: event.clientX,
       y: event.clientY,
       anchorRect: rect ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null,
@@ -1512,14 +1537,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         <div onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: 0, width: leftHdrW, height: TOTAL_HDR_H, background: '#f3f4f6', borderRight: '1px solid #d1d5db', borderBottom: '1px solid #9ca3af', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
           {mode === 'device' ? (isMorderDevice ? (
             <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
-                {['品番', 'オーダーNo', '備考', ''].map((label, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
+              <div style={{ width: lcw('main'), borderRight: '1px solid #d1d5db', boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(3, 1fr)' }}>
+                {['品番', 'オーダーNo', '備考'].map((label, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 2 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
                 ))}
               </div>
-              <div style={{ width: lcw('sub'), boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(4, 1fr)' }}>
-                {['', '要求納期', '', ''].map((label, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 3 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
+              <div style={{ width: lcw('sub'), boxSizing: 'border-box', display: 'grid', gridTemplateRows: 'repeat(3, 1fr)' }}>
+                {['', '要求納期', ''].map((label, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: i < 2 ? '1px solid #d1d5db' : 'none', boxSizing: 'border-box' }}>{label}</div>
                 ))}
               </div>
             </div>
@@ -1600,6 +1625,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   leftHdrW={leftHdrW}
                   mode={mode}
                   colWidths={colWidths}
+                  rowBadges={rowBadges}
                   onGroupClick={handleHeaderClick}
                   showShippingDate={showShippingDate}
                   showResponsible={showResponsible}
