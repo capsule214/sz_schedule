@@ -1,6 +1,24 @@
 import { getColor } from '../lib/colors';
 import { CELL_SIZE, HANDLE_W, TODAY_STR } from '../lib/spreadsheet';
 
+const syoyoCornerBase = {
+  position: 'absolute',
+  width: 7,
+  height: 7,
+  borderColor: '#000',
+  pointerEvents: 'none',
+  zIndex: 7,
+  boxSizing: 'border-box',
+};
+
+function syoyoCornerStyle(position) {
+  const border = '2px solid #000';
+  if (position === 'top-left') return { ...syoyoCornerBase, top: 1, left: 1, borderTop: border, borderLeft: border };
+  if (position === 'top-right') return { ...syoyoCornerBase, top: 1, right: 1, borderTop: border, borderRight: border };
+  if (position === 'bottom-left') return { ...syoyoCornerBase, bottom: 1, left: 1, borderBottom: border, borderLeft: border };
+  return { ...syoyoCornerBase, bottom: 1, right: 1, borderBottom: border, borderRight: border };
+}
+
 export default function SpreadsheetGridBars({
   layoutGroups,
   startDate,
@@ -113,6 +131,14 @@ export default function SpreadsheetGridBars({
               pointerEvents: 'none', zIndex: 6,
               userSelect: 'none',
             }}>⭐</div>
+          )}
+          {plan.isSyoyoTask && (
+            <>
+              <span style={syoyoCornerStyle('top-left')} />
+              <span style={syoyoCornerStyle('top-right')} />
+              <span style={syoyoCornerStyle('bottom-left')} />
+              <span style={syoyoCornerStyle('bottom-right')} />
+            </>
           )}
         </div>
       );

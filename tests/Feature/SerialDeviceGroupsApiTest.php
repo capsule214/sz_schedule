@@ -28,6 +28,7 @@ class SerialDeviceGroupsApiTest extends TestCase
                 'kisyu_id' => $kisyu->kisyu_id,
                 'serial_no' => 'SN-'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
                 'seizo_group_id' => 2,
+                'flg_public' => 1,
             ]);
         }
 
@@ -60,6 +61,7 @@ class SerialDeviceGroupsApiTest extends TestCase
                 'kisyu_id' => $kisyu->kisyu_id,
                 'serial_no' => $serialNo,
                 'seizo_group_id' => 1,
+                'flg_public' => 1,
             ]);
         }
 

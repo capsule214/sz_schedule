@@ -515,9 +515,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const buildVisibleFilterBody = useCallback((groupIds) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
-    if (mode === 'device' && isMorderDevice) return {};
     if (ids.length === 0) return null;
-    if (mode === 'device') return { serial_ids: ids };
+    if (mode === 'device') return isMorderDevice ? { morder_ids: ids } : { serial_ids: ids };
     if (mode === 'worker') return { worker_ids: ids };
     if (mode === 'task') return { task_ids: ids };
     return { resource_ids: ids };
@@ -530,9 +529,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const fetchPlans = useCallback(async (from, to, groupIds = []) => {
     const filter = buildFilterBody();
     let body;
-    if (mode === 'device' || mode === 'worker') {
-      // 装置／担当者は表示設定の機種リスト・チームリストで取得する。
-      // 可視行の serial_ids / worker_ids は送らない（クエリパラメータ肥大を回避）。
+    if (mode === 'device') {
+      const visibleFilter = buildVisibleFilterBody(groupIds);
+      if (!visibleFilter) return;
+      body = { ...filter, ...visibleFilter };
+    } else if (mode === 'worker') {
+      // 担当者は表示設定のチームリストで取得する。
       body = filter;
     } else {
       const visibleFilter = buildVisibleFilterBody(groupIds);
@@ -564,10 +566,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setPlans([]);
   }, [startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchLocationOverlayPlans = useCallback(async (from, to) => {
-    // 場所予定オーバーレイも表示設定の機種リストで取得する（serial_ids は送らない）
+  const fetchLocationOverlayPlans = useCallback(async (from, to, groupIds = []) => {
+    const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
+    if (ids.length === 0 || isMorderDevice) return;
     const filter = buildFilterBody();
-    const body = { show_finished: filter.show_finished };
+    const body = { show_finished: filter.show_finished, serial_ids: ids };
     if (filter.kisyu_ids) body.kisyu_ids = filter.kisyu_ids;
     const key = JSON.stringify({ mode: 'place-overlay', from, to, body });
     if (fetchedLocKeysRef.current.has(key)) return;
@@ -822,7 +825,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const timer = setTimeout(() => {
       fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
       if (extraLocationRow) {
-        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to);
+        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
       }
       fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
     }, 250);

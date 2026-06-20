@@ -6,6 +6,7 @@ use App\Models\DmKisyu;
 use App\Models\KdMorder;
 use App\Models\KdPlan;
 use App\Models\KdSerial;
+use App\Models\KmKoujunDetail;
 use App\Models\KmTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -172,5 +173,61 @@ class MorderPlanApiTest extends TestCase
 
         $this->assertDatabaseCount('kd_plan', 15);
         $this->assertSame(15, KdPlan::where('morder_id', -1)->where('serial_id', '>', 0)->count());
+    }
+
+    public function test_device_search_marks_syoyo_linked_tasks(): void
+    {
+        $user = User::create([
+            'name' => 'syoyo-user',
+            'email' => 'syoyo-user',
+            'password' => Hash::make('12345'),
+        ]);
+        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-S']);
+        $serial = KdSerial::create([
+            'kisyu_id' => $kisyu->kisyu_id,
+            'serial_no' => 'SYOYO-001',
+            'flg_public' => 1,
+            'flg_syoyo' => 1,
+            'koujun_id' => 10,
+        ]);
+        $linkedTask = KmTask::create(['task_name' => '所要日連動']);
+        $normalTask = KmTask::create(['task_name' => '通常']);
+        KmKoujunDetail::create([
+            'koujun_id' => 10,
+            'koujun_num' => '0001',
+            'task_id' => $linkedTask->task_id,
+        ]);
+
+        KdPlan::create([
+            'serial_id' => $serial->serial_id,
+            'morder_id' => -1,
+            'task_id' => $linkedTask->task_id,
+            'deleted' => 0,
+            'start_date' => '2026-06-10',
+            'end_date' => '2026-06-11',
+        ]);
+        KdPlan::create([
+            'serial_id' => $serial->serial_id,
+            'morder_id' => -1,
+            'task_id' => $normalTask->task_id,
+            'deleted' => 0,
+            'start_date' => '2026-06-12',
+            'end_date' => '2026-06-13',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->postJson('/api/plan/search/device', [
+                'from' => '2026-06-01',
+                'to' => '2026-06-30',
+                'product_display' => 'serial',
+                'serial_ids' => [$serial->serial_id],
+            ])
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->json();
+
+        $byTask = collect($response)->keyBy('taskId');
+        $this->assertTrue($byTask[$linkedTask->task_id]['isSyoyoTask']);
+        $this->assertFalse($byTask[$normalTask->task_id]['isSyoyoTask']);
     }
 }

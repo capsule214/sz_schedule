@@ -11,6 +11,7 @@ use App\Models\KdPlan;
 use App\Models\KdReserve;
 use App\Models\KdSerial;
 use App\Models\KkLocationType;
+use App\Models\KmKoujunDetail;
 use App\Models\KmProcess;
 use App\Models\KmResource;
 use App\Models\KmTask;
@@ -123,7 +124,7 @@ class SeedController extends Controller
                 'equip_group_id' => (($i - 1) % 3) + 1,
                 'morder_no' => 'M'.str_pad((string) (1234500 + $i), 7, '0', STR_PAD_LEFT),
                 'parts_no' => 'PART-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT),
-                'flg_public' => $i % 4 === 0 ? 0 : 1,
+                'flg_public' => 1,
                 'flg_goso' => $i % 10 === 0 ? 1 : 0,
                 'flg_finish' => $i % 12 === 0 ? 1 : 0,
                 'koutei_pic_no' => str_pad((string) $this->lcgRange(1, 99999), 5, '0', STR_PAD_LEFT),
@@ -137,6 +138,31 @@ class SeedController extends Controller
         return $morderIds;
     }
 
+    private function seedKoujunDetails(array $taskIds, int $count = 100): int
+    {
+        if (empty($taskIds)) {
+            return 0;
+        }
+
+        $rows = [];
+        for ($koujunId = 1; $koujunId <= $count; $koujunId++) {
+            $detailCount = min(count($taskIds), $this->lcgRange(2, 5));
+            for ($i = 0; $i < $detailCount; $i++) {
+                $rows[] = [
+                    'koujun_id' => $koujunId,
+                    'koujun_num' => str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT),
+                    'task_id' => $taskIds[($koujunId + $i - 1) % count($taskIds)],
+                ];
+            }
+        }
+
+        foreach (array_chunk($rows, 200) as $chunk) {
+            KmKoujunDetail::insert($chunk);
+        }
+
+        return count($rows);
+    }
+
     public function seed(Request $request)
     {
         $count = $request->input('count', 1000);
@@ -145,12 +171,14 @@ class SeedController extends Controller
         $seedNum = $request->input('seedNum', 42);
 
         $this->lcgSeed = $seedNum;
+        $base = strtotime($baseDate);
 
         DB::statement('PRAGMA foreign_keys = OFF');
         KdReserve::truncate();
         KdPlan::truncate();
         KdMorder::truncate();
         KdSerial::truncate();
+        KmKoujunDetail::truncate();
         KmWorker::truncate();
         KmTeam::truncate();
         KmTask::truncate();
@@ -206,6 +234,9 @@ class SeedController extends Controller
                 'serial_no' => 'SN-'.str_pad($i, 3, '0', STR_PAD_LEFT),
                 'seizo_group_id' => (($i + 1) % 3) + 1,
                 'order_no' => 'YG'.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                'flg_public' => 1,
+                'flg_syoyo' => $i % 3 === 0 ? 1 : 0,
+                'koujun_id' => $i,
                 'koutei_pic_no' => str_pad((string) $this->lcgRange(1, 99999), 5, '0', STR_PAD_LEFT),
                 'public_remark' => '製番備考'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
                 'customer_name' => '顧客'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
@@ -256,7 +287,7 @@ class SeedController extends Controller
             $taskIds[] = $t->task_id;
         }
 
-        $base = strtotime($baseDate);
+        $koujunDetails = $this->seedKoujunDetails($taskIds);
         $totalSlots = $months * 30 * 6;
 
         $plans = [];
@@ -312,6 +343,7 @@ class SeedController extends Controller
             'serials' => count($serialIds),
             'workers' => count($workerIds),
             'tasks' => count($taskIds),
+            'koujunDetails' => $koujunDetails,
             'locations' => count($locationIds),
             'morders' => count($morderIds),
             'locationPlans' => count($locationPlans),
@@ -330,6 +362,7 @@ class SeedController extends Controller
         KdPlan::truncate();
         KdMorder::truncate();
         KdSerial::truncate();
+        KmKoujunDetail::truncate();
         KmWorker::truncate();
         KmTeam::truncate();
         KmTask::truncate();
@@ -419,6 +452,7 @@ class SeedController extends Controller
             ]);
             $taskIds[] = $task->task_id;
         }
+        $koujunDetails = $this->seedKoujunDetails($taskIds);
 
         $serialIds = [];
         $base = strtotime($baseDate);
@@ -431,7 +465,7 @@ class SeedController extends Controller
                 'order_no' => 'YG'.str_pad((string) $i, 5, '0', STR_PAD_LEFT),
                 'original_no' => $i % 7 === 0 ? 'OLD-'.str_pad((string) $i, 5, '0', STR_PAD_LEFT) : '',
                 'r_no' => $i % 5 === 0 ? 'R'.str_pad((string) $i, 4, '0', STR_PAD_LEFT) : '',
-                'flg_public' => $i % 4 === 0 ? 0 : 1,
+                'flg_public' => 1,
                 'flg_goso' => $i % 10 === 0 ? 1 : 0,
                 'flg_finish' => $i % 12 === 0 ? 1 : 0,
                 'flg_syoyo' => $i % 3 === 0 ? 1 : 0,
@@ -477,6 +511,7 @@ class SeedController extends Controller
             'serials' => count($serialIds),
             'workers' => count($workerIds),
             'tasks' => count($taskIds),
+            'koujunDetails' => $koujunDetails,
             'resources' => count($locationIds),
             'morders' => count($morderIds),
             'calendar' => count($calendarRows),
