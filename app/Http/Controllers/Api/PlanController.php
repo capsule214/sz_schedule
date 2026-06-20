@@ -24,8 +24,12 @@ class PlanController extends Controller
             'morderId' => 'nullable|integer',
             'taskId' => 'required|integer|min:1',
             'workerId' => 'nullable|integer|min:1',
+            'educatorWorkerId' => 'nullable|integer|min:1',
             'startDate' => 'required|date',
             'endDate' => 'required|date|after_or_equal:startDate',
+            'plannedMinutes' => 'nullable|integer|min:0',
+            'price' => 'nullable|integer|min:0',
+            'remark' => 'nullable|string',
         ];
     }
 
@@ -36,8 +40,12 @@ class PlanController extends Controller
             'morder_id' => $data['morderId'] ?? -1,
             'task_id' => $data['taskId'],
             'worker_id' => $data['workerId'] ?? null,
+            'educator_worker_id' => $data['educatorWorkerId'] ?? null,
             'start_date' => $data['startDate'],
             'end_date' => $data['endDate'],
+            'planned_minutes' => $data['plannedMinutes'] ?? 0,
+            'price' => $data['price'] ?? 0,
+            'remark' => $data['remark'] ?? '',
         ];
     }
 
@@ -80,6 +88,10 @@ class PlanController extends Controller
             'endDate' => $plan->end_date,
             'workerId' => $plan->worker_id,
             'workerName' => $worker ? $worker->worker_name : '',
+            'educatorWorkerId' => $plan->educator_worker_id,
+            'plannedMinutes' => $plan->planned_minutes ?? 0,
+            'price' => $plan->price ?? 0,
+            'remark' => $plan->remark ?? '',
             'isSyoyoTask' => $isSyoyoTask,
             'updatedAt' => $plan->updated_at ? substr($plan->updated_at, 0, 10) : null,
         ];

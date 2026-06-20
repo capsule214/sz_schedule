@@ -1261,8 +1261,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         morderId:  data.morderId || dialog.initialData?.morderId || dialog.plan?.morderId || null,
         taskId:    data.taskId,
         workerId:  data.workerId,
+        educatorWorkerId: data.educatorWorkerId,
         startDate: data.startDate,
         endDate:   data.endDate,
+        plannedMinutes: data.plannedMinutes ?? 0,
+        price: data.price ?? 0,
+        remark: data.remark ?? '',
       };
 
     if (dialog.plan) {
