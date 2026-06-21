@@ -35,6 +35,8 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
   const [endHm, setEndHm] = useState(TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : TIME_SLOTS[TIME_SLOTS.length - 1].end);
   const [dialogResources, setDialogResources] = useState(resources);
   const [resourceId, setResourceId] = useState(init.resourceId || initialData?.resourceId || resources?.[0]?.resourceId || '');
+  const initialResource = resources?.find(r => String(r.resourceId) === String(init.resourceId || initialData?.resourceId));
+  const [floorId, setFloorId] = useState(initialResource?.locationTypeId || '');
   const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || '');
   const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
   const [kisyuName, setKisyuName] = useState(init.kisyuName ?? initialData?.kisyuName ?? '');
@@ -45,17 +47,27 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
   const [serialLoading, setSerialLoading] = useState(false);
   const [loading, setLoading] = useState(!resources?.length);
   const [error, setError] = useState('');
+  const [remark, setRemark] = useState(init.remark ?? initialData?.remark ?? '');
   const serialFetchedKisyuRef = useRef(null);
+  const serialSelectRef = useRef(null);
 
   useEffect(() => {
-    if (resources?.length) return;
+    if (resources?.length) {
+      const selected = resources.find(r => String(r.resourceId) === String(resourceId));
+      if (selected && floorId === '') setFloorId(selected.locationTypeId || '');
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     apiArray('/resource')
       .then(data => {
         if (cancelled) return;
         setDialogResources(data);
-        if (!resourceId && data?.[0]) setResourceId(data[0].resourceId);
+        const selected = data.find(r => String(r.resourceId) === String(resourceId)) || data[0];
+        if (selected) {
+          if (!resourceId) setResourceId(selected.resourceId);
+          setFloorId(selected.locationTypeId || '');
+        }
       })
       .catch(() => { if (!cancelled) setError('入力に必要なマスタデータの取得に失敗しました'); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -73,21 +85,37 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     }
   }
 
-  async function ensureSerialList() {
-    if (!kisyuId || serialFetchedKisyuRef.current === String(kisyuId)) return;
-    serialFetchedKisyuRef.current = String(kisyuId);
+  async function fetchSerialList(nextKisyuId) {
+    if (!nextKisyuId) return;
+    serialFetchedKisyuRef.current = String(nextKisyuId);
     setSerialLoading(true);
     try {
-      const data = await apiArray(`/serial/kisyu/${kisyuId}`);
+      const data = await apiArray(`/serial/kisyu/${nextKisyuId}`);
       setSerials(data);
       const selected = data.find(s => String(s.serialId) === String(serialId));
-      if (selected) setSerialNo(selected.serialNo);
+      if (selected) {
+        setSerialNo(selected.serialNo);
+      } else if (data[0]) {
+        setSerialId(data[0].serialId);
+        setSerialNo(data[0].serialNo);
+      }
     } catch {
       serialFetchedKisyuRef.current = null;
       setError('製番リストの取得に失敗しました');
     } finally {
       setSerialLoading(false);
     }
+  }
+
+  async function ensureSerialList() {
+    if (!kisyuId || serialFetchedKisyuRef.current === String(kisyuId)) return;
+    await fetchSerialList(kisyuId);
+  }
+
+  function handleFloorChange(newFloorId) {
+    setFloorId(newFloorId);
+    const nextResource = dialogResources.find(r => String(r.locationTypeId) === String(newFloorId));
+    setResourceId(nextResource?.resourceId || '');
   }
 
   function handleKisyuChange(newKisyuId) {
@@ -98,6 +126,7 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     setSerialNo('');
     setSerials([]);
     serialFetchedKisyuRef.current = null;
+    fetchSerialList(newKisyuId);
   }
 
   function handleSerialChange(newSerialId) {
@@ -109,60 +138,85 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
   function handleSave() {
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
+    const selectedSerialId = serialId || serialSelectRef.current?.value || init.serialId || initialData?.serialId || '';
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
-    if (!serialId) { setError('製番を選択してください'); return; }
+    if (!selectedSerialId) { setError('製番を選択してください'); return; }
     if (!resourceId) { setError('場所を選択してください'); return; }
     setError('');
-    onSave({ resourceId: Number(resourceId), serialId: Number(serialId), startDate: sd2, endDate: ed2 });
+    onSave({ resourceId: Number(resourceId), serialId: Number(selectedSerialId), startDate: sd2, endDate: ed2, remark });
   }
 
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd = startDate <= endDate ? endDate : startDate;
   const labelStyle = { fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 };
   const fieldStyle = { width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' };
+  const floorOptions = [...new Map(dialogResources.map(r => [r.locationTypeId, {
+    locationTypeId: r.locationTypeId,
+    locationTypeName: r.locationTypeName || '',
+  }])).values()].filter(f => f.locationTypeId);
+  const filteredResources = floorId === ''
+    ? dialogResources
+    : dialogResources.filter(r => String(r.locationTypeId) === String(floorId));
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#fff', borderRadius: 10, padding: 24, width: 600, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>{plan ? '予定を編集' : '予定を追加'}</h2>
-        <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>開始日</div>
-            <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
-            <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-              {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>フロア</label>
+              <select value={floorId} onChange={e => handleFloorChange(e.target.value)} disabled={loading} style={fieldStyle}>
+                {floorOptions.length === 0 && <option value="">（なし）</option>}
+                {floorOptions.map(f => <option key={f.locationTypeId} value={f.locationTypeId}>{f.locationTypeName}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>場所</label>
+              <select value={resourceId} onChange={e => setResourceId(e.target.value)} disabled={loading || filteredResources.length === 0} style={fieldStyle}>
+                {filteredResources.length === 0 && <option value="">（なし）</option>}
+                {filteredResources.map(r => <option key={r.resourceId} value={r.resourceId}>{r.resourceName}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>機種</label>
+              <select value={kisyuId} onChange={e => handleKisyuChange(e.target.value)} onMouseDown={ensureKisyuList} onFocus={ensureKisyuList} style={fieldStyle}>
+                {kisyuList.length === 0 && kisyuId && <option value={kisyuId}>{kisyuName}</option>}
+                {kisyuList.length === 0 && !kisyuId && <option value="">（選択してください）</option>}
+                {kisyuList.map(k => <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>製番</label>
+              <select ref={serialSelectRef} value={serialId} onChange={e => handleSerialChange(e.target.value)} onMouseDown={ensureSerialList} onFocus={ensureSerialList} disabled={!kisyuId || serialLoading} style={{ ...fieldStyle, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}>
+                {serialLoading && <option value="">取得中...</option>}
+                {!serialLoading && serials.length === 0 && serialId && <option value={serialId}>{serialNo}</option>}
+                {!serialLoading && serials.length === 0 && !serialId && <option value="">（なし）</option>}
+                {serials.map(s => <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>開始日</div>
+              <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+              <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>終了日</div>
+              <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+              <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
+              </div>
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>終了日</div>
-            <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
-            <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-              {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div>
-            <label style={labelStyle}>場所</label>
-            <input readOnly value={dialogResources?.find(r => r.resourceId == resourceId)?.resourceName || ''} style={{ ...fieldStyle, background: '#f9fafb' }} />
-          </div>
-          <div>
-            <label style={labelStyle}>機種</label>
-            <select value={kisyuId} onChange={e => handleKisyuChange(e.target.value)} onMouseDown={ensureKisyuList} onFocus={ensureKisyuList} style={fieldStyle}>
-              {kisyuList.length === 0 && kisyuId && <option value={kisyuId}>{kisyuName}</option>}
-              {kisyuList.length === 0 && !kisyuId && <option value="">（選択してください）</option>}
-              {kisyuList.map(k => <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>整番</label>
-            <select value={serialId} onChange={e => handleSerialChange(e.target.value)} onMouseDown={ensureSerialList} onFocus={ensureSerialList} disabled={!kisyuId || serialLoading} style={{ ...fieldStyle, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}>
-              {serialLoading && <option value="">取得中...</option>}
-              {!serialLoading && serials.length === 0 && serialId && <option value={serialId}>{serialNo}</option>}
-              {!serialLoading && serials.length === 0 && !serialId && <option value="">（なし）</option>}
-              {serials.map(s => <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>)}
-            </select>
+            <label style={labelStyle}>備考</label>
+            <textarea value={remark} onChange={e => setRemark(e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
           </div>
         </div>
 

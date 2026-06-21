@@ -1255,6 +1255,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialId:   data.serialId,
         startDate:  data.startDate,
         endDate:    data.endDate,
+        remark:     data.remark ?? '',
       }
       : {
         serialId:  data.serialId || dialog.initialData?.serialId,
