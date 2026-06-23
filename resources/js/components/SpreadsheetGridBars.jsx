@@ -114,7 +114,7 @@ export default function SpreadsheetGridBars({
           style={{
             position: 'absolute', left: barX, top: barY, width: w, height: CELL_SIZE, background: bg,
             display: 'flex', alignItems: 'center', border: '1px solid rgba(0,0,0,0.15)',
-            boxShadow: isSel ? 'inset 0 0 0 2px #1d4ed8, 0 0 0 2px #93c5fd' : 'none',
+            boxShadow: isSel ? '0 0 0 2px #ef4444' : 'none',
             boxSizing: 'border-box', zIndex: isSel ? 4 : ghost ? 10 : 2,
             opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
