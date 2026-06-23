@@ -38,6 +38,7 @@ export default function SpreadsheetGridBars({
   onBarPointerDown,
   onBarRightClick,
   flgdiff = false,
+  flgsyoyo = false,
 }) {
   const bars = [];
   const labels = [];
@@ -133,7 +134,7 @@ export default function SpreadsheetGridBars({
               userSelect: 'none',
             }}>⭐</div>
           )}
-          {plan.isSyoyoTask && (
+          {flgsyoyo && plan.isSyoyoTask && (
             <>
               <span style={syoyoCornerStyle('top-left')} />
               <span style={syoyoCornerStyle('top-right')} />

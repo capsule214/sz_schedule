@@ -1722,6 +1722,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     onBarPointerDown={handleBarPointerDown}
                     onBarRightClick={handleBarRightClick}
                     flgdiff={!!displaySettings.flgdiff}
+                    flgsyoyo={!!displaySettings.flgsyoyo}
                   />
                   <SpreadsheetGridLocationOverlayBars
                     extraLocationRow={extraLocationRow}
