@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { initCsrf, apiJson } from '../lib/api';
+import { initCsrf, apiJson, resetUnauthorizedState } from '../lib/api';
 
 export default function LoginPage({ onLogin }) {
   const [loginId,  setLoginId]  = useState('');
@@ -18,6 +18,7 @@ export default function LoginPage({ onLogin }) {
         method: 'POST',
         body: JSON.stringify({ loginId, password, remember }),
       });
+      resetUnauthorizedState();
       onLogin(data.user);
     } catch (e) {
       setError(e?.status === 401 ? e.message : 'サーバーに接続できませんでした');

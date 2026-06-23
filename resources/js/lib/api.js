@@ -12,6 +12,23 @@ function getCookie(name) {
 }
 
 let csrfInitialized = false;
+let unauthorizedDispatched = false;
+
+function isLoginRedirectResponse(res) {
+  const contentType = res.headers.get('Content-Type') || '';
+  return res.redirected || (res.ok && contentType.includes('text/html') && res.url.includes('/login'));
+}
+
+function dispatchUnauthorized() {
+  if (unauthorizedDispatched) return;
+  unauthorizedDispatched = true;
+  csrfInitialized = false;
+  window.dispatchEvent(new CustomEvent('api:unauthorized'));
+}
+
+export function resetUnauthorizedState() {
+  unauthorizedDispatched = false;
+}
 
 export async function initCsrf() {
   if (csrfInitialized) return;
@@ -51,14 +68,19 @@ export async function apiFetch(path, options = {}) {
     res = await sendApiRequest(path, options);
   }
 
-  if (res.status === 401 || res.status === 419) {
-    window.dispatchEvent(new CustomEvent('api:unauthorized'));
+  if (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res)) {
+    dispatchUnauthorized();
   }
   return res;
 }
 
 export async function apiJson(path, options = {}) {
   const res = await apiFetch(path, options);
+  if (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res)) {
+    const error = new Error('ログインが必要です');
+    error.status = res.status === 419 ? 419 : 401;
+    throw error;
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const error = new Error(data?.message ?? `API request failed: ${res.status}`);

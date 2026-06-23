@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import SpreadsheetGridClient from './components/SpreadsheetGridClient';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
-import { initCsrf, apiJson } from './lib/api';
+import { initCsrf, apiJson, resetUnauthorizedState } from './lib/api';
 import '../css/app.css';
 
 function App() {
@@ -31,7 +31,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handleUnauthorized = () => setUser(null);
+    const handleUnauthorized = () => {
+      setChecked(true);
+      setUser(null);
+    };
     window.addEventListener('api:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('api:unauthorized', handleUnauthorized);
   }, []);
@@ -48,10 +51,10 @@ function App() {
   }
 
   if (!user) {
-    return <LoginPage onLogin={u => setUser(u)} />;
+    return <LoginPage onLogin={u => { resetUnauthorizedState(); setUser(u); }} />;
   }
 
-  return <SpreadsheetGridClient user={user} onLogout={() => setUser(null)} />;
+  return <SpreadsheetGridClient user={user} onLogout={() => { resetUnauthorizedState(); setUser(null); }} />;
 }
 
 const root = createRoot(document.getElementById('app'));
