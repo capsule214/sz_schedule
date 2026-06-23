@@ -216,7 +216,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setSeeding(true);
     try {
       const productDisplay =
-        (tab === 'device' && Number(displaySettings.sbsbmb ?? 0) === 1)
+        (tab === 'device' && [1, 2].includes(Number(displaySettings.sbsbmb ?? 0)))
         || (tab === 'task' && Number(displaySettings.tksbmb ?? 0) === 1)
           ? 'morder'
           : 'serial';
@@ -350,6 +350,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   const gridProps = {
     serials, workers, tasks, resources, displaySettings,
+    settingsReady: settingsLoaded,
     onJumpToOtherTab: handleJumpToOtherTab,
     onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,

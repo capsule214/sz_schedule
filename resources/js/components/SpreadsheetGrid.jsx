@@ -47,7 +47,7 @@ const ROW_FLAG_BADGES = [
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
-  mode, serials, workers, tasks, resources, displaySettings,
+  mode, serials, workers, tasks, resources, displaySettings, settingsReady = true,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange,
 }, ref) {
@@ -212,55 +212,24 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [startDate, endDate, viewMode]);
 
   const baseDeviceGroups = useMemo(() => {
+    if (!settingsReady) return [];
     if (mode !== 'device') return [];
     if (isMorderDevice) return [];
-    if (devicePagedGroups.length > 0 || deviceGroupTotal > 0) return devicePagedGroups;
-    const useModelFilters = true;
-    const sbmodellist   = displaySettings.sbmodellist   || [];
-    const sbequiptype   = displaySettings.sbequiptype;   // -1:全て 1/2/3
-    const sbszgrouplist = displaySettings.sbszgrouplist  || [];
-    const sbstatuslist  = displaySettings.sbstatuslist   || [];
-    let s = serials.filter(ser => Number(ser.flgPublic) === 1); // 公開フラグ=1 のみ
-    if (useModelFilters && sbmodellist.length > 0) {
-      s = s.filter(ser => sbmodellist.includes(Number(ser.kisyuId)));
-    }
-    if (useModelFilters && sbequiptype != null && sbequiptype !== -1) {
-      s = s.filter(ser => ser.equipTypeId === sbequiptype);
-    }
-    if (sbszgrouplist.length > 0) {
-      s = s.filter(ser => sbszgrouplist.includes(ser.szgroupId));
-    }
-    if (useModelFilters && sbstatuslist.length === 0) {
-      return []; // 全チェックOFFのときは何も表示しない
-    }
-    if (useModelFilters) {
-      s = s.filter(ser => sbstatuslist.includes(ser.seizoStatus));
-    }
-    s = [...s].sort((a, b) => {
-      if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
-      return a.serialNo.localeCompare(b.serialNo, 'ja', { numeric: true });
-    });
-    return s.slice(0, deviceCount).map(ser => ({
-      id: ser.serialId,
-      kisyuName: ser.kisyuName,
-      serialNo: ser.serialNo,
-      receiptNo: ser.orderNo ?? null,
-      shippingDate: ser.shippingDate || null,
-      responsible: ser.responsible || null,
-      kisyuId: ser.kisyuId,
-    }));
-  }, [mode, serials, displaySettings, deviceCount, isMorderDevice, devicePagedGroups, deviceGroupTotal]);
+    return devicePagedGroups;
+  }, [settingsReady, mode, isMorderDevice, devicePagedGroups]);
 
   const MORDER_ORDER_TYPE_NAMES = { 11: '直送DPR', 21: '加工オーダー' };
 
   // M番の行は予定の有無に依存せず、公開フラグ=1 の M番マスタから構築する。
   // M番/直送DPR も製番と同じくページング取得（スクロールで都度取得した devicePagedGroups を使用）
   const baseMorderGroups = useMemo(() => {
+    if (!settingsReady) return [];
     if (!isMorderDevice) return [];
     return devicePagedGroups;
-  }, [isMorderDevice, devicePagedGroups]);
+  }, [settingsReady, isMorderDevice, devicePagedGroups]);
 
   const filteredGroups = useMemo(() => {
+    if (!settingsReady) return [];
     const syteamlist = displaySettings.syteamlist || [];
     if (mode === 'device') {
       if (isMorderDevice) return baseMorderGroups;
@@ -317,7 +286,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName }));
     }
-  }, [mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
+  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device') : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
@@ -485,6 +454,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDeviceGroups = useCallback(async (offset, q = '') => {
+    if (!settingsReady) return null;
     if (mode !== 'device') return null;
     const body = {
       ...buildFilterBody(),
@@ -511,7 +481,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setDeviceGroupOffset(Number(data.offset || 0));
     }
     return { ...data, groups };
-  }, [mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildVisibleFilterBody = useCallback((groupIds) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -527,6 +497,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [mode]);
 
   const fetchPlans = useCallback(async (from, to, groupIds = []) => {
+    if (!settingsReady) return;
     const filter = buildFilterBody();
     let body;
     if (mode === 'device') {
@@ -558,13 +529,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       fetchedPlanKeysRef.current.delete(key);
       console.error('fetchPlans error', e);
     }
-  }, [buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {
+    if (!settingsReady) return;
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-  }, [startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLocationOverlayPlans = useCallback(async (from, to, groupIds = []) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -799,17 +771,17 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [startDate, endDate, scrollLeft, colW, containerW, totalCols, viewMode]);
 
   useEffect(() => {
-    if (mode !== 'device') return;
+    if (!settingsReady || mode !== 'device') return;
     setDevicePagedGroups([]);
     setDeviceGroupTotal(0);
     setDeviceGroupOffset(0);
     deviceGroupFetchKeyRef.current = '';
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-  }, [mode, isMorderDevice, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, mode, isMorderDevice, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!active || mode !== 'device') return;
+    if (!settingsReady || !active || mode !== 'device') return;
     const estimatedGroupIndex = Math.max(0, Math.floor(scrollTop / (planMinRows * CELL_SIZE)) - DEVICE_GROUP_PREFETCH_ROWS);
     const offset = Math.floor(estimatedGroupIndex / DEVICE_GROUP_PAGE_SIZE) * DEVICE_GROUP_PAGE_SIZE;
     if (deviceGroupTotal > 0 && offset >= deviceGroupTotal) return;
@@ -817,11 +789,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const currentEnd = deviceGroupOffset + devicePagedGroups.length;
     if (devicePagedGroups.length > 0 && estimatedGroupIndex >= currentStart && estimatedGroupIndex < Math.max(currentStart + 1, currentEnd - DEVICE_GROUP_PREFETCH_ROWS)) return;
     fetchDeviceGroups(Math.min(offset, Math.max(0, deviceCount - 1))).catch(e => console.error('fetchDeviceGroups error', e));
-  }, [active, mode, isMorderDevice, scrollTop, planMinRows, deviceGroupOffset, devicePagedGroups.length, deviceGroupTotal, deviceCount, fetchDeviceGroups]);
+  }, [settingsReady, active, mode, isMorderDevice, scrollTop, planMinRows, deviceGroupOffset, devicePagedGroups.length, deviceGroupTotal, deviceCount, fetchDeviceGroups]);
 
   // スクロール停止後だけ、現在描画している日付・行の予定を取得する。
   useEffect(() => {
-    if (!active) return;
+    if (!settingsReady || !active) return;
     const timer = setTimeout(() => {
       fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
       if (extraLocationRow) {
@@ -830,7 +802,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
     }, 250);
     return () => clearTimeout(timer);
-  }, [active, visibleFetchRange, visibleGroupIds, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
+  }, [settingsReady, active, visibleFetchRange, visibleGroupIds, devicePagedGroups.length, deviceGroupOffset, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
 
   // タブ復帰時にスクロール位置/state を再同期し、可視範囲計算のズレによる白画面化を防ぐ
   useEffect(() => {
