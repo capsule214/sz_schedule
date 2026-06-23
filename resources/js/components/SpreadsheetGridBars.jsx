@@ -30,6 +30,7 @@ export default function SpreadsheetGridBars({
   visRowStart,
   visRowEnd,
   selected,
+  groupMoveHighlightIds = new Set(),
   dragRef,
   ghostDrag,
   mode,
@@ -95,6 +96,7 @@ export default function SpreadsheetGridBars({
       const bg = getColor(mode === 'place' ? plan.backColor : plan.taskBackColor);
       const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
+      const isGroupMoveHighlighted = groupMoveHighlightIds.has(plan.planId);
       const isLocked = mode !== 'place' && Number(plan.taskId) === 1;
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
@@ -114,8 +116,8 @@ export default function SpreadsheetGridBars({
           style={{
             position: 'absolute', left: barX, top: barY, width: w, height: CELL_SIZE, background: bg,
             display: 'flex', alignItems: 'center', border: '1px solid rgba(0,0,0,0.15)',
-            boxShadow: isSel ? '0 0 0 2px #ef4444' : 'none',
-            boxSizing: 'border-box', zIndex: isSel ? 4 : ghost ? 10 : 2,
+            boxShadow: isGroupMoveHighlighted ? '0 0 0 4px #dc2626' : isSel ? '0 0 0 2px #ef4444' : 'none',
+            boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel ? 4 : ghost ? 10 : 2,
             opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
           onPointerDown={e => { if (e.button === 0) onBarPointerDown(e, plan, 'move'); }}

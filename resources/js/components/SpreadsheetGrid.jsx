@@ -94,6 +94,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [tooltip, setTooltip] = useState(null);
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [selected, setSelected] = useState(new Set());
+  const [groupMoveHighlightIds, setGroupMoveHighlightIds] = useState(new Set());
   const [selectedCell, setSelectedCell] = useState(null);
   const [copied, setCopied] = useState([]);
   const [sonar, setSonar] = useState(null);
@@ -102,6 +103,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [deviceDetail, setDeviceDetail] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
+  const groupMoveHighlightTimerRef = useRef(null);
 
   const fetchedPlanKeysRef  = useRef(new Set());
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
@@ -998,6 +1000,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   async function commitDrag(drag) {
     const { type, plan, dragPlans, deltaCol, deltaRow } = drag;
+    const movedGroupPlanIds = [];
 
     // 複数選択ドラッグ時の移動先グループは、ドラッグ主対象の着地先を全プランに共通適用する
     let destGroupId = null;
@@ -1044,6 +1047,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         else if (mode === 'worker') newWorkerId = destGroupId;
         else newLocationId = destGroupId;
       }
+      const groupChanged =
+        type === 'move'
+        && destGroupId !== null
+        && (
+          (mode === 'device' && isMorderDevice && Number(dp.morderId) !== Number(newMorderId))
+          || (mode === 'device' && !isMorderDevice && Number(dp.serialId) !== Number(newSerialId))
+          || (mode === 'worker' && Number(dp.workerId) !== Number(newWorkerId))
+          || (mode === 'place' && Number(dp.resourceId) !== Number(newLocationId))
+        );
+      if (groupChanged) movedGroupPlanIds.push(dp.planId);
 
       // API は呼ばず、ローカル state を即時更新して保留リストに積む
       const payload = mode === 'place'
@@ -1055,6 +1068,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       pendingUpdatesRef.current.set(dp.planId, payload);
       setIsDirty(true);
       onDirtyChange?.(true);
+    }
+    if (movedGroupPlanIds.length > 0) {
+      if (groupMoveHighlightTimerRef.current) clearTimeout(groupMoveHighlightTimerRef.current);
+      setGroupMoveHighlightIds(new Set(movedGroupPlanIds));
+      groupMoveHighlightTimerRef.current = setTimeout(() => {
+        setGroupMoveHighlightIds(new Set());
+        groupMoveHighlightTimerRef.current = null;
+      }, 3500);
     }
   }
 
@@ -1068,6 +1089,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     };
     containerRef.current?.addEventListener('dragupdate', handler);
     return () => containerRef.current?.removeEventListener('dragupdate', handler);
+  }, []);
+
+  useEffect(() => () => {
+    if (groupMoveHighlightTimerRef.current) clearTimeout(groupMoveHighlightTimerRef.current);
   }, []);
 
   function handleCellRightClick(e, col, row) {
@@ -1718,6 +1743,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     visRowStart={visRowStart}
                     visRowEnd={visRowEnd}
                     selected={selected}
+                    groupMoveHighlightIds={groupMoveHighlightIds}
                     dragRef={dragRef}
                     ghostDrag={ghostDrag}
                     mode={mode}
