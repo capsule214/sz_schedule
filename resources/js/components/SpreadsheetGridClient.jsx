@@ -87,6 +87,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const taskGridRef     = useRef(null);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState(null);
+  const [historyState, setHistoryState] = useState({
+    device: { canUndo: false, canRedo: false },
+    worker: { canUndo: false, canRedo: false },
+    place: { canUndo: false, canRedo: false },
+    task: { canUndo: false, canRedo: false },
+  });
 
   const locationRangeRef = useRef(null);
   const taskRangeRef     = useRef(null);
@@ -185,6 +191,18 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.cancelChanges();
     setIsDirty(false);
+  }
+
+  function activeGridRef() {
+    return tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
+  }
+
+  function handleUndo() {
+    activeGridRef().current?.undoLastEdit?.();
+  }
+
+  function handleRedo() {
+    activeGridRef().current?.redoLastEdit?.();
   }
 
   async function handleSeedMaster() {
@@ -355,7 +373,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,
     onJumpError: handleJumpError,
+    onHistoryChange: (mode, state) => setHistoryState(prev => ({ ...prev, [mode]: state })),
   };
+  const activeHistory = historyState[tab] || { canUndo: false, canRedo: false };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -373,6 +393,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         isDirty={isDirty}
         onSave={handleSave}
         onCancel={handleCancel}
+        canUndo={activeHistory.canUndo}
+        canRedo={activeHistory.canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* グリッド — 全タブを常時マウントし visibility で切り替え。スクロール位置を保持する */}
