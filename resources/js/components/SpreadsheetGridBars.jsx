@@ -94,6 +94,7 @@ export default function SpreadsheetGridBars({
       const bg = getColor(mode === 'place' ? plan.backColor : plan.taskBackColor);
       const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
+      const isLocked = mode !== 'place' && Number(plan.taskId) === 1;
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
       const showStar = flgdiff && plan.updatedAt === TODAY_STR;
@@ -114,15 +115,15 @@ export default function SpreadsheetGridBars({
             display: 'flex', alignItems: 'center', border: '1px solid rgba(0,0,0,0.15)',
             boxShadow: isSel ? 'inset 0 0 0 2px #1d4ed8, 0 0 0 2px #93c5fd' : 'none',
             boxSizing: 'border-box', zIndex: isSel ? 4 : ghost ? 10 : 2,
-            opacity: ghost ? 0.5 : 1, cursor: 'grab', overflow: 'hidden', userSelect: 'none',
+            opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
           onPointerDown={e => { if (e.button === 0) onBarPointerDown(e, plan, 'move'); }}
           onClick={e => e.stopPropagation()}
           onContextMenu={e => onBarRightClick(e, plan)}
         >
-          <div style={{ width: HANDLE_W, height: '100%', cursor: 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); onBarPointerDown(e, plan, 'resize-left'); }} />
+          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked ? 'default' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!isLocked) onBarPointerDown(e, plan, 'resize-left'); }} />
           <div style={{ flex: 1 }} />
-          <div style={{ width: HANDLE_W, height: '100%', cursor: 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); onBarPointerDown(e, plan, 'resize-right'); }} />
+          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked ? 'default' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!isLocked) onBarPointerDown(e, plan, 'resize-right'); }} />
           {showStar && (
             <div style={{
               position: 'absolute', right: 2, top: 1,

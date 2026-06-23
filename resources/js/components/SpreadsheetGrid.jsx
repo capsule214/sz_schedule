@@ -44,6 +44,11 @@ const ROW_FLAG_BADGES = [
   { key: 'flgkeppin', label: '部品欠品',   color: '#ef4444' },
   { key: 'flggoso',   label: '後送',       color: '#f59e0b' },
 ];
+const SHIPPING_TASK_ID = 1;
+
+function isShippingTask(plan) {
+  return Number(plan?.taskId) === SHIPPING_TASK_ID;
+}
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
@@ -935,6 +940,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setSelected(prev => prev.has(plan.planId) ? prev : new Set([plan.planId]));
     }
 
+    if (isShippingTask(plan)) return;
     if (mode === 'task') return;
 
     const bar = getPlanBar(plan);
@@ -945,8 +951,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     // selectedRef を使ってポインターキャプチャ後も最新の選択状態を参照できるようにする
     const capturedSelected = selected.has(plan.planId) ? selected : new Set([plan.planId]);
-    const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(Boolean);
+    const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isShippingTask(p));
     if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
+    if (dragPlans.length === 0) return;
 
     dragRef.current = {
       type,
@@ -1000,6 +1007,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     for (const dp of dragPlans) {
+      if (isShippingTask(dp)) continue;
       const dpBar = getPlanBar(dp);
       if (!dpBar) continue;
 
@@ -1130,19 +1138,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     const items = isMulti ? [
       { label: `${n}件コピー`, onClick: () => {
-        const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(Boolean);
+        const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isShippingTask(p));
         setCopied(toCopy);
       }},
       'separator',
       { label: `${n}件削除`, danger: true, onClick: () => {
-        deletePlans([...selected]);
+        deletePlans([...selected].filter(id => !isShippingTask(plans.find(p => p.planId === id))));
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      { label: '編集', onClick: () => openScheduleDialog({ plan }) },
-      { label: 'コピー', onClick: () => setCopied([plan]) },
-      'separator',
-      { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
+      ...(!isShippingTask(plan) ? [
+        { label: '編集', onClick: () => openScheduleDialog({ plan }) },
+        { label: 'コピー', onClick: () => setCopied([plan]) },
+        'separator',
+        { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
+      ] : []),
       ...(jumpItem ? ['separator', jumpItem] : []),
       ...(serialPlanItem ? ['separator', serialPlanItem] : []),
     ];
@@ -1150,10 +1160,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function deletePlans(ids) {
+    const deletableIds = ids.filter(id => !isShippingTask(plans.find(p => p.planId === id)));
+    if (deletableIds.length === 0) return;
     // API は呼ばず、ローカル state を即時更新して保留リストに積む
-    setPlans(prev => prev.filter(p => !ids.includes(p.planId)));
-    setSelected(prev => { const s = new Set(prev); ids.forEach(id => s.delete(id)); return s; });
-    ids.forEach(id => {
+    setPlans(prev => prev.filter(p => !deletableIds.includes(p.planId)));
+    setSelected(prev => { const s = new Set(prev); deletableIds.forEach(id => s.delete(id)); return s; });
+    deletableIds.forEach(id => {
       if (id < 0) {
         // 貼り付けで生成した仮ID → DB には存在しないので creates から除去するだけ
         pendingCreatesRef.current.delete(id);
@@ -1215,11 +1227,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function openScheduleDialog(data) {
+    if (isShippingTask(data?.plan)) return;
     setScheduleDialog(data);
   }
 
   async function savePlan(data) {
     const dialog = scheduleDialog;
+    if (isShippingTask(dialog?.plan)) {
+      setScheduleDialog(null);
+      return;
+    }
     setScheduleDialog(null);
     const payload = mode === 'place'
       ? {
