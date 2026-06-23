@@ -249,6 +249,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             shippingDate: ser.shippingDate || null,
             responsible: ser.responsible || null,
             kisyuId: ser.kisyuId,
+            flgSyoyo: ser.flgSyoyo,
+            flgGoso: ser.flgGoso,
           }];
         }
       }
@@ -443,6 +445,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     shippingDate: ser.shippingDate || null,
     responsible: ser.responsible || null,
     kisyuId: ser.kisyuId,
+    flgSyoyo: ser.flgSyoyo,
+    flgGoso: ser.flgGoso,
   }), []);
 
   const mapMorderToGroup = useCallback((m) => ({

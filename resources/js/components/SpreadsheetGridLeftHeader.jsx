@@ -1,6 +1,26 @@
 import { CELL_SIZE } from '../lib/spreadsheet';
 import { getColor } from '../lib/colors';
 
+function isSerialBadgeActive(group, badge) {
+  if (group.isMorder) return true;
+  if (badge.key === 'flgsyoyo') return Number(group.flgSyoyo) === 1;
+  if (badge.key === 'flggoso') return Number(group.flgGoso) === 1;
+  return true;
+}
+
+function badgeStyle(group, badge) {
+  const active = isSerialBadgeActive(group, badge);
+  return {
+    fontSize: 10,
+    lineHeight: 1.4,
+    padding: '0 4px',
+    borderRadius: 3,
+    color: active ? '#fff' : '#c4c9d1',
+    background: active ? badge.color : 'transparent',
+    whiteSpace: 'nowrap',
+  };
+}
+
 export default function SpreadsheetGridLeftHeader({
   layoutGroups,
   scrollTop,
@@ -56,7 +76,7 @@ export default function SpreadsheetGridLeftHeader({
             {rowBadges.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: CELL_SIZE, padding: '0 4px', borderTop: '1px solid #e5e7eb', boxSizing: 'border-box', overflow: 'hidden' }}>
                 {rowBadges.map(b => (
-                  <span key={b.label} style={{ fontSize: 10, lineHeight: 1.4, padding: '0 4px', borderRadius: 3, color: '#fff', background: b.color, whiteSpace: 'nowrap' }}>{b.label}</span>
+                  <span key={b.label} style={badgeStyle(g, b)}>{b.label}</span>
                 ))}
               </div>
             )}
@@ -85,7 +105,7 @@ export default function SpreadsheetGridLeftHeader({
             {rowBadges.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: CELL_SIZE, padding: '0 4px', borderTop: '1px solid #e5e7eb', boxSizing: 'border-box', overflow: 'hidden' }}>
                 {rowBadges.map(b => (
-                  <span key={b.label} style={{ fontSize: 10, lineHeight: 1.4, padding: '0 4px', borderRadius: 3, color: '#fff', background: b.color, whiteSpace: 'nowrap' }}>{b.label}</span>
+                  <span key={b.label} style={badgeStyle(g, b)}>{b.label}</span>
                 ))}
               </div>
             )}
