@@ -13,7 +13,7 @@ class ReserveController extends Controller
     {
         return [
             'resourceId' => 'required|integer|min:1',
-            'serialId' => 'required|integer|min:1',
+            'serialId' => 'required|integer|min:0',
             'startDate' => 'required|date',
             'endDate' => 'required|date|after_or_equal:startDate',
             'remark' => 'nullable|string',
@@ -69,7 +69,7 @@ class ReserveController extends Controller
             'resource_ids' => 'nullable|array',
             'resource_ids.*' => 'integer|min:1',
             'serial_ids' => 'nullable|array',
-            'serial_ids.*' => 'integer|min:1',
+            'serial_ids.*' => 'integer|min:0',
             'kisyu_ids' => 'nullable|array',
             'kisyu_ids.*' => 'integer|min:1',
             'show_finished' => 'nullable|boolean',
@@ -91,7 +91,10 @@ class ReserveController extends Controller
         }
         if (empty($data['show_finished'])) {
             // 「完了製品も表示」OFF のときは flg_finish=0 の製番の予約のみ
-            $query->whereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'));
+            $query->where(function ($q) {
+                $q->where('serial_id', 0)
+                    ->orWhereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'));
+            });
         }
 
         return response()->json($query->get()->map(fn ($p) => $this->formatReserve($p)));
