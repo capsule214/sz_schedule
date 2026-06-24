@@ -97,7 +97,7 @@ export default function SpreadsheetGridBars({
       const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
       const isGroupMoveHighlighted = groupMoveHighlightIds.has(plan.planId);
-      const isLocked = mode !== 'place' && Number(plan.taskId) === 1;
+      const isLocked = (mode !== 'place' && Number(plan.taskId) === 1) || (mode === 'worker' && plan.workerId == null);
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
       const showStar = flgdiff && plan.updatedAt === TODAY_STR;

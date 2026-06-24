@@ -50,6 +50,14 @@ function isShippingTask(plan) {
   return Number(plan?.taskId) === SHIPPING_TASK_ID;
 }
 
+function isWorkerUnassignedPlan(plan, mode) {
+  return mode === 'worker' && plan?.workerId == null;
+}
+
+function isReadOnlyPlan(plan, mode) {
+  return isShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
+}
+
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
   mode, serials, workers, tasks, resources, displaySettings, settingsReady = true,
@@ -331,9 +339,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const sortedSerialIds = [...serialMap.keys()].sort((a, b) => {
       const sa = serials.find(s => s.serialId === a);
       const sb = serials.find(s => s.serialId === b);
-      const kc = (sa?.kisyuName || '').localeCompare(sb?.kisyuName || '', 'ja');
+      const pa = serialMap.get(a)?.[0];
+      const pb = serialMap.get(b)?.[0];
+      const kc = (sa?.kisyuName || pa?.kisyuName || '').localeCompare(sb?.kisyuName || pb?.kisyuName || '', 'ja');
       if (kc !== 0) return kc;
-      return (sa?.serialNo || '').localeCompare(sb?.serialNo || '', 'ja', { numeric: true });
+      return (sa?.serialNo || pa?.serialNo || '').localeCompare(sb?.serialNo || pb?.serialNo || '', 'ja', { numeric: true });
     });
 
     let uaStartRow = result.totalRows;
@@ -342,7 +352,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const uaPlans = serialMap.get(serialId);
       const serial = serials.find(s => s.serialId === serialId);
       const sorted = [...uaPlans].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-      const rows = Array.from({ length: planMinRows }, () => null);
+      const unassignedMinRows = 1;
+      const rows = Array.from({ length: unassignedMinRows }, () => null);
       const laidOutPlans = [];
       for (const plan of sorted) {
         const startCol = planToStartCol(plan, startDate, viewMode);
@@ -355,11 +366,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         rows[rowIdx] = endCol + 1;
         laidOutPlans.push({ ...plan, rowIdx });
       }
-      const numRows = Math.max(planMinRows, rows.length);
+      const numRows = Math.max(unassignedMinRows, rows.length);
       extraGroups.push({
         id: `ua-${serialId}`,
-        kisyuName: serial?.kisyuName || '',
-        serialNo: serial?.serialNo || '',
+        kisyuName: serial?.kisyuName || uaPlans[0]?.kisyuName || '',
+        serialNo: serial?.serialNo || uaPlans[0]?.serialNo || '',
         isUnassigned: true,
         teamName: '',
         startRow: uaStartRow,
@@ -975,7 +986,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           const bx2 = (ec + 1) * colW;
           const by1 = absRow * CELL_SIZE;
           const by2 = (absRow + 1) * CELL_SIZE;
-          if (bx1 < selX2 && bx2 > selX1 && by1 < selY2 && by2 > selY1) {
+          if (!isReadOnlyPlan(p, mode) && bx1 < selX2 && bx2 > selX1 && by1 < selY2 && by2 > selY1) {
             newSelected.add(p.planId);
           }
         }
@@ -1007,7 +1018,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setSelected(prev => prev.has(plan.planId) ? prev : new Set([plan.planId]));
     }
 
-    if (isShippingTask(plan)) return;
+    if (isReadOnlyPlan(plan, mode)) return;
     if (mode === 'task') return;
 
     const bar = getPlanBar(plan);
@@ -1018,7 +1029,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     // selectedRef を使ってポインターキャプチャ後も最新の選択状態を参照できるようにする
     const capturedSelected = selected.has(plan.planId) ? selected : new Set([plan.planId]);
-    const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isShippingTask(p));
+    const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
     if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
     if (dragPlans.length === 0) return;
 
@@ -1076,7 +1087,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     for (const dp of dragPlans) {
-      if (isShippingTask(dp)) continue;
+      if (isReadOnlyPlan(dp, mode)) continue;
       const dpBar = getPlanBar(dp);
       if (!dpBar) continue;
 
@@ -1255,16 +1266,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     const items = isMulti ? [
       { label: `${n}件コピー`, onClick: () => {
-        const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isShippingTask(p));
+        const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
         setCopied(toCopy);
       }},
       'separator',
       { label: `${n}件削除`, danger: true, onClick: () => {
-        deletePlans([...selected].filter(id => !isShippingTask(plans.find(p => p.planId === id))));
+        deletePlans([...selected].filter(id => !isReadOnlyPlan(plans.find(p => p.planId === id), mode)));
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      ...(!isShippingTask(plan) ? [
+      ...(!isReadOnlyPlan(plan, mode) ? [
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },
         { label: 'コピー', onClick: () => setCopied([plan]) },
         'separator',
@@ -1277,7 +1288,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function deletePlans(ids) {
-    const deletableIds = ids.filter(id => !isShippingTask(plans.find(p => p.planId === id)));
+    const deletableIds = ids.filter(id => !isReadOnlyPlan(plans.find(p => p.planId === id), mode));
     if (deletableIds.length === 0) return;
     // API は呼ばず、ローカル state を即時更新して保留リストに積む
     setPlans(prev => prev.filter(p => !deletableIds.includes(p.planId)));
@@ -1344,13 +1355,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function openScheduleDialog(data) {
-    if (isShippingTask(data?.plan)) return;
+    if (isReadOnlyPlan(data?.plan, mode)) return;
     setScheduleDialog(data);
   }
 
   async function savePlan(data) {
     const dialog = scheduleDialog;
-    if (isShippingTask(dialog?.plan)) {
+    if (isReadOnlyPlan(dialog?.plan, mode)) {
       setScheduleDialog(null);
       return;
     }
