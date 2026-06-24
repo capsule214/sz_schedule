@@ -467,6 +467,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const mapMorderToGroup = useCallback((m) => ({
     id: m.morderId,
     isMorder: true,
+    morderOrderTypeId: m.orderTypeId,
     morderOrderTypeName: MORDER_ORDER_TYPE_NAMES[m.orderTypeId] || '',
     morderNo: m.morderNo || '',
     partsNo: m.partsNo || '',
@@ -1206,6 +1207,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
               serialId:   mode === 'device' && !isMorderDevice ? g?.id : null,
               serialNo:   mode === 'device' && !isMorderDevice ? g?.serialNo : null,
               morderId:   mode === 'device' && isMorderDevice ? g?.id : null,
+              morderOrderTypeId: mode === 'device' && isMorderDevice ? g?.morderOrderTypeId : null,
+              morderOrderTypeName: mode === 'device' && isMorderDevice ? g?.morderOrderTypeName : null,
               kisyuId:    mode === 'device' && !isMorderDevice ? g?.kisyuId : null,
               kisyuName:  mode === 'device' && !isMorderDevice ? g?.kisyuName : null,
               workerId:   mode === 'worker'   ? g?.id : null,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import DatePicker from './DatePicker';
 import { apiArray, apiJson } from '../lib/api';
 import { TIME_SLOTS } from '../lib/spreadsheet';
@@ -17,14 +17,8 @@ function parseDate(s) {
   return { date: d, hm: TIME_SLOTS[0].start };
 }
 
-const fieldStyle = {
-  width: '100%',
-  padding: '6px 10px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  fontSize: 13,
-  boxSizing: 'border-box',
-};
+const ORDER_TYPE_NAMES = { 11: '直送DPR', 21: '加工オーダー' };
+const fieldStyle = { width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' };
 const labelStyle = { fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 };
 const sectionStyle = { border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, minWidth: 0 };
 const sectionTitleStyle = { margin: '0 0 10px', fontSize: 14, fontWeight: 700, color: '#111827' };
@@ -37,36 +31,29 @@ const timeButtonStyle = active => ({
   cursor: 'pointer',
 });
 
-export default function SerialScheduleDialog({ plan, gridMode, initialData, onSave, onClose }) {
+export default function MorderScheduleDialog({ plan, gridMode, initialData, onSave, onClose }) {
   const init = plan || {};
   const sd = parseDate(init.startDate || initialData?.startDate || '');
   const ed = parseDate(init.endDate || initialData?.endDate || '');
+  const orderTypeId = Number(init.morderOrderTypeId || initialData?.morderOrderTypeId || 21);
   const [startDate, setStartDate] = useState(sd.date || new Date().toISOString().slice(0, 10));
   const [startHm, setStartHm] = useState(TIME_SLOTS.some(s => s.start === sd.hm) ? sd.hm : TIME_SLOTS[0].start);
   const [endDate, setEndDate] = useState(ed.date || new Date().toISOString().slice(0, 10));
   const [endHm, setEndHm] = useState(TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : TIME_SLOTS[TIME_SLOTS.length - 1].end);
-  const [kisyuList, setKisyuList] = useState([]);
-  const [serials, setSerials] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [teamList, setTeamList] = useState([]);
   const [workers, setWorkers] = useState([]);
-  const [serialId, setSerialId] = useState(init.serialId || initialData?.serialId || '');
+  const [morders, setMorders] = useState([]);
+  const [morderId, setMorderId] = useState(init.morderId || initialData?.morderId || '');
   const [taskId, setTaskId] = useState(init.taskId || '');
   const [taskTypeFilter, setTaskTypeFilter] = useState('');
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
   const [educatorWorkerId, setEducatorWorkerId] = useState(init.educatorWorkerId ?? initialData?.educatorWorkerId ?? '');
-  const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
   const [plannedMinutes, setPlannedMinutes] = useState(init.plannedMinutes ?? initialData?.plannedMinutes ?? 0);
   const [price, setPrice] = useState(init.price ?? initialData?.price ?? 0);
   const [remark, setRemark] = useState(init.remark ?? initialData?.remark ?? '');
-  const [kisyuName, setKisyuName] = useState(init.kisyuName ?? initialData?.kisyuName ?? '');
-  const [serialNo, setSerialNo] = useState(init.serialNo ?? initialData?.serialNo ?? '');
-  const [kisyuListFetched, setKisyuListFetched] = useState(false);
-  const serialFetchedKisyuRef = useRef(null);
-  const serialSelectRef = useRef(null);
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [serialLoading, setSerialLoading] = useState(false);
   const [workerLoading, setWorkerLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -74,45 +61,23 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     let cancelled = false;
     setLoading(true);
     setError('');
-    Promise.all([apiArray('/task'), apiArray('/worker/team')])
-      .then(([taskData, teamData]) => {
+    Promise.all([
+      apiArray('/task'),
+      apiArray('/worker/team'),
+      apiArray(`/morder?order_type_id=${orderTypeId}`),
+    ])
+      .then(([taskData, teamData, morderData]) => {
         if (cancelled) return;
         setTasks(taskData);
         setTeamList(teamData);
+        setMorders(morderData);
         if (!taskId && taskData?.[0]) setTaskId(taskData[0].taskId);
+        if (!morderId && morderData?.[0]) setMorderId(morderData[0].morderId);
       })
       .catch(() => { if (!cancelled) setError('入力に必要なマスタデータの取得に失敗しました'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function ensureKisyuList() {
-    if (kisyuListFetched) return;
-    setKisyuListFetched(true);
-    try {
-      setKisyuList(await apiArray('/serial/kisyu'));
-    } catch {
-      setKisyuListFetched(false);
-      setError('機種リストの取得に失敗しました');
-    }
-  }
-
-  async function ensureSerialList() {
-    if (!kisyuId || serialFetchedKisyuRef.current === String(kisyuId)) return;
-    serialFetchedKisyuRef.current = String(kisyuId);
-    setSerialLoading(true);
-    try {
-      const data = await apiArray(`/serial/kisyu/${kisyuId}`);
-      setSerials(data);
-      const selected = data.find(s => String(s.serialId) === String(serialId));
-      if (selected) setSerialNo(selected.serialNo);
-    } catch {
-      serialFetchedKisyuRef.current = null;
-      setError('製番リストの取得に失敗しました');
-    } finally {
-      setSerialLoading(false);
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -145,22 +110,6 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     return () => { cancelled = true; };
   }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleKisyuChange(newKisyuId) {
-    const k = kisyuList.find(k => String(k.kisyuId) === String(newKisyuId));
-    setKisyuId(newKisyuId);
-    setKisyuName(k?.kisyuName ?? '');
-    setSerialId('');
-    setSerialNo('');
-    setSerials([]);
-    serialFetchedKisyuRef.current = null;
-  }
-
-  function handleSerialChange(newSerialId) {
-    const s = serials.find(s => String(s.serialId) === String(newSerialId));
-    setSerialId(newSerialId);
-    setSerialNo(s?.serialNo ?? '');
-  }
-
   function handleTeamChange(newTeamId) {
     setTeamId(newTeamId);
     setWorkerId('');
@@ -178,14 +127,13 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   function handleSave() {
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
-    const selectedSerialId = serialId || serialSelectRef.current?.value || init.serialId || initialData?.serialId || '';
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
-    if (!selectedSerialId) { setError('製番を選択してください'); return; }
+    if (!morderId) { setError('M番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
     setError('');
     onSave({
-      serialId: Number(selectedSerialId),
-      morderId: -1,
+      serialId: -1,
+      morderId: Number(morderId),
       taskId: Number(taskId),
       workerId: workerId !== '' ? Number(workerId) : null,
       educatorWorkerId: educatorWorkerId !== '' ? Number(educatorWorkerId) : null,
@@ -228,20 +176,15 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
                 </div>
               </section>
               <section>
-                <h3 style={sectionTitleStyle}>製番</h3>
+                <h3 style={sectionTitleStyle}>M番</h3>
                 <div style={formGridStyle}>
-                  <label style={labelStyle}>機種</label>
-                  <select value={kisyuId} onChange={e => handleKisyuChange(e.target.value)} onMouseDown={ensureKisyuList} onFocus={ensureKisyuList} style={fieldStyle}>
-                    {kisyuList.length === 0 && kisyuId && <option value={kisyuId}>{kisyuName}</option>}
-                    {kisyuList.length === 0 && !kisyuId && <option value="">（選択してください）</option>}
-                    {kisyuList.map(k => <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>)}
-                  </select>
-                  <label style={labelStyle}>製番</label>
-                  <select ref={serialSelectRef} value={serialId} onChange={e => handleSerialChange(e.target.value)} onMouseDown={ensureSerialList} onFocus={ensureSerialList} disabled={!kisyuId || serialLoading} style={{ ...fieldStyle, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}>
-                    {serialLoading && <option value="">取得中...</option>}
-                    {!serialLoading && serials.length === 0 && serialId && <option value={serialId}>{serialNo}</option>}
-                    {!serialLoading && serials.length === 0 && !serialId && <option value="">（なし）</option>}
-                    {serials.map(s => <option key={s.serialId} value={s.serialId}>{s.serialNo}</option>)}
+                  <label style={labelStyle}>手配区分</label>
+                  <input value={ORDER_TYPE_NAMES[orderTypeId] || ''} readOnly style={{ ...fieldStyle, background: '#f9fafb' }} />
+                  <label style={labelStyle}>M番</label>
+                  <select value={morderId} onChange={e => setMorderId(e.target.value)} disabled={loading} style={fieldStyle}>
+                    {loading && <option value="">取得中...</option>}
+                    {!loading && morders.length === 0 && <option value="">（なし）</option>}
+                    {morders.map(m => <option key={m.morderId} value={m.morderId}>{m.morderNo}</option>)}
                   </select>
                 </div>
               </section>

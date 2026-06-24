@@ -8,6 +8,11 @@ use Illuminate\Http\Request;
 
 class MorderController extends Controller
 {
+  private const ORDER_TYPE_NAMES = [
+    11 => '直送DPR',
+    21 => '加工オーダー',
+  ];
+
   /** 装置タブ(M番/直送DPR)の行描画に必要な最小項目のみを返す */
   private function formatMorderGroup(KdMorder $m): array
   {
@@ -19,7 +24,26 @@ class MorderController extends Controller
       'shippingDate' => $m->shipping_date,
       'kouteiPicNo'  => $m->koutei_pic_no,
       'orderTypeId'  => $m->order_type_id,
+      'orderTypeName' => self::ORDER_TYPE_NAMES[$m->order_type_id] ?? (string) $m->order_type_id,
     ];
+  }
+
+  /** 予定登録ダイアログ用に、手配区分に該当する M番候補を全件返す。 */
+  public function index(Request $request)
+  {
+    $data = $request->validate([
+      'order_type_id' => 'required|integer|in:11,21',
+    ]);
+
+    $morders = KdMorder::where('deleted', 0)
+      ->where('flg_public', 1)
+      ->where('order_type_id', $data['order_type_id'])
+      ->orderBy('shipping_date')
+      ->orderBy('morder_no')
+      ->get()
+      ->map(fn ($m) => $this->formatMorderGroup($m));
+
+    return response()->json($morders);
   }
 
   /**

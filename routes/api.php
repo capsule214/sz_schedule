@@ -32,6 +32,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/worker/{id}', [WorkerController::class, 'show']);
   Route::get('/task', [TaskController::class, 'index']);
   Route::get('/resource', [ResourceController::class, 'index']);
+  Route::get('/morder', [MorderController::class, 'index']);
   Route::post('/morder/groups', [MorderController::class, 'groups']);
 
   Route::get('/plan', [PlanController::class, 'index']);
