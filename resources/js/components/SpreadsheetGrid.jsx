@@ -124,8 +124,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [rectSelect, setRectSelect] = useState(null); // {absX1,absY1,absX2,absY2} in content coords
   const suppressNextCellClickRef = useRef(false);
   const layoutGroupsRef = useRef([]);
-  const jumpAttemptsRef = useRef(0);
   const prevJumpTargetRef = useRef(null);
+  const jumpTimerRef = useRef(null);
   const pendingScrollSerialIdRef = useRef(null);
 
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
@@ -1222,19 +1222,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setSelected(new Set([plan.planId]));
       setSelectedCell(null);
     }
+    const isMulti = alreadyInMulti;
+    const n = isMulti ? selected.size : 1;
+
+    // 装置・担当者・タスクの各タブから他の2タブへ相互にジャンプできるようにする
+    const jumpLabels = { device: '装置予定を表示', worker: '担当者予定を表示', task: 'タスク予定を表示' };
+    const jumpTargets = mode === 'device' ? ['worker', 'task']
+      : mode === 'worker' ? ['device', 'task']
+      : mode === 'task'   ? ['device', 'worker']
+      : [];
+    const jumpItems = jumpTargets.map(t => ({
+      label: jumpLabels[t],
+      onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, t),
+    }));
+
+    // タスクタブは閲覧専用（編集・コピー・削除なし）。詳細とジャンプのみ表示する。
     if (mode === 'task') {
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+        ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
       ]});
       return;
     }
-    const isMulti = alreadyInMulti;
-    const n = isMulti ? selected.size : 1;
-    const jumpItem = mode === 'device'
-      ? { label: '担当者予定を表示', onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, 'worker') }
-      : mode === 'worker'
-      ? { label: '装置予定を表示',  onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, 'device') }
-      : null;
 
     const serialPlanItem = mode === 'worker' && plan.serialId
       ? { label: '前後予定を表示', onClick: () => {
@@ -1261,7 +1270,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         'separator',
         { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
       ] : []),
-      ...(jumpItem ? ['separator', jumpItem] : []),
+      ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
       ...(serialPlanItem ? ['separator', serialPlanItem] : []),
     ];
     setContextMenu({ x: e.clientX, y: e.clientY, items });
@@ -1417,17 +1426,25 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   useEffect(() => {
     if (!jumpTarget) {
-      jumpAttemptsRef.current = 0;
       prevJumpTargetRef.current = null;
+      if (jumpTimerRef.current) { clearTimeout(jumpTimerRef.current); jumpTimerRef.current = null; }
       return;
     }
     const { plan, targetMode } = jumpTarget;
     if (targetMode !== mode) return;
 
-    // jumpTarget が切り替わったら試行カウントをリセット
+    // jumpTarget が切り替わったら、対象予定のフェッチ完了を待つためのタイムアウトを開始する。
+    // 予定は表示範囲・グループ単位で遅延フェッチされるため、タブ切替直後は layoutGroups に
+    // 対象が含まれていないことがある。フェッチ完了で layoutGroups が更新されると本 effect が
+    // 再実行されて対象が見つかる。期限内に見つからなければエラー扱いとする。
     if (jumpTarget !== prevJumpTargetRef.current) {
-      jumpAttemptsRef.current = 0;
       prevJumpTargetRef.current = jumpTarget;
+      if (jumpTimerRef.current) clearTimeout(jumpTimerRef.current);
+      jumpTimerRef.current = setTimeout(() => {
+        jumpTimerRef.current = null;
+        onJumpError?.();
+        onJumpHandled?.();
+      }, 5000);
     }
 
     // planId で直接検索
@@ -1439,17 +1456,18 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     if (!targetGroup) {
-      jumpAttemptsRef.current += 1;
-      // 2回目以降（初回フェッチ完了後）も見つからなければエラー
-      if (jumpAttemptsRef.current >= 2) {
-        onJumpError?.();
-        onJumpHandled?.();
-        jumpAttemptsRef.current = 0;
-      }
+      // 予定は可視範囲（日付×グループ）単位で遅延フェッチされるため、ジャンプ先タブの
+      // スクロール位置や境界条件によっては対象がまだ読み込まれていないことがある。
+      // ジャンプ元から受け取った予定オブジェクトを直接 plans に注入して確実に存在させ、
+      // layoutGroups 更新で本 effect が再実行されたときに planId で見つかるようにする。
+      // （対象タスクが tktasklist に含まれる＝グループが存在することは呼び出し側で検証済み）
+      setPlans(prev => prev.some(p => p.planId === plan.planId) ? prev : [...prev, plan]);
+      // エラーにはせず次の更新を待つ
       return;
     }
 
-    jumpAttemptsRef.current = 0;
+    // 対象が見つかったのでタイムアウトを解除
+    if (jumpTimerRef.current) { clearTimeout(jumpTimerRef.current); jumpTimerRef.current = null; }
 
     // 遷移先タブで対象の予定バーを選択状態にする
     setSelected(new Set([plan.planId]));
@@ -1487,6 +1505,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
       if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (jumpTimerRef.current) clearTimeout(jumpTimerRef.current);
     };
   }, []);
 

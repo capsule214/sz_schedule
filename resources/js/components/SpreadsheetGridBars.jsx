@@ -115,7 +115,9 @@ export default function SpreadsheetGridBars({
           key={plan.planId}
           style={{
             position: 'absolute', left: barX, top: barY, width: w, height: CELL_SIZE, background: bg,
-            display: 'flex', alignItems: 'center', border: '1px solid rgba(0,0,0,0.15)',
+            display: 'flex', alignItems: 'center',
+            // 選択時は内側ボーダーを消し、外枠の赤いリングのみを表示する（フォーカス枠の2重表示を防止）
+            border: isSel ? '1px solid transparent' : '1px solid rgba(0,0,0,0.15)',
             boxShadow: isGroupMoveHighlighted ? '0 0 0 4px #dc2626' : isSel ? '0 0 0 2px #ef4444' : 'none',
             boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel ? 4 : ghost ? 10 : 2,
             opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',

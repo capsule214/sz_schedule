@@ -320,6 +320,17 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         showAlert('表示対象データがありませんでした（表示設定で非表示の機種です）');
         return;
       }
+    } else if (targetMode === 'task') {
+      const taskId = Number(plan.taskId);
+      const tktasklist = displaySettings.tktasklist || [];
+      if (!taskId) {
+        showAlert('表示対象データがありませんでした');
+        return;
+      }
+      if (tktasklist.length > 0 && !tktasklist.includes(taskId)) {
+        showAlert('表示対象データがありませんでした（表示設定で非表示のタスクです）');
+        return;
+      }
     } else {
       const { workers: loadedWorkers } = await ensureMasters(['workers']);
       const worker = loadedWorkers.find(w => w.workerId === plan.workerId);
@@ -334,7 +345,9 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     }
 
     // ② 表示期間チェック（遷移先タブの表示範囲内か）
-    const targetRange = targetMode === 'device' ? deviceRangeRef.current : workerRangeRef.current;
+    const targetRange = targetMode === 'device' ? deviceRangeRef.current
+      : targetMode === 'task' ? taskRangeRef.current
+      : workerRangeRef.current;
     if (targetRange) {
       const planStart = plan.startDate.slice(0, 10);
       const planEnd   = plan.endDate.slice(0, 10);
@@ -454,7 +467,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             active={tab === 'task'}
             ref={taskGridRef}
             mode="task"
-            jumpTarget={null}
+            jumpTarget={tab === 'task' ? jumpTarget : null}
             onRangeChange={r => { taskRangeRef.current = r; }}
             onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
           />
