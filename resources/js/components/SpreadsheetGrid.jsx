@@ -51,7 +51,7 @@ function isShippingTask(plan) {
 }
 
 function isWorkerUnassignedPlan(plan, mode) {
-  return mode === 'worker' && plan?.workerId == null;
+  return mode === 'worker' && (plan?.workerId == null || Number(plan?.workerId) === 0);
 }
 
 function isReadOnlyPlan(plan, mode) {
@@ -328,8 +328,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     if (mode !== 'worker' || !displaySettings.synobody) return result;
 
-    // 担当者未定の予定（workerId === null）を製番別にグループ化して末尾に追加
-    const unassignedPlans = activePlans.filter(p => p.workerId == null);
+    // 担当者未定の予定（workerId が NULL/0）を製番別にグループ化して末尾に追加
+    const unassignedPlans = activePlans.filter(p => p.workerId == null || Number(p.workerId) === 0);
     const serialMap = new Map();
     for (const plan of unassignedPlans) {
       if (!serialMap.has(plan.serialId)) serialMap.set(plan.serialId, []);
@@ -530,8 +530,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (!visibleFilter) return;
       body = { ...filter, ...visibleFilter };
     } else if (mode === 'worker') {
-      // 担当者は表示設定のチームリストで取得する。
-      body = filter;
+      const visibleFilter = buildVisibleFilterBody(groupIds);
+      const fallbackWorkerIds = filteredGroups.map(g => Number(g.id)).filter(Number.isFinite);
+      body = {
+        ...filter,
+        ...(visibleFilter || (fallbackWorkerIds.length > 0 ? { worker_ids: fallbackWorkerIds } : {})),
+      };
     } else {
       const visibleFilter = buildVisibleFilterBody(groupIds);
       if (!visibleFilter) return;
@@ -554,7 +558,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       fetchedPlanKeysRef.current.delete(key);
       console.error('fetchPlans error', e);
     }
-  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings, filteredGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {

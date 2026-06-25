@@ -97,6 +97,15 @@ class PlanController extends Controller
         ];
     }
 
+    private function applyWorkerFilterIncludingUnassigned($query, $workerIds): void
+    {
+        $query->where(function ($q) use ($workerIds) {
+            $q->whereIn('worker_id', $workerIds)
+                ->orWhereNull('worker_id')
+                ->orWhere('worker_id', 0);
+        });
+    }
+
     public function index(Request $request)
     {
         $query = KdPlan::with($this->planRelations())
@@ -231,9 +240,7 @@ class PlanController extends Controller
         }
         if (! empty($data['worker_ids'])) {
             if (! empty($data['show_unassigned_worker'])) {
-                $query->where(function ($q) use ($data) {
-                    $q->whereIn('worker_id', $data['worker_ids'])->orWhereNull('worker_id');
-                });
+                $this->applyWorkerFilterIncludingUnassigned($query, $data['worker_ids']);
             } else {
                 $query->whereIn('worker_id', $data['worker_ids']);
             }
@@ -243,9 +250,7 @@ class PlanController extends Controller
             $sgroupTeamIds = KmTeam::where('equip_group_id', $data['team_szgroup_id'])->pluck('team_id');
             $sgroupWorkerIds = KmWorker::whereIn('team_id', $sgroupTeamIds)->pluck('worker_id');
             if (! empty($data['show_unassigned_worker'])) {
-                $query->where(function ($q) use ($sgroupWorkerIds) {
-                    $q->whereIn('worker_id', $sgroupWorkerIds)->orWhereNull('worker_id');
-                });
+                $this->applyWorkerFilterIncludingUnassigned($query, $sgroupWorkerIds);
             } else {
                 $query->whereIn('worker_id', $sgroupWorkerIds);
             }
@@ -253,9 +258,7 @@ class PlanController extends Controller
         if (! empty($data['team_ids'])) {
             $workerIds = KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id');
             if (! empty($data['show_unassigned_worker'])) {
-                $query->where(function ($q) use ($workerIds) {
-                    $q->whereIn('worker_id', $workerIds)->orWhereNull('worker_id');
-                });
+                $this->applyWorkerFilterIncludingUnassigned($query, $workerIds);
             } else {
                 $query->whereIn('worker_id', $workerIds);
             }
