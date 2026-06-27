@@ -435,6 +435,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (isMorderDevice) {
         body.product_display = 'morder';
         if (morderOrderTypeId != null) body.morder_order_type_id = morderOrderTypeId;
+      } else {
+        body.display_order = Number(displaySettings.sborder ?? 0);
       }
       if (useModelFilters && sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
       if (useModelFilters && sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;

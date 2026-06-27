@@ -29,6 +29,7 @@ class KdSerial extends Model
     'flg_finish',
     'flg_syoyo',
     'koujun_id',
+    'morder_start_date',
     'koutei_pic_no',
     'mechanic_pic_no',
     'electric_pic_no',

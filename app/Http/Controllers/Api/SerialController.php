@@ -21,6 +21,7 @@ class SerialController extends Controller
             'serialNo' => $s->serial_no,
             'receiptNo' => $s->order_no,
             'shippingDate' => $s->shipping_date,
+            'morderStartDate' => $s->morder_start_date,
             'responsible' => $s->koutei_pic_no,
             'flgSyoyo' => $s->flg_syoyo,
             'flgGoso' => $s->flg_goso,
@@ -43,6 +44,7 @@ class SerialController extends Controller
             'szgroupId' => $s->seizo_group_id,
             'seizoGroupId' => $s->seizo_group_id,
             'shippingDate' => $s->shipping_date,
+            'morderStartDate' => $s->morder_start_date,
             'responsible' => $s->koutei_pic_no,
             'orderNo' => $s->order_no,
             'originalNo' => $s->original_no,
@@ -88,6 +90,7 @@ class SerialController extends Controller
             'seizo_statuses' => 'nullable|array',
             'seizo_statuses.*' => 'integer|min:0|max:2',
             'show_finished' => 'nullable|boolean',
+            'display_order' => 'nullable|integer|min:0|max:2',
         ]);
 
         $offset = (int) ($data['offset'] ?? 0);
@@ -117,9 +120,20 @@ class SerialController extends Controller
             // 「完了製品も表示」OFF のときは flg_finish=0 の製番のみ
             $query->where('kd_serial.flg_finish', 0);
         }
-        $ordered = $query
-            ->orderBy('dm_kisyu.sort_no')
-            ->orderBy('kd_serial.serial_no');
+        $displayOrder = (int) ($data['display_order'] ?? 0);
+        $ordered = match ($displayOrder) {
+            1 => $query
+                ->orderByRaw('kd_serial.morder_start_date IS NULL')
+                ->orderBy('kd_serial.morder_start_date')
+                ->orderBy('kd_serial.serial_no'),
+            2 => $query
+                ->orderByRaw('kd_serial.shipping_date IS NULL')
+                ->orderBy('kd_serial.shipping_date')
+                ->orderBy('kd_serial.serial_no'),
+            default => $query
+                ->orderBy('dm_kisyu.sort_no')
+                ->orderBy('kd_serial.serial_no'),
+        };
 
         if (($data['q'] ?? '') !== '') {
             $ids = (clone $ordered)->pluck('kd_serial.serial_id')->all();
