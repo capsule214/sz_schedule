@@ -60,6 +60,8 @@ class MorderController extends Controller
       'szgroup_ids.*' => 'integer|min:1',
       'morder_order_type_id' => 'nullable|integer',
       'show_finished' => 'nullable|boolean',
+      'koutei_pic_nos' => 'nullable|array',
+      'koutei_pic_nos.*' => 'string|max:32',
     ]);
 
     $offset = (int) ($data['offset'] ?? 0);
@@ -72,6 +74,19 @@ class MorderController extends Controller
     }
     if (! empty($data['szgroup_ids'])) {
       $query->whereIn('equip_group_id', $data['szgroup_ids']);
+    }
+    if (! empty($data['koutei_pic_nos'])) {
+      $picNos = collect($data['koutei_pic_nos'])
+        ->flatMap(fn ($value) => explode(',', (string) $value))
+        ->map(fn ($value) => trim($value))
+        ->filter()
+        ->map(fn ($value) => ctype_digit($value) ? str_pad($value, 5, '0', STR_PAD_LEFT) : $value)
+        ->unique()
+        ->values()
+        ->all();
+      if (! empty($picNos)) {
+        $query->whereIn('koutei_pic_no', $picNos);
+      }
     }
     if (empty($data['show_finished'])) {
       $query->where('flg_finish', 0);

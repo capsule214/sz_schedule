@@ -445,7 +445,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (useModelFilters && sbmodellist.length > 0) body.kisyu_ids = sbmodellist.map(Number);
       if (useModelFilters && sbequiptype != null && sbequiptype !== -1) body.equip_type_id = sbequiptype;
       if (sbszgrouplist.length > 0) body.szgroup_ids = sbszgrouplist;
-      if (useModelFilters && sbinchargelist.length > 0) body.koutei_pic_nos = [...new Set(sbinchargelist)];
+      if (sbinchargelist.length > 0) body.koutei_pic_nos = [...new Set(sbinchargelist)];
       if (useModelFilters && sbstatuslist.length > 0) body.seizo_statuses = sbstatuslist;
     } else if (mode === 'worker') {
       if (sygroup > 0) body.team_szgroup_id = sygroup;
