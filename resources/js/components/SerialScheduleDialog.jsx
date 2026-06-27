@@ -126,9 +126,10 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
 
   useEffect(() => {
     let cancelled = false;
+    const initialWorkerId = init.workerId ?? initialData?.workerId;
     if (teamId === '') {
       setWorkers([]);
-      setWorkerId('');
+      if (!initialWorkerId) setWorkerId('');
       return () => { cancelled = true; };
     }
     setWorkerLoading(true);
@@ -179,6 +180,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
     const selectedSerialId = serialId || serialSelectRef.current?.value || init.serialId || initialData?.serialId || '';
+    const selectedWorkerId = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!selectedSerialId) { setError('製番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
@@ -187,7 +189,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
       serialId: Number(selectedSerialId),
       morderId: -1,
       taskId: Number(taskId),
-      workerId: workerId !== '' ? Number(workerId) : null,
+      workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,
       educatorWorkerId: educatorWorkerId !== '' ? Number(educatorWorkerId) : null,
       startDate: sd2,
       endDate: ed2,

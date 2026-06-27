@@ -51,7 +51,7 @@ function isShippingTask(plan) {
 }
 
 function isWorkerUnassignedPlan(plan, mode) {
-  return mode === 'worker' && (plan?.workerId == null || Number(plan?.workerId) === 0);
+  return mode === 'worker' && !!plan && (plan.workerId == null || Number(plan.workerId) === 0);
 }
 
 function isReadOnlyPlan(plan, mode) {
@@ -1385,7 +1385,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialId:  data.serialId || dialog.initialData?.serialId,
         morderId:  data.morderId || dialog.initialData?.morderId || dialog.plan?.morderId || null,
         taskId:    data.taskId,
-        workerId:  data.workerId,
+        workerId:  data.workerId ?? dialog.initialData?.workerId ?? null,
         educatorWorkerId: data.educatorWorkerId,
         startDate: data.startDate,
         endDate:   data.endDate,

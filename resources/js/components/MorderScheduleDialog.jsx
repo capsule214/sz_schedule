@@ -91,9 +91,10 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
 
   useEffect(() => {
     let cancelled = false;
+    const initialWorkerId = init.workerId ?? initialData?.workerId;
     if (teamId === '') {
       setWorkers([]);
-      setWorkerId('');
+      if (!initialWorkerId) setWorkerId('');
       return () => { cancelled = true; };
     }
     setWorkerLoading(true);
@@ -127,6 +128,7 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
   function handleSave() {
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
+    const selectedWorkerId = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!morderId) { setError('M番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
@@ -135,7 +137,7 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
       serialId: -1,
       morderId: Number(morderId),
       taskId: Number(taskId),
-      workerId: workerId !== '' ? Number(workerId) : null,
+      workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,
       educatorWorkerId: educatorWorkerId !== '' ? Number(educatorWorkerId) : null,
       startDate: sd2,
       endDate: ed2,
