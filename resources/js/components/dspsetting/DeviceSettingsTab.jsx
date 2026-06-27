@@ -10,6 +10,15 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
   // 工程担当コード入力欄はタブローカルな UI 状態
   const [sbinchargeInput, setSbinchargeInput] = useState('');
   const showModelFilters = Number(form.sbsbmb) === 0; // 製番表示のときのみ機種フィルタを表示
+  const addChargeCodes = (value) => {
+    const codes = String(value)
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .map(v => (/^\d+$/.test(v) ? v.padStart(5, '0') : v));
+    if (codes.length === 0) return;
+    setField('sbinchargelist', [...new Set([...form.sbinchargelist, ...codes])]);
+  };
 
   // 装置区分・生産状態でフィルタした機種リスト（機種マスタから直接構築）
   const kisyuList = useMemo(() => {
@@ -141,14 +150,16 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
               onKeyDown={e => {
                 if ((e.key === 'Enter' || e.key === ',') && sbinchargeInput.trim()) {
                   e.preventDefault();
-                  const code = sbinchargeInput.trim();
-                  if (!form.sbinchargelist.includes(code)) {
-                    setField('sbinchargelist', [...form.sbinchargelist, code]);
-                  }
+                  addChargeCodes(sbinchargeInput);
                   setSbinchargeInput('');
                 } else if (e.key === 'Backspace' && sbinchargeInput === '' && form.sbinchargelist.length > 0) {
                   setField('sbinchargelist', form.sbinchargelist.slice(0, -1));
                 }
+              }}
+              onBlur={() => {
+                if (!sbinchargeInput.trim()) return;
+                addChargeCodes(sbinchargeInput);
+                setSbinchargeInput('');
               }}
               placeholder={form.sbinchargelist.length === 0 ? '社員番号 + Enter' : ''}
               style={{ flex: 1, minWidth: 80, border: 'none', outline: 'none', fontSize: 13, background: 'transparent', padding: '1px 2px' }}

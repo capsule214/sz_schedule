@@ -91,6 +91,8 @@ class SerialController extends Controller
             'seizo_statuses.*' => 'integer|min:0|max:2',
             'show_finished' => 'nullable|boolean',
             'display_order' => 'nullable|integer|min:0|max:2',
+            'koutei_pic_nos' => 'nullable|array',
+            'koutei_pic_nos.*' => 'string|max:32',
         ]);
 
         $offset = (int) ($data['offset'] ?? 0);
@@ -112,6 +114,19 @@ class SerialController extends Controller
         }
         if (! empty($data['szgroup_ids'])) {
             $query->whereIn('kd_serial.seizo_group_id', $data['szgroup_ids']);
+        }
+        if (! empty($data['koutei_pic_nos'])) {
+            $picNos = collect($data['koutei_pic_nos'])
+                ->flatMap(fn ($value) => explode(',', (string) $value))
+                ->map(fn ($value) => trim($value))
+                ->filter()
+                ->map(fn ($value) => ctype_digit($value) ? str_pad($value, 5, '0', STR_PAD_LEFT) : $value)
+                ->unique()
+                ->values()
+                ->all();
+            if (! empty($picNos)) {
+                $query->whereIn('kd_serial.koutei_pic_no', $picNos);
+            }
         }
         if (! empty($data['seizo_statuses'])) {
             $query->whereIn('dm_kisyu.waku_display', $data['seizo_statuses']);
