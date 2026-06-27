@@ -269,16 +269,18 @@ class SeedController extends Controller
         $procSp = KmProcess::create(['process_name' => '特殊プロセス', 'sort_no' => 2]);
 
         $taskDefs = [
-            ['工程1', $procStd->process_id, 1, 6, 1],
-            ['工程2', $procStd->process_id, 2, 6, 2],
-            ['工程3', $procStd->process_id, 3, 6, 3],
-            ['検査',  $procSp->process_id,  4, 6, 4],
-            ['出荷',  $procSp->process_id,  5, 6, 5],
+            ['工程1',   $procStd->process_id, 1, 6, 1, 2],
+            ['工程2',   $procStd->process_id, 2, 6, 2, 2],
+            ['工程3',   $procStd->process_id, 3, 6, 3, 2],
+            ['検査',    $procSp->process_id,  4, 6, 4, 1],
+            ['出荷',    $procSp->process_id,  5, 6, 5, 1],
+            ['作業予定', $procStd->process_id, 1, 6, 6, 1],
         ];
         $taskIds = [];
         foreach ($taskDefs as $td) {
             $t = KmTask::create([
                 'process_id' => $td[1],
+                'task_type_id' => $td[5],
                 'task_name' => $td[0],
                 'back_color' => $td[2],
                 'font_color' => $td[3],
@@ -445,6 +447,7 @@ class SeedController extends Controller
         for ($i = 1; $i <= 100; $i++) {
             $task = KmTask::create([
                 'process_id' => $processIds[($i - 1) % count($processIds)],
+                'task_type_id' => ($i % 3) + 1,
                 'task_name' => 'タスク'.str_pad($i, 3, '0', STR_PAD_LEFT),
                 'back_color' => (($i - 1) % 6) + 1,
                 'font_color' => 6,
@@ -452,6 +455,15 @@ class SeedController extends Controller
             ]);
             $taskIds[] = $task->task_id;
         }
+        $workTask = KmTask::create([
+            'process_id' => $processIds[0],
+            'task_type_id' => 1,
+            'task_name' => '作業予定',
+            'back_color' => 1,
+            'font_color' => 6,
+            'sort_no' => 101,
+        ]);
+        $taskIds[] = $workTask->task_id;
         $koujunDetails = $this->seedKoujunDetails($taskIds);
 
         $serialIds = [];

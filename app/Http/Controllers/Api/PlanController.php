@@ -97,13 +97,110 @@ class PlanController extends Controller
         ];
     }
 
-    private function applyWorkerFilterIncludingUnassigned($query, $workerIds): void
+    private function applyUnassignedWorkerCondition($query, array $data): void
     {
-        $query->where(function ($q) use ($workerIds) {
-            $q->whereIn('worker_id', $workerIds)
-                ->orWhereNull('worker_id')
-                ->orWhere('worker_id', 0);
-        });
+        $query
+            ->where(function ($q) {
+                $q->whereNull('worker_id')
+                    ->orWhere('worker_id', '<=', 0);
+            })
+            ->whereHas('kd_serial', function ($q) use ($data) {
+                $q->where('deleted', 0)
+                    ->where('flg_public', 1);
+
+                if (! empty($data['team_szgroup_id'])) {
+                    $q->where('seizo_group_id', $data['team_szgroup_id']);
+                }
+            })
+            ->whereHas('km_task', function ($q) {
+                $q->whereIn('task_type_id', [1, 3]);
+            });
+    }
+
+    private function applyWorkerModeFilter($query, array $data): void
+    {
+        $workerIds = [];
+        if (! empty($data['worker_ids'])) {
+            $workerIds = array_merge($workerIds, $data['worker_ids']);
+        }
+        if (! empty($data['team_szgroup_id'])) {
+            $teamIds = KmTeam::where('equip_group_id', $data['team_szgroup_id'])->pluck('team_id');
+            $workerIds = array_merge($workerIds, KmWorker::whereIn('team_id', $teamIds)->pluck('worker_id')->all());
+        }
+        if (! empty($data['team_ids'])) {
+            $workerIds = array_merge($workerIds, KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id')->all());
+        }
+        $workerIds = array_values(array_unique(array_map('intval', $workerIds)));
+
+        if (! empty($data['show_unassigned_worker'])) {
+            $query->where(function ($q) use ($workerIds, $data) {
+                if (! empty($workerIds)) {
+                    $q->whereIn('worker_id', $workerIds)
+                        ->orWhere(function ($uq) use ($data) {
+                            $this->applyUnassignedWorkerCondition($uq, $data);
+                        });
+
+                    return;
+                }
+
+                $this->applyUnassignedWorkerCondition($q, $data);
+            });
+
+            return;
+        }
+
+        if (! empty($workerIds)) {
+            $query->whereIn('worker_id', $workerIds);
+        } elseif (! empty($data['worker_ids']) || ! empty($data['team_szgroup_id']) || ! empty($data['team_ids'])) {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    private function applySerialFilters($query, array $data): void
+    {
+        if (! empty($data['serial_ids'])) {
+            $query->whereIn('serial_id', $data['serial_ids']);
+        }
+        if (! empty($data['kisyu_ids'])) {
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->select('serial_id'));
+        }
+        if (! empty($data['equip_type_id'])) {
+            $kisyuIds = DmKisyu::whereHas('dm_equip', function ($q) use ($data) {
+                $q->where('equip_type_id', $data['equip_type_id']);
+            })->select('kisyu_id');
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
+        }
+        if (! empty($data['szgroup_ids'])) {
+            $query->whereIn('serial_id', KdSerial::whereIn('seizo_group_id', $data['szgroup_ids'])->select('serial_id'));
+        }
+        if (! empty($data['seizo_statuses'])) {
+            $kisyuIds = DmKisyu::whereIn('waku_display', $data['seizo_statuses'])->select('kisyu_id');
+            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
+        }
+    }
+
+    private function applyMorderFilters($query, array $data): void
+    {
+        $query->where('morder_id', '>', 0);
+        if (! empty($data['morder_ids'])) {
+            $query->whereIn('morder_id', $data['morder_ids']);
+        }
+        if (empty($data['show_finished'])) {
+            $query->whereHas('kd_morder', function ($q) {
+                $q->where('flg_finish', 0);
+            });
+        }
+        if (! empty($data['morder_order_type_id'])) {
+            // M番=21(加工オーダー) / 直送DPR=11 で対象 M番を絞る
+            $query->whereHas('kd_morder', function ($q) use ($data) {
+                $q->where('order_type_id', $data['morder_order_type_id']);
+            });
+        }
+        if (! empty($data['szgroup_ids'])) {
+            $query->whereHas('kd_morder', function ($q) use ($data) {
+                $q->whereIn('equip_group_id', $data['szgroup_ids']);
+            });
+        }
     }
 
     public function index(Request $request)
@@ -191,80 +288,19 @@ class PlanController extends Controller
         }
 
         if ($mode === 'device' && $isMorderDisplay) {
-            $query->where('morder_id', '>', 0);
-            if (! empty($data['morder_ids'])) {
-                $query->whereIn('morder_id', $data['morder_ids']);
-            }
-            if (empty($data['show_finished'])) {
-                $query->whereHas('kd_morder', function ($q) {
-                    $q->where('flg_finish', 0);
-                });
-            }
-            if (! empty($data['morder_order_type_id'])) {
-                // M番=21(加工オーダー) / 直送DPR=11 で対象 M番を絞る
-                $query->whereHas('kd_morder', function ($q) use ($data) {
-                    $q->where('order_type_id', $data['morder_order_type_id']);
-                });
-            }
-            if (! empty($data['szgroup_ids'])) {
-                $query->whereHas('kd_morder', function ($q) use ($data) {
-                    $q->whereIn('equip_group_id', $data['szgroup_ids']);
-                });
-            }
+            $this->applyMorderFilters($query, $data);
 
             return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));
         }
 
         if ($mode === 'task' && $isMorderDisplay) {
-            $query->where('morder_id', '>', 0);
+            $this->applyMorderFilters($query, $data);
+        } else {
+            $this->applySerialFilters($query, $data);
         }
 
-        if (! empty($data['serial_ids'])) {
-            $query->whereIn('serial_id', $data['serial_ids']);
-        }
-        if (! empty($data['kisyu_ids'])) {
-            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $data['kisyu_ids'])->select('serial_id'));
-        }
-        if (! empty($data['equip_type_id'])) {
-            $kisyuIds = DmKisyu::whereHas('dm_equip', function ($q) use ($data) {
-                $q->where('equip_type_id', $data['equip_type_id']);
-            })->select('kisyu_id');
-            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
-        }
-        if (! empty($data['szgroup_ids'])) {
-            $query->whereIn('serial_id', KdSerial::whereIn('seizo_group_id', $data['szgroup_ids'])->select('serial_id'));
-        }
-        if (! empty($data['seizo_statuses'])) {
-            $kisyuIds = DmKisyu::whereIn('waku_display', $data['seizo_statuses'])->select('kisyu_id');
-            $query->whereIn('serial_id', KdSerial::whereIn('kisyu_id', $kisyuIds)->select('serial_id'));
-        }
-        if (! empty($data['worker_ids'])) {
-            if (! empty($data['show_unassigned_worker'])) {
-                $this->applyWorkerFilterIncludingUnassigned($query, $data['worker_ids']);
-            } else {
-                $query->whereIn('worker_id', $data['worker_ids']);
-            }
-        }
-        if (! empty($data['team_szgroup_id'])) {
-            // 製造部署フィルタ: equip_group_id が一致するチームの worker_ids に絞る
-            $sgroupTeamIds = KmTeam::where('equip_group_id', $data['team_szgroup_id'])->pluck('team_id');
-            $sgroupWorkerIds = KmWorker::whereIn('team_id', $sgroupTeamIds)->pluck('worker_id');
-            if (! empty($data['show_unassigned_worker'])) {
-                $this->applyWorkerFilterIncludingUnassigned($query, $sgroupWorkerIds);
-            } else {
-                $query->whereIn('worker_id', $sgroupWorkerIds);
-            }
-        }
-        if (! empty($data['team_ids'])) {
-            $workerIds = KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id');
-            if (! empty($data['show_unassigned_worker'])) {
-                $this->applyWorkerFilterIncludingUnassigned($query, $workerIds);
-            } else {
-                $query->whereIn('worker_id', $workerIds);
-            }
-        } elseif (! empty($data['show_unassigned_worker'])) {
-            // チームフィルタなしで担当者未定のみ追加取得（全担当者＋未定は既にフィルタなしで取得済み）
-            // チームフィルタがない場合は全プランを返すため追加フィルタ不要
+        if ($mode === 'worker') {
+            $this->applyWorkerModeFilter($query, $data);
         }
         if (! empty($data['task_ids'])) {
             $query->whereIn('task_id', $data['task_ids']);

@@ -51,7 +51,7 @@ function isShippingTask(plan) {
 }
 
 function isWorkerUnassignedPlan(plan, mode) {
-  return mode === 'worker' && !!plan && (plan.workerId == null || Number(plan.workerId) === 0);
+  return mode === 'worker' && !!plan && (plan.workerId == null || Number(plan.workerId) <= 0);
 }
 
 function isReadOnlyPlan(plan, mode) {
@@ -328,8 +328,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     if (mode !== 'worker' || !displaySettings.synobody) return result;
 
-    // 担当者未定の予定（workerId が NULL/0）を製番別にグループ化して末尾に追加
-    const unassignedPlans = activePlans.filter(p => p.workerId == null || Number(p.workerId) === 0);
+    // 担当者未定の予定（workerId が NULL/0以下）を製番別にグループ化して末尾に追加
+    const unassignedPlans = activePlans.filter(p => p.workerId == null || Number(p.workerId) <= 0);
     const serialMap = new Map();
     for (const plan of unassignedPlans) {
       if (!serialMap.has(plan.serialId)) serialMap.set(plan.serialId, []);
