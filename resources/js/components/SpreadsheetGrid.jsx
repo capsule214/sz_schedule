@@ -84,6 +84,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [plans, setPlans] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
   const [serialSearchText, setSerialSearchText] = useState('');
+  const [workerSearchText, setWorkerSearchText] = useState('');
   const [forcedSerialId, setForcedSerialId] = useState(null);
   const [serialSearchTick, setSerialSearchTick] = useState(0);
   const [devicePagedGroups, setDevicePagedGroups] = useState([]);
@@ -302,11 +303,20 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (syteamlist.length > 0) {
         w = w.filter(wr => syteamlist.includes(wr.teamId));
       }
+      const workerQuery = workerSearchText.trim();
+      if (workerQuery) {
+        const isUserNoSearch = /^\d{4,}$/.test(workerQuery);
+        const q = workerQuery.toLowerCase();
+        w = w.filter(wr => {
+          if (isUserNoSearch) return String(wr.userNo || '').includes(workerQuery);
+          return String(wr.workerName || '').toLowerCase().includes(q);
+        });
+      }
       // 担当者タブは teamId → workerId 昇順固定
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
-      return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName }));
+      return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName, userNo: wr.userNo }));
     }
-  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
+  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice, workerSearchText]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device') : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
@@ -573,7 +583,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!settingsReady) return;
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-  }, [settingsReady, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, startDate, endDate, displaySettings, workerSearchText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLocationOverlayPlans = useCallback(async (from, to, groupIds = []) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -1708,6 +1718,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         onSerialSearchTextChange={setSerialSearchText}
         onSerialSearch={handleSerialSearch}
         serialSearchPlaceholder={isMorderDevice ? 'M番/品番検索' : '製番検索'}
+        workerSearchText={workerSearchText}
+        onWorkerSearchTextChange={setWorkerSearchText}
         pllocation={pllocation}
         onPlLocationChange={setPllocation}
         resources={resources}

@@ -13,6 +13,7 @@ class WorkerController extends Controller
     return [
       'workerId'    => $w->worker_id,
       'workerName'  => $w->worker_name,
+      'userNo'      => $w->user_no,
       'teamId'      => $w->team_id,
       'teamName'    => $w->km_team ? $w->km_team->team_name : '',
       'szgroupId'   => $w->km_team ? $w->km_team->equip_group_id : null,

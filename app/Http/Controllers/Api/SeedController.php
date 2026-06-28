@@ -261,8 +261,12 @@ class SeedController extends Controller
       ['高橋三郎', $teamB->team_id],
     ];
     $workerIds = [];
-    foreach ($workerDefs as $wd) {
-      $w = KmWorker::create(['worker_name' => $wd[0], 'team_id' => $wd[1]]);
+    foreach ($workerDefs as $idx => $wd) {
+      $w = KmWorker::create([
+        'worker_name' => $wd[0],
+        'user_no' => str_pad((string) ($idx + 1), 4, '0', STR_PAD_LEFT),
+        'team_id' => $wd[1],
+      ]);
       $workerIds[] = $w->worker_id;
     }
 
@@ -430,6 +434,7 @@ class SeedController extends Controller
     for ($i = 1; $i <= 100; $i++) {
       $worker = KmWorker::create([
         'worker_name' => '担当者'.str_pad($i, 3, '0', STR_PAD_LEFT),
+        'user_no' => str_pad((string) $i, 4, '0', STR_PAD_LEFT),
         'team_id' => $teamIds[($i - 1) % count($teamIds)],
       ]);
       $workerIds[] = $worker->worker_id;

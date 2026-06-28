@@ -17,6 +17,8 @@ export default function SpreadsheetGridToolbar({
   onSerialSearchTextChange,
   onSerialSearch,
   serialSearchPlaceholder = '製番検索',
+  workerSearchText = '',
+  onWorkerSearchTextChange,
   pllocation,
   onPlLocationChange,
   resources,
@@ -93,6 +95,15 @@ export default function SpreadsheetGridToolbar({
       })()}
       <button onClick={() => onViewModeChange('day')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'day' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'day' ? '#eff6ff' : '#fff', color: viewMode === 'day' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>日単位</button>
       <button onClick={() => onViewModeChange('slot')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'slot' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'slot' ? '#eff6ff' : '#fff', color: viewMode === 'slot' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>時間割</button>
+      {mode === 'worker' && (
+        <input
+          type="text"
+          value={workerSearchText}
+          onChange={e => onWorkerSearchTextChange?.(e.target.value)}
+          placeholder="担当者名/user_no検索"
+          style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, minWidth: 170 }}
+        />
+      )}
       {mode === 'device' && (
         <>
           <input
