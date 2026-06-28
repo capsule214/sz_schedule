@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import DatePicker from './DatePicker';
+import useCalendarData from '../lib/useCalendarData';
 import { apiArray, apiJson } from '../lib/api';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 
@@ -201,6 +202,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
 
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd = startDate <= endDate ? endDate : startDate;
+  const calendarData = useCalendarData(startDate);
   const taskTypeOptions = gridMode === 'worker'
     ? [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '3', label: '個人予定' }]
     : [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '2', label: '製番予定' }];
@@ -278,14 +280,14 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <div style={labelStyle}>開始日</div>
-                <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+                <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
                 <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                   {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
                 </div>
               </div>
               <div>
                 <div style={labelStyle}>終了日</div>
-                <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+                <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
                 <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                   {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
                 </div>

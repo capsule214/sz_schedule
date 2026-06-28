@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DatePicker from './DatePicker';
+import useCalendarData from '../lib/useCalendarData';
 import { apiArray } from '../lib/api';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 
@@ -239,6 +240,7 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
 
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd = startDate <= endDate ? endDate : startDate;
+  const calendarData = useCalendarData(startDate);
   const labelStyle = { fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 3 };
   const fieldStyle = { width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' };
   const floorOptions = [...new Map(dialogResources.map(r => [r.locationTypeId, {
@@ -466,14 +468,14 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div>
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>開始日</div>
-              <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+              <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
               <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                 {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
               </div>
             </div>
             <div>
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>終了日</div>
-              <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} />
+              <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
               <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                 {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
               </div>

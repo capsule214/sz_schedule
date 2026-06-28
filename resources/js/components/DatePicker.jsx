@@ -20,18 +20,20 @@ export default function DatePicker({ value, onChange, minDate, maxDate, rangeSta
     else setViewMonth(m => m + 1);
   }
 
+  // 2026年8月のように6週にまたがる月でもレイアウトが崩れないよう、常に6行（42セル）固定で表示する。
+  // 当月の1日が含まれる週の日曜から42日分を並べ、前後の月の日付は薄く（opacity 0.5）表現する。
   const firstDay = new Date(viewYear, viewMonth - 1, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
-
   const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  for (let i = 0; i < 42; i++) {
+    const dt = new Date(viewYear, viewMonth - 1, 1 - firstDay + i);
+    const y = dt.getFullYear();
+    const m = dt.getMonth() + 1;
+    const day = dt.getDate();
+    cells.push({ y, m, day, ds: fmt(y, m, day), inMonth: m === viewMonth && y === viewYear });
+  }
 
-  function dayStr(d) { return fmt(viewYear, viewMonth, d); }
-
-  function cellStyle(d) {
-    if (!d) return {};
-    const ds = dayStr(d);
+  function cellStyle(cell) {
+    const { ds, inMonth } = cell;
     const dow = new Date(ds + 'T00:00:00').getDay();
     const disabled = (minDate && ds < minDate) || (maxDate && ds > maxDate);
     const isSelected = ds === value;
@@ -41,7 +43,8 @@ export default function DatePicker({ value, onChange, minDate, maxDate, rangeSta
     const dayType = calendarData?.get(ds)?.dayType;
     const isHoliday = dayType === 3 || dayType === 4;
 
-    let bg = 'transparent', color = '#111', cursor = 'pointer', opacity = 1;
+    let bg = 'transparent', color = '#111', cursor = 'pointer';
+    let opacity = inMonth ? 1 : 0.5;
     if (disabled) { opacity = 0.35; cursor = 'default'; }
     if (dow === 0 || isHoliday) color = '#ef4444';
     if (dow === 6 && !isHoliday) color = '#3b82f6';
@@ -63,18 +66,20 @@ export default function DatePicker({ value, onChange, minDate, maxDate, rangeSta
         {['日','月','火','水','木','金','土'].map((d, i) => (
           <div key={d} style={{ color: i === 0 ? '#ef4444' : i === 6 ? '#3b82f6' : '#555', fontWeight: 600, padding: '2px 0' }}>{d}</div>
         ))}
-        {cells.map((d, i) => (
+        {cells.map((cell, i) => (
           <div
             key={i}
-            style={cellStyle(d)}
+            style={cellStyle(cell)}
             onClick={() => {
-              if (!d) return;
-              const ds = dayStr(d);
+              const { ds, day, y, m, inMonth } = cell;
               const disabled = (minDate && ds < minDate) || (maxDate && ds > maxDate);
-              if (!disabled) onChange(ds);
+              if (disabled) return;
+              // 当月外の日付を選んだ場合は表示月もその月へ移動する
+              if (!inMonth) { setViewYear(y); setViewMonth(m); }
+              onChange(ds);
             }}
           >
-            {d || ''}
+            {cell.day}
           </div>
         ))}
       </div>
