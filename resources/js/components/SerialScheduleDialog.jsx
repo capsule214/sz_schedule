@@ -205,14 +205,16 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     const ed2 = toDateStr(endDate, endHm);
     const selectedSerialId = serialId || serialSelectRef.current?.value || init.serialId || initialData?.serialId || '';
     const selectedWorkerId = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
+    const selectedTask = tasks.find(t => String(t.taskId) === String(taskId));
+    const isPersonalPlan = gridMode === 'worker' && Number(selectedTask?.taskTypeId) === 3;
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
-    if (!selectedSerialId) { setError('製番を選択してください'); return; }
+    if (!isPersonalPlan && !selectedSerialId) { setError('製番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
     const segments = enableExcludedDays && !plan ? splitScheduleByExcludedDays(sd2, ed2, excludedDays, calendarData) : [{ startDate: sd2, endDate: ed2 }];
     if (segments.length === 0) { setError('登録対象の日付がありません'); return; }
     setError('');
     onSave({
-      serialId: Number(selectedSerialId),
+      serialId: selectedSerialId ? Number(selectedSerialId) : -1,
       morderId: -1,
       taskId: Number(taskId),
       workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,
