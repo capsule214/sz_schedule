@@ -3,6 +3,7 @@ import DatePicker from './DatePicker';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray, apiJson } from '../lib/api';
 import { TIME_SLOTS } from '../lib/spreadsheet';
+import { loadExcludedDays, saveExcludedDays, splitScheduleByExcludedDays } from '../lib/scheduleExclusions';
 
 function toDateStr(dateStr, hm) {
   return `${dateStr.slice(0, 10)}T${hm}:00`;
@@ -70,6 +71,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const [serialLoading, setSerialLoading] = useState(false);
   const [workerLoading, setWorkerLoading] = useState(false);
   const [error, setError] = useState('');
+  const [excludedDays, setExcludedDays] = useState(loadExcludedDays);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,6 +194,12 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     }
   }
 
+  function handleExcludedDayChange(key, checked) {
+    const next = { ...excludedDays, [key]: checked };
+    setExcludedDays(next);
+    saveExcludedDays(next);
+  }
+
   function handleSave() {
     const sd2 = toDateStr(startDate, startHm);
     const ed2 = toDateStr(endDate, endHm);
@@ -200,6 +208,8 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!selectedSerialId) { setError('製番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
+    const segments = enableExcludedDays && !plan ? splitScheduleByExcludedDays(sd2, ed2, excludedDays, calendarData) : [{ startDate: sd2, endDate: ed2 }];
+    if (segments.length === 0) { setError('登録対象の日付がありません'); return; }
     setError('');
     onSave({
       serialId: Number(selectedSerialId),
@@ -212,12 +222,14 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
       plannedMinutes: Number(plannedMinutes || 0),
       price: Number(price || 0),
       remark,
+      segments,
     });
   }
 
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd = startDate <= endDate ? endDate : startDate;
   const calendarData = useCalendarData(startDate);
+  const enableExcludedDays = gridMode === 'device';
   const taskTypeOptions = gridMode === 'worker'
     ? [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '3', label: '個人予定' }]
     : [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '2', label: '製番予定' }];
@@ -293,21 +305,40 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
           <div style={sectionStyle}><h3 style={sectionTitleStyle}>TBD</h3></div>
 
           <div style={sectionStyle}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <div style={labelStyle}>開始日</div>
-                <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
-                <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                  {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={labelStyle}>開始日</div>
+                  <DatePicker value={startDate} onChange={setStartDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                    {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setStartHm(s.start)} style={timeButtonStyle(startHm === s.start)}>{s.label}</button>)}
+                  </div>
+                </div>
+                <div>
+                  <div style={labelStyle}>終了日</div>
+                  <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                    {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
+                  </div>
                 </div>
               </div>
+              {enableExcludedDays && (
               <div>
-                <div style={labelStyle}>終了日</div>
-                <DatePicker value={endDate} onChange={setEndDate} rangeStart={rangeStart} rangeEnd={rangeEnd} calendarData={calendarData} />
-                <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                  {TIME_SLOTS.map(s => <button key={s.label} onClick={() => setEndHm(s.end)} style={timeButtonStyle(endHm === s.end)}>{s.label}</button>)}
+                <div style={labelStyle}>予定登録除外する曜日</div>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  {[
+                    ['saturday', '土曜'],
+                    ['sunday', '日曜'],
+                    ['holiday', '祝日'],
+                  ].map(([key, label]) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!excludedDays[key]} onChange={e => handleExcludedDayChange(key, e.target.checked)} />
+                      {label}
+                    </label>
+                  ))}
                 </div>
               </div>
+              )}
             </div>
           </div>
 

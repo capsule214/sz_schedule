@@ -14,6 +14,7 @@ import SpreadsheetGridLocationOverlayBars from './SpreadsheetGridLocationOverlay
 import DeviceHeaderTooltip from './DeviceHeaderTooltip';
 import AlertToast from './AlertToast';
 import { loadLeftColWidths, saveLeftColWidth, visibleLeftColumns, clampLeftColW } from '../lib/leftHeaderColumns';
+import { loadExcludedDays, splitPastedSchedulePreservingLength } from '../lib/scheduleExclusions';
 import {
   CELL_SIZE,
   HDR_H,
@@ -1350,12 +1351,36 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const newWorkerId   = mode === 'worker'   ? targetWorkerId   : p.workerId;
       const newLocationId = mode === 'place' ? targetLocationId : p.resourceId;
 
-      const payload = mode === 'place'
+      const basePayload = mode === 'place'
         ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
-        : { serialId: newSerialId, morderId: newMorderId, taskId: p.taskId, workerId: newWorkerId, startDate: newStart, endDate: newEnd };
-      const tempId = tempIdCounterRef.current--;
-      newPlans.push({ ...p, planId: tempId, ...payload });
-      pendingCreatesRef.current.set(tempId, payload);
+        : {
+          serialId: newSerialId,
+          morderId: newMorderId,
+          taskId: p.taskId,
+          workerId: newWorkerId,
+          educatorWorkerId: p.educatorWorkerId,
+          startDate: newStart,
+          endDate: newEnd,
+          plannedMinutes: p.plannedMinutes ?? 0,
+          price: p.price ?? 0,
+          remark: p.remark ?? '',
+        };
+      const excludedDays = loadExcludedDays();
+      const pasteSegments = mode === 'device'
+        ? splitPastedSchedulePreservingLength(p.startDate, p.endDate, newStart, excludedDays, calendarData)
+        : null;
+      const payloads = pasteSegments
+        ? pasteSegments.map(segment => ({ ...basePayload, startDate: segment.startDate, endDate: segment.endDate }))
+        : [basePayload];
+      for (const payload of payloads) {
+        const tempId = tempIdCounterRef.current--;
+        newPlans.push({ ...p, planId: tempId, ...payload });
+        pendingCreatesRef.current.set(tempId, payload);
+      }
+    }
+    if (newPlans.length === 0) {
+      showToast('貼り付け対象の日付がありません');
+      return;
     }
     setPlans(prev => [...prev, ...newPlans]);
     setIsDirty(true);
@@ -1416,18 +1441,26 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         showToast('予定の更新に失敗しました');
       }
     } else {
-      // 新規：仮IDで即時追加し、失敗時に除去する
-      const tempId = tempIdCounterRef.current--;
-      setPlans(prev => [...prev, { planId: tempId, ...payload }]);
-      try {
-        const newPlan = await apiJson(planEndpoint, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
-      } catch {
-        setPlans(prev => prev.filter(p => p.planId !== tempId));
-        showToast('予定の登録に失敗しました');
+      // 新規：仮IDで即時追加し、失敗時に除去する。装置予定は除外曜日に応じて複数件になる。
+      const createPayloads = (Array.isArray(data.segments) && data.segments.length > 0)
+        ? data.segments.map(segment => ({ ...payload, startDate: segment.startDate, endDate: segment.endDate }))
+        : [payload];
+      const tempPlans = createPayloads.map(createPayload => ({
+        tempId: tempIdCounterRef.current--,
+        payload: createPayload,
+      }));
+      setPlans(prev => [...prev, ...tempPlans.map(({ tempId, payload }) => ({ planId: tempId, ...payload }))]);
+      for (const { tempId, payload: createPayload } of tempPlans) {
+        try {
+          const newPlan = await apiJson(planEndpoint, {
+            method: 'POST',
+            body: JSON.stringify(createPayload),
+          });
+          setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
+        } catch {
+          setPlans(prev => prev.filter(p => p.planId !== tempId));
+          showToast('予定の登録に失敗しました');
+        }
       }
     }
   }
