@@ -157,10 +157,24 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     serialFetchedKisyuRef.current = null;
   }
 
+  // 区分(taskType)＋選択製番の製造グループでタスクを絞り込む。
+  // 製造グループ未設定(null)のタスクは全グループ共通として常に表示。
+  function getFilteredTasks(typeFilter, szgroupId) {
+    let list = typeFilter === '' ? tasks : tasks.filter(t => String(t.taskTypeId) === String(typeFilter));
+    if (szgroupId != null && szgroupId !== '') {
+      list = list.filter(t => t.seizoGroupId == null || String(t.seizoGroupId) === String(szgroupId));
+    }
+    return list;
+  }
+
   function handleSerialChange(newSerialId) {
     const s = serials.find(s => String(s.serialId) === String(newSerialId));
     setSerialId(newSerialId);
     setSerialNo(s?.serialNo ?? '');
+    const matchedTasks = getFilteredTasks(taskTypeFilter, s?.seizoGroupId ?? null);
+    if (matchedTasks.length && !matchedTasks.some(t => String(t.taskId) === String(taskId))) {
+      setTaskId(matchedTasks[0].taskId);
+    }
   }
 
   function handleTeamChange(newTeamId) {
@@ -171,7 +185,8 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
 
   function handleTaskTypeChange(newTaskType) {
     setTaskTypeFilter(newTaskType);
-    const matchedTasks = newTaskType === '' ? tasks : tasks.filter(t => String(t.taskTypeId) === String(newTaskType));
+    const selectedSzgroupId = serials.find(s => String(s.serialId) === String(serialId))?.seizoGroupId ?? null;
+    const matchedTasks = getFilteredTasks(newTaskType, selectedSzgroupId);
     if (matchedTasks.length && !matchedTasks.some(t => String(t.taskId) === String(taskId))) {
       setTaskId(matchedTasks[0].taskId);
     }
@@ -206,7 +221,8 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const taskTypeOptions = gridMode === 'worker'
     ? [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '3', label: '個人予定' }]
     : [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '2', label: '製番予定' }];
-  const filteredTasks = taskTypeFilter === '' ? tasks : tasks.filter(t => String(t.taskTypeId) === String(taskTypeFilter));
+  const selectedSzgroupId = serials.find(s => String(s.serialId) === String(serialId))?.seizoGroupId ?? null;
+  const filteredTasks = getFilteredTasks(taskTypeFilter, selectedSzgroupId);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

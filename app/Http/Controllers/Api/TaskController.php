@@ -25,6 +25,7 @@ class TaskController extends Controller
         'processSortNo' => $p?->sort_no ?? 0,
         'taskTypeId'    => $tt?->task_type_id,
         'taskTypeName'  => $tt?->task_type_name ?? null,
+        'seizoGroupId'  => $t->seizo_group_id,
       ];
     }));
   }

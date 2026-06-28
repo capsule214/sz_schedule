@@ -9,7 +9,7 @@ class KmTask extends Model
   protected $table = 'km_task';
   protected $primaryKey = 'task_id';
   public $timestamps = false;
-  protected $fillable = ['process_id', 'task_type_id', 'task_name', 'back_color', 'font_color', 'sort_no'];
+  protected $fillable = ['process_id', 'task_type_id', 'task_name', 'back_color', 'font_color', 'sort_no', 'seizo_group_id'];
 
   public function km_process()
   {
