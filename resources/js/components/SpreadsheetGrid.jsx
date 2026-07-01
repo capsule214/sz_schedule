@@ -91,6 +91,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [workerSearchText, setWorkerSearchText] = useState('');
   const [forcedSerialId, setForcedSerialId] = useState(null);
   const [serialSearchTick, setSerialSearchTick] = useState(0);
+  const [workerSearchTick, setWorkerSearchTick] = useState(0);
   const [devicePagedGroups, setDevicePagedGroups] = useState([]);
   const [deviceGroupTotal, setDeviceGroupTotal] = useState(0);
   const [deviceGroupOffset, setDeviceGroupOffset] = useState(0);
@@ -141,6 +142,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const prevJumpTargetRef = useRef(null);
   const jumpTimerRef = useRef(null);
   const pendingScrollSerialIdRef = useRef(null);
+  const pendingScrollWorkerIdRef = useRef(null);
 
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
@@ -307,20 +309,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (syteamlist.length > 0) {
         w = w.filter(wr => syteamlist.includes(wr.teamId));
       }
-      const workerQuery = workerSearchText.trim();
-      if (workerQuery) {
-        const isUserNoSearch = /^\d{4,}$/.test(workerQuery);
-        const q = workerQuery.toLowerCase();
-        w = w.filter(wr => {
-          if (isUserNoSearch) return String(wr.userNo || '').includes(workerQuery);
-          return String(wr.workerName || '').toLowerCase().includes(q);
-        });
-      }
       // 担当者タブは teamId → workerId 昇順固定
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
       return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName, userNo: wr.userNo }));
     }
-  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice, workerSearchText]);
+  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device') : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
@@ -587,7 +580,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!settingsReady) return;
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-  }, [settingsReady, startDate, endDate, displaySettings, workerSearchText]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLocationOverlayPlans = useCallback(async (from, to, groupIds = []) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -836,6 +829,37 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     pendingScrollSerialIdRef.current = hit.serialId;
     setSerialSearchTick(t => t + 1);
   }, [mode, serialSearchText, serials, baseDeviceGroups, baseMorderGroups, isMorderDevice, fetchDeviceGroups, deviceCount]);
+
+  const handleWorkerSearch = useCallback(() => {
+    if (mode !== 'worker') return;
+    const q = workerSearchText.trim();
+    if (!q) {
+      pendingScrollWorkerIdRef.current = null;
+      setWorkerSearchTick(t => t + 1);
+      return;
+    }
+
+    const sygroup = displaySettings.sygroup || 0;
+    const syteamlist = displaySettings.syteamlist || [];
+    let candidates = workers || [];
+    if (sygroup > 0) candidates = candidates.filter(w => w.szgroupId === sygroup);
+    if (syteamlist.length > 0) candidates = candidates.filter(w => syteamlist.includes(w.teamId));
+
+    const isUserNoSearch = /^\d{4,}$/.test(q);
+    const lower = q.toLowerCase();
+    const hits = candidates.filter(w => {
+      if (isUserNoSearch) return String(w.userNo || '').includes(q);
+      return String(w.workerName || '').toLowerCase().includes(lower);
+    });
+
+    if (hits.length === 0) {
+      showToast('表示対象データがありませんでした');
+      return;
+    }
+
+    pendingScrollWorkerIdRef.current = hits[0].workerId;
+    setWorkerSearchTick(t => t + 1);
+  }, [mode, workerSearchText, workers, displaySettings]);
 
   const onScroll = useCallback(e => {
     const sl = e.currentTarget.scrollLeft;
@@ -1374,7 +1398,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           morderId: newMorderId,
           taskId: p.taskId,
           workerId: newWorkerId,
-          educatorWorkerId: p.educatorWorkerId,
+          teacherId: p.teacherId,
           startDate: newStart,
           endDate: newEnd,
           plannedMinutes: p.plannedMinutes ?? 0,
@@ -1434,7 +1458,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         morderId:  data.morderId || dialog.initialData?.morderId || dialog.plan?.morderId || null,
         taskId:    data.taskId,
         workerId:  data.workerId ?? dialog.initialData?.workerId ?? null,
-        educatorWorkerId: data.educatorWorkerId,
+        teacherId: data.teacherId,
         startDate: data.startDate,
         endDate:   data.endDate,
         plannedMinutes: data.plannedMinutes ?? 0,
@@ -1602,6 +1626,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     pendingScrollSerialIdRef.current = null;
   }, [active, mode, layoutGroups, containerH, serialSearchTick, leftHdrW, triggerSonar]);
 
+  useEffect(() => {
+    if (!active || mode !== 'worker') return;
+    const targetWorkerId = pendingScrollWorkerIdRef.current;
+    if (!targetWorkerId || !scrollRef.current) return;
+    const g = layoutGroups.find(x => Number(x.id) === Number(targetWorkerId));
+    if (!g) return;
+    const newTop = Math.max(0, g.startRow * CELL_SIZE - (containerH - TOTAL_HDR_H) / 2);
+    scrollRef.current.scrollTop = newTop;
+    const actualTop = scrollRef.current.scrollTop;
+    setScrollTop(actualTop);
+
+    const sonarX = leftHdrW / 2;
+    const sonarY = (g.startRow + Math.max(0.5, g.numRows * 0.5)) * CELL_SIZE - actualTop + TOTAL_HDR_H;
+    triggerSonar(sonarX, sonarY);
+    pendingScrollWorkerIdRef.current = null;
+  }, [active, mode, layoutGroups, containerH, workerSearchTick, leftHdrW, triggerSonar]);
+
   async function handleSeedApply() {
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
@@ -1726,6 +1767,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialSearchPlaceholder={isMorderDevice ? 'M番/品番検索' : '製番検索'}
         workerSearchText={workerSearchText}
         onWorkerSearchTextChange={setWorkerSearchText}
+        onWorkerSearch={handleWorkerSearch}
         pllocation={pllocation}
         onPlLocationChange={setPllocation}
         resources={resources}

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DisplaySettingsController;
 use App\Http\Controllers\Api\DprController;
 use App\Http\Controllers\Api\MorderController;
 use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\QualificationController;
 use App\Http\Controllers\Api\ReserveController;
 use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\SeedController;
@@ -31,6 +32,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/worker/team/{teamId}', [WorkerController::class, 'byTeam']);
   Route::get('/worker/{id}', [WorkerController::class, 'show']);
   Route::get('/task', [TaskController::class, 'index']);
+  Route::get('/qualification/status', [QualificationController::class, 'status']);
   Route::get('/resource', [ResourceController::class, 'index']);
   Route::get('/morder', [MorderController::class, 'index']);
   Route::post('/morder/groups', [MorderController::class, 'groups']);

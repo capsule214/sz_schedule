@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import DatePicker from './DatePicker';
+import SerialScheduleQaArea from './SerialScheduleQaArea';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray, apiJson } from '../lib/api';
 import { TIME_SLOTS } from '../lib/spreadsheet';
@@ -56,7 +57,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const [taskId, setTaskId] = useState(init.taskId || '');
   const [taskTypeFilter, setTaskTypeFilter] = useState('');
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
-  const [educatorWorkerId, setEducatorWorkerId] = useState(init.educatorWorkerId ?? initialData?.educatorWorkerId ?? '');
+  const [teacherId, setTeacherId] = useState(init.teacherId ?? initialData?.teacherId ?? '');
   const [kisyuId, setKisyuId] = useState(init.kisyuId || initialData?.kisyuId || '');
   const [plannedMinutes, setPlannedMinutes] = useState(init.plannedMinutes ?? initialData?.plannedMinutes ?? 0);
   const [price, setPrice] = useState(init.price ?? initialData?.price ?? 0);
@@ -72,6 +73,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const [workerLoading, setWorkerLoading] = useState(false);
   const [error, setError] = useState('');
   const [excludedDays, setExcludedDays] = useState(loadExcludedDays);
+  const [qualificationBlockReason, setQualificationBlockReason] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -162,7 +164,11 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   // 区分(taskType)＋選択製番の製造グループでタスクを絞り込む。
   // 製造グループ未設定(null)のタスクは全グループ共通として常に表示。
   function getFilteredTasks(typeFilter, szgroupId) {
-    let list = typeFilter === '' ? tasks : tasks.filter(t => String(t.taskTypeId) === String(typeFilter));
+    const allowedTaskTypeIds = gridMode === 'worker' ? ['1', '3'] : ['1', '2'];
+    let list = tasks.filter(t => allowedTaskTypeIds.includes(String(t.taskTypeId)));
+    if (typeFilter !== '') {
+      list = list.filter(t => String(t.taskTypeId) === String(typeFilter));
+    }
     if (szgroupId != null && szgroupId !== '') {
       list = list.filter(t => t.seizoGroupId == null || String(t.seizoGroupId) === String(szgroupId));
     }
@@ -210,6 +216,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!isPersonalPlan && !selectedSerialId) { setError('製番を選択してください'); return; }
     if (!taskId) { setError('工程を選択してください'); return; }
+    if (qualificationBlockReason) { return; }
     const segments = enableExcludedDays && !plan ? splitScheduleByExcludedDays(sd2, ed2, excludedDays, calendarData) : [{ startDate: sd2, endDate: ed2 }];
     if (segments.length === 0) { setError('登録対象の日付がありません'); return; }
     setError('');
@@ -218,7 +225,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
       morderId: -1,
       taskId: Number(taskId),
       workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,
-      educatorWorkerId: educatorWorkerId !== '' ? Number(educatorWorkerId) : null,
+      teacherId: teacherId !== '' ? Number(teacherId) : null,
       startDate: sd2,
       endDate: ed2,
       plannedMinutes: Number(plannedMinutes || 0),
@@ -237,6 +244,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     : [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '2', label: '製番予定' }];
   const selectedSzgroupId = serials.find(s => String(s.serialId) === String(serialId))?.seizoGroupId ?? null;
   const filteredTasks = getFilteredTasks(taskTypeFilter, selectedSzgroupId);
+  const saveDisabled = !!qualificationBlockReason;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -295,7 +303,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
                   {workers.map(w => <option key={w.workerId} value={w.workerId}>{w.workerName}</option>)}
                 </select>
                 <label style={labelStyle}>教育者</label>
-                <select value={educatorWorkerId} onChange={e => setEducatorWorkerId(e.target.value)} disabled={teamId === '' || workerLoading} style={{ ...fieldStyle, background: teamId === '' || workerLoading ? '#f9fafb' : '' }}>
+                <select value={teacherId} onChange={e => setTeacherId(e.target.value)} disabled={teamId === '' || workerLoading} style={{ ...fieldStyle, background: teamId === '' || workerLoading ? '#f9fafb' : '' }}>
                   <option value="">（未設定）</option>
                   {workerLoading && <option value="">取得中...</option>}
                   {workers.map(w => <option key={w.workerId} value={w.workerId}>{w.workerName}</option>)}
@@ -304,7 +312,15 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
             </section>
           </div>
 
-          <div style={sectionStyle}><h3 style={sectionTitleStyle}>TBD</h3></div>
+          <SerialScheduleQaArea
+            kisyuId={kisyuId}
+            taskId={taskId}
+            workerId={workerId}
+            teacherId={teacherId}
+            sectionStyle={sectionStyle}
+            sectionTitleStyle={sectionTitleStyle}
+            onBlockReasonChange={setQualificationBlockReason}
+          />
 
           <div style={sectionStyle}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -356,7 +372,22 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
         {error && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '7px 18px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 }}>キャンセル</button>
-          <button onClick={handleSave} style={{ padding: '7px 18px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>保存</button>
+          <button
+            onClick={handleSave}
+            disabled={saveDisabled}
+            style={{
+              padding: '7px 18px',
+              border: 'none',
+              borderRadius: 6,
+              background: saveDisabled ? '#cbd5e1' : '#2563eb',
+              color: '#fff',
+              cursor: saveDisabled ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            保存
+          </button>
         </div>
       </div>
     </div>

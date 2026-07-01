@@ -50,7 +50,7 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
   const [taskId, setTaskId] = useState(init.taskId || '');
   const [taskTypeFilter, setTaskTypeFilter] = useState('');
   const [workerId, setWorkerId] = useState(init.workerId ?? initialData?.workerId ?? '');
-  const [educatorWorkerId, setEducatorWorkerId] = useState(init.educatorWorkerId ?? initialData?.educatorWorkerId ?? '');
+  const [teacherId, setTeacherId] = useState(init.teacherId ?? initialData?.teacherId ?? '');
   const [plannedMinutes, setPlannedMinutes] = useState(init.plannedMinutes ?? initialData?.plannedMinutes ?? 0);
   const [price, setPrice] = useState(init.price ?? initialData?.price ?? 0);
   const [remark, setRemark] = useState(init.remark ?? initialData?.remark ?? '');
@@ -149,7 +149,7 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
       morderId: Number(morderId),
       taskId: Number(taskId),
       workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,
-      educatorWorkerId: educatorWorkerId !== '' ? Number(educatorWorkerId) : null,
+      teacherId: teacherId !== '' ? Number(teacherId) : null,
       startDate: sd2,
       endDate: ed2,
       plannedMinutes: Number(plannedMinutes || 0),
@@ -220,7 +220,7 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
                   {workers.map(w => <option key={w.workerId} value={w.workerId}>{w.workerName}</option>)}
                 </select>
                 <label style={labelStyle}>教育者</label>
-                <select value={educatorWorkerId} onChange={e => setEducatorWorkerId(e.target.value)} disabled={teamId === '' || workerLoading} style={{ ...fieldStyle, background: teamId === '' || workerLoading ? '#f9fafb' : '' }}>
+                <select value={teacherId} onChange={e => setTeacherId(e.target.value)} disabled={teamId === '' || workerLoading} style={{ ...fieldStyle, background: teamId === '' || workerLoading ? '#f9fafb' : '' }}>
                   <option value="">（未設定）</option>
                   {workerLoading && <option value="">取得中...</option>}
                   {workers.map(w => <option key={w.workerId} value={w.workerId}>{w.workerName}</option>)}

@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DmKisyu;
 use App\Models\KdPlan;
 use App\Models\KdSerial;
+use App\Models\KmQualification;
+use App\Models\KmSkillmap;
 use App\Models\KmTeam;
 use App\Models\KmWorker;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PlanController extends Controller
 {
@@ -24,7 +27,7 @@ class PlanController extends Controller
       'morderId' => 'nullable|integer',
       'taskId' => 'required|integer|min:1',
       'workerId' => 'nullable|integer|min:1',
-      'educatorWorkerId' => 'nullable|integer|min:1',
+      'teacherId' => 'nullable|integer|min:1',
       'startDate' => 'required|date',
       'endDate' => 'required|date|after_or_equal:startDate',
       'plannedMinutes' => 'nullable|integer|min:0',
@@ -40,13 +43,55 @@ class PlanController extends Controller
       'morder_id' => $data['morderId'] ?? -1,
       'task_id' => $data['taskId'],
       'worker_id' => $data['workerId'] ?? null,
-      'educator_worker_id' => $data['educatorWorkerId'] ?? null,
+      'educator_worker_id' => $data['teacherId'] ?? null,
       'start_date' => $data['startDate'],
       'end_date' => $data['endDate'],
       'planned_minutes' => $data['plannedMinutes'] ?? 0,
       'price' => $data['price'] ?? 0,
       'remark' => $data['remark'] ?? '',
     ];
+  }
+
+  private function validatePlanQualification(array $data): void
+  {
+    $workerId = $data['workerId'] ?? null;
+    if (! $workerId) {
+      return;
+    }
+
+    $serialId = (int) ($data['serialId'] ?? 0);
+    if ($serialId <= 0) {
+      return;
+    }
+
+    $serial = KdSerial::find($serialId);
+    if (! $serial || ! $serial->kisyu_id) {
+      return;
+    }
+
+    $qualificationCount = KmQualification::where('kisyu_id', $serial->kisyu_id)
+      ->where('task_id', $data['taskId'])
+      ->count();
+    if ($qualificationCount === 0) {
+      return;
+    }
+
+    $skillLevel = (int) (KmSkillmap::where('kisyu_id', $serial->kisyu_id)
+      ->where('task_id', $data['taskId'])
+      ->where('worker_id', $workerId)
+      ->max('skill_level') ?? 0);
+
+    if ($skillLevel <= 0) {
+      throw ValidationException::withMessages([
+        'workerId' => ['有資格者を選択してください'],
+      ]);
+    }
+
+    if ($skillLevel < 2 && empty($data['teacherId'])) {
+      throw ValidationException::withMessages([
+        'teacherId' => ['教育者を選択してください'],
+      ]);
+    }
   }
 
   private function formatPlan(KdPlan $plan): array
@@ -88,7 +133,7 @@ class PlanController extends Controller
       'endDate' => $plan->end_date,
       'workerId' => $plan->worker_id,
       'workerName' => $worker ? $worker->worker_name : '',
-      'educatorWorkerId' => $plan->educator_worker_id,
+      'teacherId' => $plan->educator_worker_id,
       'plannedMinutes' => $plan->planned_minutes ?? 0,
       'price' => $plan->price ?? 0,
       'remark' => $plan->remark ?? '',
@@ -312,6 +357,7 @@ class PlanController extends Controller
   public function store(Request $request)
   {
     $data = $request->validate($this->planRules());
+    $this->validatePlanQualification($data);
 
     $plan = KdPlan::create([
       ...$this->planPayload($data),
@@ -328,6 +374,7 @@ class PlanController extends Controller
     $plan = KdPlan::findOrFail($id);
 
     $data = $request->validate($this->planRules());
+    $this->validatePlanQualification($data);
 
     $plan->update($this->planPayload($data));
 

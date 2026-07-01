@@ -13,7 +13,9 @@ use App\Models\KdSerial;
 use App\Models\KkLocationType;
 use App\Models\KmKoujunDetail;
 use App\Models\KmProcess;
+use App\Models\KmQualification;
 use App\Models\KmResource;
+use App\Models\KmSkillmap;
 use App\Models\KmTask;
 use App\Models\KmTeam;
 use App\Models\KmWorker;
@@ -163,6 +165,47 @@ class SeedController extends Controller
     return count($rows);
   }
 
+  private function seedQualificationData(array $kisyuIds, array $taskIds, array $workerIds): array
+  {
+    if (empty($kisyuIds) || empty($taskIds) || empty($workerIds)) {
+      return ['qualifications' => 0, 'skillmaps' => 0];
+    }
+
+    $qualificationNames = ['資格A', '資格B', '資格C'];
+    $qualificationCount = 0;
+    $skillmapCount = 0;
+    $pairs = min(20, count($kisyuIds) * count($taskIds));
+
+    for ($i = 0; $i < $pairs; $i++) {
+      $kisyuId = $kisyuIds[$i % count($kisyuIds)];
+      $taskId = $taskIds[$i % count($taskIds)];
+      $requiredCount = ($i % 2) + 1;
+
+      for ($j = 0; $j < $requiredCount; $j++) {
+        KmQualification::create([
+          'qualification_name' => $qualificationNames[($i + $j) % count($qualificationNames)],
+          'kisyu_id' => $kisyuId,
+          'task_id' => $taskId,
+        ]);
+        $qualificationCount++;
+      }
+
+      foreach ($workerIds as $workerIndex => $workerId) {
+        if (($workerIndex + $i) % 3 === 0) {
+          KmSkillmap::create([
+            'kisyu_id' => $kisyuId,
+            'task_id' => $taskId,
+            'worker_id' => $workerId,
+            'skill_level' => ($workerIndex + $i) % 2 === 0 ? 2 : 1,
+          ]);
+          $skillmapCount++;
+        }
+      }
+    }
+
+    return ['qualifications' => $qualificationCount, 'skillmaps' => $skillmapCount];
+  }
+
   public function seed(Request $request)
   {
     $count = $request->input('count', 1000);
@@ -179,6 +222,8 @@ class SeedController extends Controller
     KdMorder::truncate();
     KdSerial::truncate();
     KmKoujunDetail::truncate();
+    KmSkillmap::truncate();
+    KmQualification::truncate();
     KmWorker::truncate();
     KmTeam::truncate();
     KmTask::truncate();
@@ -295,6 +340,7 @@ class SeedController extends Controller
     }
 
     $koujunDetails = $this->seedKoujunDetails($taskIds);
+    $qualificationData = $this->seedQualificationData($kisyuIds, $taskIds, $workerIds);
     $totalSlots = $months * 30 * 6;
 
     $plans = [];
@@ -351,6 +397,8 @@ class SeedController extends Controller
       'workers' => count($workerIds),
       'tasks' => count($taskIds),
       'koujunDetails' => $koujunDetails,
+      'qualifications' => $qualificationData['qualifications'],
+      'skillmaps' => $qualificationData['skillmaps'],
       'locations' => count($locationIds),
       'morders' => count($morderIds),
       'locationPlans' => count($locationPlans),
@@ -370,6 +418,8 @@ class SeedController extends Controller
     KdMorder::truncate();
     KdSerial::truncate();
     KmKoujunDetail::truncate();
+    KmSkillmap::truncate();
+    KmQualification::truncate();
     KmWorker::truncate();
     KmTeam::truncate();
     KmTask::truncate();
@@ -471,6 +521,7 @@ class SeedController extends Controller
     ]);
     $taskIds[] = $workTask->task_id;
     $koujunDetails = $this->seedKoujunDetails($taskIds);
+    $qualificationData = $this->seedQualificationData($kisyuIds, $taskIds, $workerIds);
 
     $serialIds = [];
     $base = strtotime($baseDate);
@@ -531,6 +582,8 @@ class SeedController extends Controller
       'workers' => count($workerIds),
       'tasks' => count($taskIds),
       'koujunDetails' => $koujunDetails,
+      'qualifications' => $qualificationData['qualifications'],
+      'skillmaps' => $qualificationData['skillmaps'],
       'resources' => count($locationIds),
       'morders' => count($morderIds),
       'calendar' => count($calendarRows),
