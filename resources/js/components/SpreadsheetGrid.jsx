@@ -59,6 +59,10 @@ function isReadOnlyPlan(plan, mode) {
   return isShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
 }
 
+function isDialogReadOnlyPlan(plan) {
+  return isShippingTask(plan);
+}
+
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
   mode, serials, workers, tasks, resources, displaySettings, settingsReady = true,
@@ -1300,8 +1304,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      ...(!isReadOnlyPlan(plan, mode) ? [
+      ...(!isDialogReadOnlyPlan(plan) ? [
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },
+      ] : []),
+      ...(!isReadOnlyPlan(plan, mode) ? [
         { label: 'コピー', onClick: () => setCopied([plan]) },
         'separator',
         { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
@@ -1404,13 +1410,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function openScheduleDialog(data) {
-    if (isReadOnlyPlan(data?.plan, mode)) return;
+    if (isDialogReadOnlyPlan(data?.plan)) return;
     setScheduleDialog(data);
   }
 
   async function savePlan(data) {
     const dialog = scheduleDialog;
-    if (isReadOnlyPlan(dialog?.plan, mode)) {
+    if (isDialogReadOnlyPlan(dialog?.plan)) {
       setScheduleDialog(null);
       return;
     }
