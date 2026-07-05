@@ -10,7 +10,9 @@ use App\Models\KmQualification;
 use App\Models\KmSkillmap;
 use App\Models\KmTeam;
 use App\Models\KmWorker;
+use App\Models\KsSystemLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PlanController extends Controller
@@ -359,10 +361,16 @@ class PlanController extends Controller
     $data = $request->validate($this->planRules());
     $this->validatePlanQualification($data);
 
-    $plan = KdPlan::create([
+    $payload = [
       ...$this->planPayload($data),
       'deleted' => 0,
-    ]);
+    ];
+    $plan = DB::transaction(function () use ($payload) {
+      $plan = KdPlan::create($payload);
+      KsSystemLog::record($plan->plan_id, $payload);
+
+      return $plan;
+    });
 
     $plan->load($this->planRelations());
 
@@ -376,7 +384,14 @@ class PlanController extends Controller
     $data = $request->validate($this->planRules());
     $this->validatePlanQualification($data);
 
-    $plan->update($this->planPayload($data));
+    $plan->fill($this->planPayload($data));
+    $diff = $plan->getDirty();
+    DB::transaction(function () use ($plan, $diff) {
+      $plan->save();
+      if (! empty($diff)) {
+        KsSystemLog::record($plan->plan_id, $diff);
+      }
+    });
 
     $plan->load($this->planRelations());
 
@@ -390,15 +405,25 @@ class PlanController extends Controller
       'ids.*' => 'integer|min:1',
     ]);
 
-    $ids = $data['ids'];
-    $deleted = KdPlan::whereIn('plan_id', $ids)->update(['deleted' => 1, 'updated_at' => now()]);
+    // グローバルスコープで削除済みは除外されるため、実際に削除対象となる ID のみログに残す
+    $targetIds = KdPlan::whereIn('plan_id', $data['ids'])->pluck('plan_id')->all();
+    $deleted = DB::transaction(function () use ($targetIds) {
+      $deleted = KdPlan::whereIn('plan_id', $targetIds)->update(['deleted' => 1, 'updated_at' => now()]);
+      KsSystemLog::recordMany($targetIds, ['deleted' => 1]);
+
+      return $deleted;
+    });
 
     return response()->json(['deleted' => $deleted]);
   }
 
   public function destroyOne(int $id)
   {
-    KdPlan::findOrFail($id)->update(['deleted' => 1]);
+    $plan = KdPlan::findOrFail($id);
+    DB::transaction(function () use ($plan) {
+      $plan->update(['deleted' => 1]);
+      KsSystemLog::record($plan->plan_id, ['deleted' => 1]);
+    });
 
     return response()->json(['deleted' => 1]);
   }

@@ -11,7 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // 名前付き login ルートが存在しないため、未認証時は SPA のルートへ戻す
+        // （これがないと非 JSON リクエストで RouteNotFoundException → 500 になる）
+        $middleware->redirectGuestsTo('/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

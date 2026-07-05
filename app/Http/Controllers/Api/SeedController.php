@@ -79,6 +79,43 @@ class SeedController extends Controller
 
   private int $lcgSeed = 42;
 
+  /** 本番環境ではダミーデータ生成 API を無効化する */
+  private function ensureSeedingAllowed(): void
+  {
+    abort_if(app()->environment('production'), 403, '本番環境ではデータ生成APIは利用できません。');
+  }
+
+  /** 対象テーブルを全件削除する（DB ドライバごとの外部キー制約の差異を吸収） */
+  private function resetTables(array $modelClasses): void
+  {
+    $driver = DB::connection()->getDriverName();
+
+    if ($driver === 'pgsql') {
+      $tables = array_map(fn ($class) => (new $class)->getTable(), $modelClasses);
+      DB::statement('TRUNCATE TABLE '.implode(', ', $tables).' RESTART IDENTITY CASCADE');
+
+      return;
+    }
+
+    if ($driver === 'sqlite') {
+      DB::statement('PRAGMA foreign_keys = OFF');
+    } elseif (in_array($driver, ['mysql', 'mariadb'], true)) {
+      DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+    }
+
+    try {
+      foreach ($modelClasses as $class) {
+        $class::truncate();
+      }
+    } finally {
+      if ($driver === 'sqlite') {
+        DB::statement('PRAGMA foreign_keys = ON');
+      } elseif (in_array($driver, ['mysql', 'mariadb'], true)) {
+        DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+      }
+    }
+  }
+
   private function lcgNext(): int
   {
     $this->lcgSeed = ($this->lcgSeed * 1664525 + 1013904223) & 0xFFFFFFFF;
@@ -208,6 +245,8 @@ class SeedController extends Controller
 
   public function seed(Request $request)
   {
+    $this->ensureSeedingAllowed();
+
     $count = $request->input('count', 1000);
     $baseDate = $request->input('baseDate', now()->format('Y-m-01'));
     $months = $request->input('months', 6);
@@ -216,23 +255,23 @@ class SeedController extends Controller
     $this->lcgSeed = $seedNum;
     $base = strtotime($baseDate);
 
-    DB::statement('PRAGMA foreign_keys = OFF');
-    KdReserve::truncate();
-    KdPlan::truncate();
-    KdMorder::truncate();
-    KdSerial::truncate();
-    KmKoujunDetail::truncate();
-    KmSkillmap::truncate();
-    KmQualification::truncate();
-    KmWorker::truncate();
-    KmTeam::truncate();
-    KmTask::truncate();
-    KmProcess::truncate();
-    DmKisyu::truncate();
-    DmEquip::truncate();
-    KmResource::truncate();
-    KkLocationType::truncate();
-    DB::statement('PRAGMA foreign_keys = ON');
+    $this->resetTables([
+      KdReserve::class,
+      KdPlan::class,
+      KdMorder::class,
+      KdSerial::class,
+      KmKoujunDetail::class,
+      KmSkillmap::class,
+      KmQualification::class,
+      KmWorker::class,
+      KmTeam::class,
+      KmTask::class,
+      KmProcess::class,
+      DmKisyu::class,
+      DmEquip::class,
+      KmResource::class,
+      KkLocationType::class,
+    ]);
 
     // 場所種別マスタを作成
     $locationTypeNames = ['1F', '2F', '3F', '4F', '5F'];
@@ -407,29 +446,31 @@ class SeedController extends Controller
 
   public function seedMaster(Request $request)
   {
+    $this->ensureSeedingAllowed();
+
     $baseDate = $request->input('baseDate', now()->format('Y-m-d'));
     $seedNum = $request->input('seedNum', 42);
 
     $this->lcgSeed = $seedNum;
 
-    DB::statement('PRAGMA foreign_keys = OFF');
-    KdReserve::truncate();
-    KdPlan::truncate();
-    KdMorder::truncate();
-    KdSerial::truncate();
-    KmKoujunDetail::truncate();
-    KmSkillmap::truncate();
-    KmQualification::truncate();
-    KmWorker::truncate();
-    KmTeam::truncate();
-    KmTask::truncate();
-    KmProcess::truncate();
-    DmKisyu::truncate();
-    DmEquip::truncate();
-    KmResource::truncate();
-    KkLocationType::truncate();
-    DrCalendar::truncate();
-    DB::statement('PRAGMA foreign_keys = ON');
+    $this->resetTables([
+      KdReserve::class,
+      KdPlan::class,
+      KdMorder::class,
+      KdSerial::class,
+      KmKoujunDetail::class,
+      KmSkillmap::class,
+      KmQualification::class,
+      KmWorker::class,
+      KmTeam::class,
+      KmTask::class,
+      KmProcess::class,
+      DmKisyu::class,
+      DmEquip::class,
+      KmResource::class,
+      KkLocationType::class,
+      DrCalendar::class,
+    ]);
 
     // 場所種別マスタを作成（3F/4F/5F相当）
     $locationTypeIds = [];
@@ -592,6 +633,8 @@ class SeedController extends Controller
 
   public function seedPlans(Request $request)
   {
+    $this->ensureSeedingAllowed();
+
     $count = $request->input('count', 1000);
     $baseDate = $request->input('baseDate', now()->format('Y-m-01'));
     $months = $request->input('months', 6);
@@ -668,10 +711,12 @@ class SeedController extends Controller
 
   public function seedDpr(Request $request): JsonResponse
   {
+    $this->ensureSeedingAllowed();
+
     $count = (int) $request->input('count', 1000);
     $this->lcgSeed = (int) $request->input('seed', 999);
 
-    Mdpr::truncate();
+    $this->resetTables([Mdpr::class]);
 
     $countries = ['CH', 'KR', 'NA', 'OS', 'PH', 'SD', 'SG', 'SW'];
     $years = ['24', '25', '26'];
