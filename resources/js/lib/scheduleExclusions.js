@@ -98,19 +98,20 @@ export function splitPastedSchedulePreservingLength(sourceStartDateTime, sourceE
   const targetStart = parseScheduleDateTime(targetStartDateTime);
   if (sourceStart.date > sourceEnd.date) return [];
 
-  const includedSourceDates = [];
+  // 元予定の暦日数をそのまま維持する。
+  // 元予定に土日祝（除外日）が含まれていても日数は削らず、
+  // 貼り付け先で除外日に当たった分は除外しない日までスキップして配置する。
+  let neededDays = 0;
   let sourceDate = sourceStart.date;
   while (sourceDate <= sourceEnd.date) {
-    if (!isExcludedDate(sourceDate, excludedDays, calendarData)) includedSourceDates.push(sourceDate);
+    neededDays += 1;
     sourceDate = addDays(sourceDate, 1);
   }
-  if (includedSourceDates.length === 0) return [];
 
   const dayStartHm = TIME_SLOTS[0].start;
   const dayEndHm = TIME_SLOTS[TIME_SLOTS.length - 1].end;
   const startHm = sourceStart.hm;
   const endHm = sourceEnd.hm;
-  const neededDays = includedSourceDates.length;
   const segments = [];
   let currentStart = null;
   let currentEnd = null;

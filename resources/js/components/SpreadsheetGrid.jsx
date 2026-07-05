@@ -1406,7 +1406,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           remark: p.remark ?? '',
         };
       const excludedDays = loadExcludedDays();
-      const pasteSegments = mode === 'device'
+      // 除外曜日オプションは装置・担当者タブで有効（登録ダイアログと同じ適用範囲）
+      const pasteSegments = mode === 'device' || mode === 'worker'
         ? splitPastedSchedulePreservingLength(p.startDate, p.endDate, newStart, excludedDays, calendarData)
         : null;
       const payloads = pasteSegments
