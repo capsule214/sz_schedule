@@ -238,7 +238,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const rangeStart = startDate <= endDate ? startDate : endDate;
   const rangeEnd = startDate <= endDate ? endDate : startDate;
   const calendarData = useCalendarData(startDate);
-  const enableExcludedDays = gridMode === 'device';
+  const enableExcludedDays = gridMode === 'device' || gridMode === 'worker';
   const taskTypeOptions = gridMode === 'worker'
     ? [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '3', label: '個人予定' }]
     : [{ value: '', label: 'すべて' }, { value: '1', label: '作業予定' }, { value: '2', label: '製番予定' }];

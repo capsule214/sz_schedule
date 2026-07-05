@@ -1481,7 +1481,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         showToast('予定の更新に失敗しました');
       }
     } else {
-      // 新規：仮IDで即時追加し、失敗時に除去する。装置予定は除外曜日に応じて複数件になる。
+      // 新規：仮IDで即時追加し、失敗時に除去する。装置・担当者予定は除外曜日に応じて複数件になる。
       const createPayloads = (Array.isArray(data.segments) && data.segments.length > 0)
         ? data.segments.map(segment => ({ ...payload, startDate: segment.startDate, endDate: segment.endDate }))
         : [payload];
