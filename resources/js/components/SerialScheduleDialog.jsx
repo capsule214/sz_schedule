@@ -158,6 +158,10 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
       .then(data => {
         if (cancelled) return;
         setWorkers(data);
+        if (data.length === 0) {
+          setWorkerId('');
+          return;
+        }
         const current = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
         const selected = data.find(w => String(w.workerId) === String(current)) || data[0];
         setWorkerId(selected?.workerId || '');

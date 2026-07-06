@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DatePicker from './DatePicker';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray } from '../lib/api';
@@ -49,18 +49,12 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
   const [kisyuName, setKisyuName] = useState(init.kisyuName ?? initialData?.kisyuName ?? '');
   const [serialNo, setSerialNo] = useState(init.serialNo ?? initialData?.serialNo ?? '');
   const [kisyuQuery, setKisyuQuery] = useState(init.kisyuName ?? initialData?.kisyuName ?? '');
-  const [kisyuPickerOpen, setKisyuPickerOpen] = useState(false);
   const [serialQuery, setSerialQuery] = useState(init.serialNo ?? initialData?.serialNo ?? '');
-  const [serialPickerOpen, setSerialPickerOpen] = useState(false);
   const [kisyuList, setKisyuList] = useState([]);
   const [serials, setSerials] = useState([]);
-  const [kisyuListFetched, setKisyuListFetched] = useState(false);
-  const [serialLoading, setSerialLoading] = useState(false);
   const [loading, setLoading] = useState(!resources?.length);
   const [error, setError] = useState('');
   const [remark, setRemark] = useState(init.remark ?? initialData?.remark ?? '');
-  const serialFetchedKisyuRef = useRef(null);
-  const serialSelectRef = useRef(null);
 
   useEffect(() => {
     if (resources?.length) {
@@ -89,43 +83,17 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function ensureKisyuList() {
-    if (kisyuListFetched) return;
-    setKisyuListFetched(true);
-    try {
-      setKisyuList(await apiArray('/serial/kisyu'));
-    } catch {
-      setKisyuListFetched(false);
-      setError('機種リストの取得に失敗しました');
-    }
-  }
-
-  async function fetchSerialList(nextKisyuId) {
-    if (!nextKisyuId) return;
-    serialFetchedKisyuRef.current = String(nextKisyuId);
-    setSerialLoading(true);
-    try {
-      const data = await apiArray(`/serial/kisyu/${nextKisyuId}`);
-      setSerials(data);
-      const selected = data.find(s => String(s.serialId) === String(serialId));
-      if (selected) {
-        setSerialNo(selected.serialNo);
-      } else if (serialId) {
-        setSerialId('');
-        setSerialNo('');
-      }
-    } catch {
-      serialFetchedKisyuRef.current = null;
-      setError('製番リストの取得に失敗しました');
-    } finally {
-      setSerialLoading(false);
-    }
-  }
-
-  async function ensureSerialList() {
-    if (!kisyuId || serialFetchedKisyuRef.current === String(kisyuId)) return;
-    await fetchSerialList(kisyuId);
-  }
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([apiArray('/serial/kisyu'), apiArray('/serial')])
+      .then(([kisyus, serialData]) => {
+        if (cancelled) return;
+        setKisyuList(kisyus);
+        setSerials(serialData);
+      })
+      .catch(() => { if (!cancelled) setError('機種・製番リストの取得に失敗しました'); });
+    return () => { cancelled = true; };
+  }, []);
 
   function handleFloorChange(newFloorId) {
     setFloorId(newFloorId);
@@ -153,27 +121,20 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     const k = kisyuList.find(k => String(k.kisyuId) === String(newKisyuId));
     setKisyuId(newKisyuId);
     setKisyuName(k?.kisyuName ?? '');
-    setKisyuQuery(k?.kisyuName ?? '');
-    setKisyuPickerOpen(false);
+    setKisyuQuery(newKisyuId ? (k?.kisyuName ?? '') : '');
     setSerialId('');
     setSerialNo('');
     setSerialQuery('');
-    setSerials([]);
-    serialFetchedKisyuRef.current = null;
-    fetchSerialList(newKisyuId);
   }
 
   function handleKisyuInputChange(value) {
     setKisyuQuery(value);
-    setKisyuPickerOpen(true);
-    if (value !== kisyuName) {
+    if (value !== kisyuName || value === '') {
       setKisyuId('');
       setKisyuName('');
       setSerialId('');
       setSerialNo('');
       setSerialQuery('');
-      setSerials([]);
-      serialFetchedKisyuRef.current = null;
     }
   }
 
@@ -181,14 +142,19 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     const s = serials.find(s => String(s.serialId) === String(newSerialId));
     setSerialId(newSerialId);
     setSerialNo(s?.serialNo ?? '');
-    setSerialQuery(s?.serialNo ?? '');
-    setSerialPickerOpen(false);
+    if (newSerialId) {
+      setSerialQuery(s?.serialNo ?? '');
+      setKisyuId(s?.kisyuId || '');
+      setKisyuName(s?.kisyuName || '');
+      setKisyuQuery(s?.kisyuName || '');
+    } else {
+      setSerialQuery('');
+    }
   }
 
   function handleSerialInputChange(value) {
     setSerialQuery(value);
-    setSerialPickerOpen(true);
-    if (value !== serialNo) {
+    if (value !== serialNo || value === '') {
       setSerialId('');
       setSerialNo('');
     }
@@ -206,32 +172,12 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
       return;
     }
 
-    const kisyuText = normalizeCandidateText(kisyuQuery);
-    if (kisyuText) {
-      const currentKisyuMatches = kisyuId && normalizeCandidateText(kisyuName) === kisyuText;
-      const kisyuMatch = currentKisyuMatches
-        ? { kisyuId, kisyuName }
-        : kisyuList.find(k => normalizeCandidateText(k.kisyuName) === kisyuText);
-      if (!kisyuMatch) {
-        setError('機種は候補から選択してください');
-        setKisyuPickerOpen(true);
-        return;
-      }
-    }
-
-    const serialText = normalizeCandidateText(serialQuery);
     let selectedSerialId = 0;
-    if (serialText) {
-      const currentSerialMatches = serialId && normalizeCandidateText(serialNo) === serialText;
-      const serialMatch = currentSerialMatches
-        ? { serialId, serialNo }
-        : serials.find(s => normalizeCandidateText(s.serialNo) === serialText);
-      if (!serialMatch) {
-        setError('製番は候補から選択してください');
-        setSerialPickerOpen(true);
-        return;
-      }
-      selectedSerialId = Number(serialMatch.serialId);
+    if (serialId) {
+      selectedSerialId = Number(serialId);
+    } else if (serialQuery.trim()) {
+      setError('製番はリストから選択してください');
+      return;
     }
 
     setError('');
@@ -262,15 +208,26 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
     const source = q
       ? kisyuList.filter(k => String(k.kisyuName || '').toLowerCase().includes(q))
       : kisyuList;
-    return source.slice(0, 80);
-  }, [kisyuList, kisyuQuery]);
+    const selected = kisyuId ? kisyuList.find(k => String(k.kisyuId) === String(kisyuId)) : null;
+    const list = selected && !source.some(k => String(k.kisyuId) === String(selected.kisyuId))
+      ? [selected, ...source]
+      : source;
+    return list.slice(0, 80);
+  }, [kisyuList, kisyuQuery, kisyuId]);
   const filteredSerials = useMemo(() => {
     const q = serialQuery.trim().toLowerCase();
-    const source = q
+    const byText = q
       ? serials.filter(s => String(s.serialNo || '').toLowerCase().includes(q))
       : serials;
-    return source.slice(0, 80);
-  }, [serials, serialQuery]);
+    const source = kisyuId
+      ? byText.filter(s => String(s.kisyuId) === String(kisyuId))
+      : byText;
+    const selected = serialId ? serials.find(s => String(s.serialId) === String(serialId)) : null;
+    const list = selected && !source.some(s => String(s.serialId) === String(selected.serialId))
+      ? [selected, ...source]
+      : source;
+    return list.slice(0, 80);
+  }, [serials, serialQuery, kisyuId, serialId]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -342,127 +299,41 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={labelStyle}>機種</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  value={kisyuQuery}
-                  onChange={e => handleKisyuInputChange(e.target.value)}
-                  onFocus={() => { ensureKisyuList(); setKisyuPickerOpen(true); }}
-                  onBlur={() => setTimeout(() => setKisyuPickerOpen(false), 120)}
-                  placeholder="機種検索"
-                  style={fieldStyle}
-                />
-                {kisyuPickerOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: 'calc(100% + 2px)',
-                    zIndex: 10001,
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    background: '#fff',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                  }}>
-                    {filteredKisyus.length === 0 ? (
-                      <div style={{ padding: '8px 10px', fontSize: 13, color: '#6b7280' }}>候補なし</div>
-                    ) : filteredKisyus.map(k => (
-                      <button
-                        key={k.kisyuId}
-                        type="button"
-                        onMouseDown={e => { e.preventDefault(); handleKisyuChange(k.kisyuId); }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          padding: '7px 10px',
-                          border: 'none',
-                          borderBottom: '1px solid #f3f4f6',
-                          background: String(kisyuId) === String(k.kisyuId) ? '#eff6ff' : '#fff',
-                          color: '#111827',
-                          textAlign: 'left',
-                          fontSize: 13,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {k.kisyuName}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <input
+                value={kisyuQuery}
+                onChange={e => handleKisyuInputChange(e.target.value)}
+                placeholder="機種検索"
+                style={{ ...fieldStyle, marginBottom: 6 }}
+              />
+              <select
+                value={kisyuId}
+                onChange={e => handleKisyuChange(e.target.value)}
+                size={6}
+                style={{ ...fieldStyle, height: 136, padding: 0 }}
+              >
+                <option value="">（未選択）</option>
+                {filteredKisyus.length === 0 && <option value="" disabled>候補なし</option>}
+                {filteredKisyus.map(k => <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>)}
+              </select>
             </div>
             <div>
               <label style={labelStyle}>製番</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  ref={serialSelectRef}
-                  value={serialQuery}
-                  onChange={e => handleSerialInputChange(e.target.value)}
-                  onFocus={() => { ensureSerialList(); setSerialPickerOpen(true); }}
-                  onBlur={() => setTimeout(() => setSerialPickerOpen(false), 120)}
-                  disabled={!kisyuId || serialLoading}
-                  placeholder={serialLoading ? '取得中...' : '製番検索'}
-                  style={{ ...fieldStyle, background: !kisyuId || serialLoading ? '#f9fafb' : '' }}
-                />
-                {serialPickerOpen && kisyuId && !serialLoading && (
-                  <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: 'calc(100% + 2px)',
-                    zIndex: 10001,
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    background: '#fff',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                  }}>
-                    <button
-                      type="button"
-                      onMouseDown={e => { e.preventDefault(); handleSerialChange(''); }}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        padding: '7px 10px',
-                        border: 'none',
-                        borderBottom: '1px solid #f3f4f6',
-                        background: serialId === '' ? '#eff6ff' : '#fff',
-                        color: '#6b7280',
-                        textAlign: 'left',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      （製番なし）
-                    </button>
-                    {filteredSerials.length === 0 ? (
-                      <div style={{ padding: '8px 10px', fontSize: 13, color: '#6b7280' }}>候補なし</div>
-                    ) : filteredSerials.map(s => (
-                      <button
-                        key={s.serialId}
-                        type="button"
-                        onMouseDown={e => { e.preventDefault(); handleSerialChange(s.serialId); }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          padding: '7px 10px',
-                          border: 'none',
-                          borderBottom: '1px solid #f3f4f6',
-                          background: String(serialId) === String(s.serialId) ? '#eff6ff' : '#fff',
-                          color: '#111827',
-                          textAlign: 'left',
-                          fontSize: 13,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {s.serialNo}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <input
+                value={serialQuery}
+                onChange={e => handleSerialInputChange(e.target.value)}
+                placeholder="製番検索"
+                style={{ ...fieldStyle, marginBottom: 6 }}
+              />
+              <select
+                value={serialId}
+                onChange={e => handleSerialChange(e.target.value)}
+                size={6}
+                style={{ ...fieldStyle, height: 136, padding: 0 }}
+              >
+                <option value="">（製番なし）</option>
+                {filteredSerials.length === 0 && <option value="" disabled>候補なし</option>}
+                {filteredSerials.map(s => <option key={s.serialId} value={s.serialId}>{`${s.serialNo}${s.kisyuName ? ` / ${s.kisyuName}` : ''}`}</option>)}
+              </select>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
