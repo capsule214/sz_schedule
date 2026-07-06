@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\KdPlan;
 use App\Models\KdSerial;
+use App\Models\KmQualification;
 use App\Models\KmTeam;
 use App\Models\KmSkillmap;
 use App\Models\KmWorker;
@@ -90,7 +91,13 @@ class WorkerController extends Controller
         $kisyuId = KdSerial::where('serial_id', $data['serial_id'])->value('kisyu_id');
       }
 
-      if ($kisyuId) {
+      $qualificationCount = $kisyuId
+        ? KmQualification::where('kisyu_id', $kisyuId)
+          ->where('task_id', $data['task_id'])
+          ->count()
+        : 0;
+
+      if ($qualificationCount > 0) {
         $qualifiedWorkerIds = KmSkillmap::query()
           ->where('kisyu_id', $kisyuId)
           ->where('task_id', $data['task_id'])
