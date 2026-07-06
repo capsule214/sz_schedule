@@ -5,6 +5,7 @@ const qualificationCellStyle = { padding: '6px 8px', borderBottom: '1px solid #e
 
 export default function SerialScheduleQaArea({
   kisyuId,
+  serialId,
   taskId,
   workerId,
   teacherId,
@@ -17,7 +18,7 @@ export default function SerialScheduleQaArea({
 
   useEffect(() => {
     let cancelled = false;
-    if (!kisyuId || !taskId || !workerId) {
+    if ((!kisyuId && !serialId) || !taskId || !workerId) {
       setQualificationStatus({ qualifications: [], skillLevel: 0, skillLevelName: 'なし' });
       setQualificationLoading(false);
       return () => { cancelled = true; };
@@ -25,10 +26,11 @@ export default function SerialScheduleQaArea({
 
     setQualificationLoading(true);
     const params = new URLSearchParams({
-      kisyu_id: String(kisyuId),
       task_id: String(taskId),
       worker_id: String(workerId),
     });
+    if (kisyuId) params.set('kisyu_id', String(kisyuId));
+    if (serialId) params.set('serial_id', String(serialId));
     apiJson(`/qualification/status?${params.toString()}`)
       .then(data => {
         if (cancelled) return;
@@ -48,11 +50,11 @@ export default function SerialScheduleQaArea({
       });
 
     return () => { cancelled = true; };
-  }, [kisyuId, taskId, workerId]);
+  }, [kisyuId, serialId, taskId, workerId]);
 
   function getBlockReason() {
     if (!workerId) return '';
-    if (!kisyuId || !taskId) return '';
+    if ((!kisyuId && !serialId) || !taskId) return '';
     if (qualificationLoading) return '資格・スキル確認中です';
     if (qualificationStatus.qualifications.length === 0) return '';
     if (qualificationStatus.skillLevel <= 0) return '有資格者を選択してください';

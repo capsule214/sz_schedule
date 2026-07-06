@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\KdSerial;
 use App\Models\KmQualification;
 use App\Models\KmSkillmap;
 use Illuminate\Http\Request;
@@ -13,13 +14,19 @@ class QualificationController extends Controller
   {
     $data = $request->validate([
       'kisyu_id' => ['nullable', 'integer'],
+      'serial_id' => ['nullable', 'integer'],
       'task_id' => ['nullable', 'integer'],
       'worker_id' => ['nullable', 'integer'],
     ]);
 
     $kisyuId = $data['kisyu_id'] ?? null;
+    $serialId = $data['serial_id'] ?? null;
     $taskId = $data['task_id'] ?? null;
     $workerId = $data['worker_id'] ?? null;
+
+    if (! $kisyuId && $serialId) {
+      $kisyuId = KdSerial::where('serial_id', $serialId)->value('kisyu_id');
+    }
 
     if (! $kisyuId || ! $taskId) {
       return response()->json([

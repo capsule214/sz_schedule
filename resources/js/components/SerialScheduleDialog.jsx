@@ -314,6 +314,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
 
           <SerialScheduleQaArea
             kisyuId={kisyuId}
+            serialId={serialId}
             taskId={taskId}
             workerId={workerId}
             teacherId={teacherId}
