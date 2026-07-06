@@ -134,6 +134,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [containerH, setContainerH] = useState(600);
   const [containerW, setContainerW] = useState(1200);
   const [fetchVersion, setFetchVersion] = useState(0);
+  const [gridFetchCount, setGridFetchCount] = useState(0);
 
   const dragRef = useRef(null);
   const [rectSelect, setRectSelect] = useState(null); // {absX1,absY1,absX2,absY2} in content coords
@@ -493,6 +494,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     publicRemark: m.publicRemark || '',
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const beginGridFetch = useCallback(() => {
+    setGridFetchCount(count => count + 1);
+    return () => setGridFetchCount(count => Math.max(0, count - 1));
+  }, []);
+
   const fetchDeviceGroups = useCallback(async (offset, q = '') => {
     if (!settingsReady) return null;
     if (mode !== 'device') return null;
@@ -510,18 +516,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     const endpoint = isMorderDevice ? '/morder/groups' : '/serial/device-groups';
     const mapper = isMorderDevice ? mapMorderToGroup : mapSerialToDeviceGroup;
-    const data = await apiJson(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    const groups = (data.groups || []).map(mapper);
-    if (!q) {
-      setDevicePagedGroups(groups);
-      setDeviceGroupTotal(Math.min(Number(data.total || 0), deviceCount));
-      setDeviceGroupOffset(Number(data.offset || 0));
+    const endGridFetch = beginGridFetch();
+    try {
+      const data = await apiJson(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const groups = (data.groups || []).map(mapper);
+      if (!q) {
+        setDevicePagedGroups(groups);
+        setDeviceGroupTotal(Math.min(Number(data.total || 0), deviceCount));
+        setDeviceGroupOffset(Number(data.offset || 0));
+      }
+      return { ...data, groups };
+    } finally {
+      endGridFetch();
     }
-    return { ...data, groups };
-  }, [settingsReady, mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildVisibleFilterBody = useCallback((groupIds) => {
     const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
@@ -559,6 +570,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const key = makeFetchKey(from, to, body);
     if (fetchedPlanKeysRef.current.has(key)) return;
     fetchedPlanKeysRef.current.add(key);
+    const endGridFetch = beginGridFetch();
     try {
       const data = await apiArray(planSearchEndpoint, {
         method: 'POST',
@@ -572,8 +584,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     } catch (e) {
       fetchedPlanKeysRef.current.delete(key);
       console.error('fetchPlans error', e);
+    } finally {
+      endGridFetch();
     }
-  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings, filteredGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings, filteredGroups, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {
@@ -591,6 +605,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const key = JSON.stringify({ mode: 'place-overlay', from, to, body });
     if (fetchedLocKeysRef.current.has(key)) return;
     fetchedLocKeysRef.current.add(key);
+    const endGridFetch = beginGridFetch();
     try {
       const data = await apiArray('/reserve/search', {
         method: 'POST',
@@ -604,29 +619,36 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     } catch (e) {
       fetchedLocKeysRef.current.delete(key);
       console.error('fetchLocationOverlayPlans error', e);
+    } finally {
+      endGridFetch();
     }
-  }, [displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [displaySettings, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCalendar = useCallback(async (from, to) => {
     const gaps = computeGaps(fetchedCalendarRangesRef.current, from, to);
     if (gaps.length === 0) return;
-    await Promise.all(gaps.map(async (gap) => {
-      try {
-        const data = await apiArray('/calendar/search', {
-          method: 'POST',
-          body: JSON.stringify({ from: gap.from, to: gap.to }),
-        });
-        setCalendarData(prev => {
-          const next = new Map(prev);
-          for (const c of data) next.set(c.date, { dayType: c.dayType });
-          return next;
-        });
-        fetchedCalendarRangesRef.current.push(gap);
-      } catch (e) {
-        console.error('fetchCalendar error', e);
-      }
-    }));
-  }, []);
+    const endGridFetch = beginGridFetch();
+    try {
+      await Promise.all(gaps.map(async (gap) => {
+        try {
+          const data = await apiArray('/calendar/search', {
+            method: 'POST',
+            body: JSON.stringify({ from: gap.from, to: gap.to }),
+          });
+          setCalendarData(prev => {
+            const next = new Map(prev);
+            for (const c of data) next.set(c.date, { dayType: c.dayType });
+            return next;
+          });
+          fetchedCalendarRangesRef.current.push(gap);
+        } catch (e) {
+          console.error('fetchCalendar error', e);
+        }
+      }));
+    } finally {
+      endGridFetch();
+    }
+  }, [beginGridFetch]);
 
   // 表示期間変更時に表示範囲全体のカレンダーを取得（カレンダーデータは設定に依存しない）
   useEffect(() => {
@@ -1681,6 +1703,39 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const planCount = plans.filter(p => !p.deleted).length;
   const groupCount = mode === 'device' && deviceGroupTotal > 0 ? deviceGroupTotal : filteredGroups.length;
+  const isScheduleAreaFetching = active && gridFetchCount > 0;
+  const hasVisibleScheduleBars = useMemo(() => {
+    const contentRight = totalCols * colW;
+    const viewportRight = scrollLeft + containerW;
+    for (const g of layoutGroups) {
+      if (g.plans?.length) {
+        for (const plan of g.plans) {
+          const absRow = g.startRow + plan.rowIdx;
+          if (absRow < visRowStart || absRow > visRowEnd) continue;
+          const startCol = planToStartCol(plan, startDate, viewMode);
+          const endCol = planToEndCol(plan, startDate, viewMode);
+          const x = startCol * colW;
+          if (x >= contentRight) continue;
+          const w = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - x);
+          if (x + w >= scrollLeft && x <= viewportRight) return true;
+        }
+      }
+      if (extraLocationRow && g.locationRowIdx >= 0 && g.locationPlans?.length) {
+        for (const plan of g.locationPlans) {
+          const absRow = g.startRow + g.locationRowIdx + plan.rowIdx;
+          if (absRow < visRowStart || absRow > visRowEnd) continue;
+          const startCol = planToStartCol(plan, startDate, viewMode);
+          const endCol = planToEndCol(plan, startDate, viewMode);
+          const x = startCol * colW;
+          if (x >= contentRight) continue;
+          const w = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - x);
+          if (x + w >= scrollLeft && x <= viewportRight) return true;
+        }
+      }
+    }
+    return false;
+  }, [layoutGroups, totalCols, colW, scrollLeft, containerW, visRowStart, visRowEnd, startDate, viewMode, extraLocationRow]);
+  const shouldShowScheduleAreaOverlay = isScheduleAreaFetching && !hasVisibleScheduleBars;
 
   function handleHeaderClick(group, event) {
     event.stopPropagation();
@@ -2009,6 +2064,44 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           </div>
         </div>
 
+        {shouldShowScheduleAreaOverlay && (
+          <div
+            aria-live="polite"
+            aria-busy="true"
+            style={{
+              position: 'absolute',
+              left: leftHdrW,
+              top: TOTAL_HDR_H,
+              right: 0,
+              bottom: 0,
+              zIndex: 80,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.62)',
+              backdropFilter: 'blur(1px)',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 14px',
+              borderRadius: 6,
+              background: 'rgba(255,255,255,0.94)',
+              border: '1px solid #d1d5db',
+              boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+              color: '#374151',
+              fontSize: 13,
+              fontWeight: 600,
+            }}>
+              <span className="ui-spinner" style={{ width: 18, height: 18 }} />
+              <span>データ取得中...</span>
+            </div>
+          </div>
+        )}
+
         {/* ソナーエフェクト */}
         {active && sonar && [0, 380, 760].map((delay, i) => (
           <div key={`${sonar.key}-${i}`} style={{
@@ -2030,6 +2123,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         planCount={planCount}
         selectedCount={selected.size}
         copiedCount={copied.length}
+        loading={isScheduleAreaFetching}
       />
 
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
