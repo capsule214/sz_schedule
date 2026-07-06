@@ -71,6 +71,8 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const [loading, setLoading] = useState(true);
   const [serialLoading, setSerialLoading] = useState(false);
   const [workerLoading, setWorkerLoading] = useState(false);
+  const [filterAvailableWorkers, setFilterAvailableWorkers] = useState(false);
+  const [filterQualifiedWorkers, setFilterQualifiedWorkers] = useState(false);
   const [error, setError] = useState('');
   const [excludedDays, setExcludedDays] = useState(loadExcludedDays);
   const [qualificationBlockReason, setQualificationBlockReason] = useState('');
@@ -138,18 +140,32 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
       return () => { cancelled = true; };
     }
     setWorkerLoading(true);
-    apiArray(`/worker/team/${teamId}`)
+    const params = new URLSearchParams();
+    if (filterAvailableWorkers) {
+      params.set('available', '1');
+      params.set('start_date', toDateStr(startDate, startHm));
+      params.set('end_date', toDateStr(endDate, endHm));
+      if (plan?.planId) params.set('exclude_plan_id', String(plan.planId));
+    }
+    if (filterQualifiedWorkers) {
+      params.set('qualified', '1');
+      if (kisyuId) params.set('kisyu_id', String(kisyuId));
+      if (serialId) params.set('serial_id', String(serialId));
+      if (taskId) params.set('task_id', String(taskId));
+    }
+    const query = params.toString();
+    apiArray(`/worker/team/${teamId}${query ? `?${query}` : ''}`)
       .then(data => {
         if (cancelled) return;
         setWorkers(data);
-        const current = init.workerId ?? initialData?.workerId ?? workerId;
+        const current = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
         const selected = data.find(w => String(w.workerId) === String(current)) || data[0];
         setWorkerId(selected?.workerId || '');
       })
       .catch(() => { if (!cancelled) setError('担当者リストの取得に失敗しました'); })
       .finally(() => { if (!cancelled) setWorkerLoading(false); });
     return () => { cancelled = true; };
-  }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [teamId, filterAvailableWorkers, filterQualifiedWorkers, startDate, startHm, endDate, endHm, kisyuId, serialId, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKisyuChange(newKisyuId) {
     const k = kisyuList.find(k => String(k.kisyuId) === String(newKisyuId));
@@ -289,7 +305,27 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
               </section>
             </div>
             <section>
-              <h3 style={sectionTitleStyle}>リソース</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                <h3 style={{ ...sectionTitleStyle, margin: 0 }}>リソース</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={filterAvailableWorkers}
+                      onChange={e => setFilterAvailableWorkers(e.target.checked)}
+                    />
+                    空き作業者
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={filterQualifiedWorkers}
+                      onChange={e => setFilterQualifiedWorkers(e.target.checked)}
+                    />
+                    有資格者
+                  </label>
+                </div>
+              </div>
               <div style={formGridStyle}>
                 <label style={labelStyle}>チーム</label>
                 <select value={teamId} onChange={e => handleTeamChange(e.target.value)} disabled={loading} style={fieldStyle}>

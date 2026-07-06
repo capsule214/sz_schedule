@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\KdPlan;
+use App\Models\KdSerial;
 use App\Models\KmTeam;
+use App\Models\KmSkillmap;
 use App\Models\KmWorker;
+use Illuminate\Http\Request;
 
 class WorkerController extends Controller
 {
@@ -42,12 +46,64 @@ class WorkerController extends Controller
     ]));
   }
 
-  public function byTeam(int $teamId)
+  public function byTeam(Request $request, int $teamId)
   {
-    $workers = KmWorker::with('km_team')
+    $data = $request->validate([
+      'available' => ['nullable', 'boolean'],
+      'qualified' => ['nullable', 'boolean'],
+      'start_date' => ['nullable', 'date'],
+      'end_date' => ['nullable', 'date'],
+      'exclude_plan_id' => ['nullable', 'integer', 'min:1'],
+      'kisyu_id' => ['nullable', 'integer', 'min:1'],
+      'serial_id' => ['nullable', 'integer', 'min:1'],
+      'task_id' => ['nullable', 'integer', 'min:1'],
+    ]);
+
+    $query = KmWorker::with('km_team')
       ->where('team_id', $teamId)
-      ->orderBy('worker_id')
-      ->get();
+      ->orderBy('worker_id');
+
+    if (! empty($data['available']) && ! empty($data['start_date']) && ! empty($data['end_date'])) {
+      $startDate = $data['start_date'];
+      $endDate = $data['end_date'];
+      $excludePlanId = $data['exclude_plan_id'] ?? null;
+
+      $busyWorkerIds = KdPlan::query()
+        ->where('deleted', 0)
+        ->whereNotNull('worker_id')
+        ->where('start_date', '<', $endDate)
+        ->where('end_date', '>', $startDate)
+        ->when($excludePlanId, fn ($q) => $q->where('plan_id', '<>', $excludePlanId))
+        ->pluck('worker_id')
+        ->filter()
+        ->values()
+        ->all();
+
+      if (! empty($busyWorkerIds)) {
+        $query->whereNotIn('worker_id', $busyWorkerIds);
+      }
+    }
+
+    if (! empty($data['qualified']) && ! empty($data['task_id'])) {
+      $kisyuId = $data['kisyu_id'] ?? null;
+      if (! $kisyuId && ! empty($data['serial_id'])) {
+        $kisyuId = KdSerial::where('serial_id', $data['serial_id'])->value('kisyu_id');
+      }
+
+      if ($kisyuId) {
+        $qualifiedWorkerIds = KmSkillmap::query()
+          ->where('kisyu_id', $kisyuId)
+          ->where('task_id', $data['task_id'])
+          ->where('skill_level', '>', 0)
+          ->pluck('worker_id')
+          ->values()
+          ->all();
+
+        $query->whereIn('worker_id', $qualifiedWorkerIds);
+      }
+    }
+
+    $workers = $query->get();
 
     return response()->json($workers->map(fn($w) => $this->formatWorker($w)));
   }
