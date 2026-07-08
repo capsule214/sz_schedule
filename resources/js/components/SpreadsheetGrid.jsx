@@ -557,11 +557,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       body = { ...filter, ...visibleFilter };
     } else if (mode === 'worker') {
       const visibleFilter = buildVisibleFilterBody(groupIds);
-      const fallbackWorkerIds = filteredGroups.map(g => Number(g.id)).filter(Number.isFinite);
-      body = {
-        ...filter,
-        ...(visibleFilter || (fallbackWorkerIds.length > 0 ? { worker_ids: fallbackWorkerIds } : {})),
-      };
+      if (!visibleFilter) return;
+      body = { ...filter, ...visibleFilter };
     } else {
       const visibleFilter = buildVisibleFilterBody(groupIds);
       if (!visibleFilter) return;
@@ -587,7 +584,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     } finally {
       endGridFetch();
     }
-  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings, filteredGroups, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, buildVisibleFilterBody, makeFetchKey, planSearchEndpoint, mode, isMorderDevice, displaySettings, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 表示期間・表示設定変更時：アクティブタブのみ即時フェッチ。非アクティブは pending フラグを立てて遅延
   useEffect(() => {
