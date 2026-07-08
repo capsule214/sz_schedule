@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import SpreadsheetGrid from './SpreadsheetGrid';
 import DisplaySettingsDrawer from './DisplaySettingsDrawer';
 import { apiArray, apiJson } from '../lib/api';
+import { loadKisyuMaster } from '../lib/kisyuMaster';
+import { loadTeamMaster } from '../lib/teamMaster';
+import { loadTaskMaster } from '../lib/taskMaster';
 import GridNavBar from './GridNavBar';
 import GridTabBar from './GridTabBar';
 import GridTabPane from './GridTabPane';
@@ -118,10 +121,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     const entries = await Promise.all(missing.map(async (key) => {
       if (key === 'serials') return [key, await apiArray('/serial')];
       if (key === 'workers') return [key, await apiArray('/worker')];
-      if (key === 'tasks') return [key, await apiArray('/task')];
+      if (key === 'tasks') return [key, await loadTaskMaster()];
       if (key === 'resources') return [key, await apiArray('/resource')];
-      if (key === 'kisyus') return [key, await apiArray('/serial/kisyu')];
-      if (key === 'teams') return [key, await apiArray('/worker/team')];
+      if (key === 'kisyus') return [key, await loadKisyuMaster()];
+      if (key === 'teams') return [key, await loadTeamMaster()];
       if (key === 'dprMachines') return [key, await apiArray('/dpr/machines')];
       if (key === 'dprSalesLocations') return [key, await apiArray('/dpr/locations')];
       if (key === 'dprPublicationYears') return [key, await apiArray('/dpr/years')];

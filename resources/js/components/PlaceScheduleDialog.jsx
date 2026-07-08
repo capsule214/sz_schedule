@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DatePicker from './DatePicker';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray } from '../lib/api';
+import { loadKisyuMaster } from '../lib/kisyuMaster';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 
 function toDateStr(dateStr, hm) {
@@ -85,7 +86,7 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([apiArray('/serial/kisyu'), apiArray('/serial')])
+    Promise.all([loadKisyuMaster(), apiArray('/serial')])
       .then(([kisyus, serialData]) => {
         if (cancelled) return;
         setKisyuList(kisyus);

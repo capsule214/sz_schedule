@@ -3,6 +3,9 @@ import DatePicker from './DatePicker';
 import SerialScheduleQaArea from './SerialScheduleQaArea';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray, apiJson } from '../lib/api';
+import { loadKisyuMaster } from '../lib/kisyuMaster';
+import { loadTeamMaster } from '../lib/teamMaster';
+import { loadTaskMaster } from '../lib/taskMaster';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 import { loadExcludedDays, saveExcludedDays, splitScheduleByExcludedDays } from '../lib/scheduleExclusions';
 
@@ -81,7 +84,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     let cancelled = false;
     setLoading(true);
     setError('');
-    Promise.all([apiArray('/task'), apiArray('/worker/team')])
+    Promise.all([loadTaskMaster(), loadTeamMaster()])
       .then(([taskData, teamData]) => {
         if (cancelled) return;
         setTasks(taskData);
@@ -97,7 +100,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     if (kisyuListFetched) return;
     setKisyuListFetched(true);
     try {
-      setKisyuList(await apiArray('/serial/kisyu'));
+      setKisyuList(await loadKisyuMaster());
     } catch {
       setKisyuListFetched(false);
       setError('機種リストの取得に失敗しました');

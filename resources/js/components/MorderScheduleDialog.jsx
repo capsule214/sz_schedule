@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import DatePicker from './DatePicker';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray, apiJson } from '../lib/api';
+import { loadTeamMaster } from '../lib/teamMaster';
+import { loadTaskMaster } from '../lib/taskMaster';
 import { TIME_SLOTS } from '../lib/spreadsheet';
 import { loadExcludedDays, saveExcludedDays, splitScheduleByExcludedDays } from '../lib/scheduleExclusions';
 
@@ -65,8 +67,8 @@ export default function MorderScheduleDialog({ plan, gridMode, initialData, onSa
     setLoading(true);
     setError('');
     Promise.all([
-      apiArray('/task'),
-      apiArray('/worker/team'),
+      loadTaskMaster(),
+      loadTeamMaster(),
       apiArray(`/morder?order_type_id=${orderTypeId}`),
     ])
       .then(([taskData, teamData, morderData]) => {
