@@ -15,9 +15,12 @@ use Illuminate\Validation\ValidationException;
 
 class PlanController extends Controller
 {
-  private function planRelations(): array
+  private function planRelations(bool $includeMorder = true): array
   {
-    return ['kd_serial.dm_kisyu.dm_equip', 'kd_serial.km_koujun_details', 'kd_morder', 'km_task', 'km_worker'];
+    $relations = ['kd_serial.dm_kisyu.dm_equip', 'kd_serial.km_koujun_details', 'km_task', 'km_worker'];
+    if ($includeMorder) $relations[] = 'kd_morder';
+
+    return $relations;
   }
 
   private function planRules(): array
@@ -100,7 +103,7 @@ class PlanController extends Controller
     $kisyu = $serial ? $serial->dm_kisyu : null;
     $task = $plan->km_task;
     $worker = $plan->km_worker;
-    $morder = $plan->kd_morder;
+    $morder = $plan->relationLoaded('kd_morder') ? $plan->kd_morder : null;
     $isSyoyoTask = false;
     if ($serial && (int) $serial->flg_syoyo !== 0) {
       $isSyoyoTask = $serial->km_koujun_details
@@ -312,7 +315,8 @@ class PlanController extends Controller
     ]);
     $isMorderDisplay = ($data['product_display'] ?? 'serial') === 'morder';
 
-    $query = KdPlan::with($this->planRelations())
+    $includeMorder = ($mode === 'device' || $mode === 'task') && $isMorderDisplay;
+    $query = KdPlan::with($this->planRelations($includeMorder))
       ->where('deleted', 0)
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
