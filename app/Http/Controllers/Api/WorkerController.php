@@ -69,20 +69,13 @@ class WorkerController extends Controller
       $endDate = $data['end_date'];
       $excludePlanId = $data['exclude_plan_id'] ?? null;
 
-      $busyWorkerIds = KdPlan::query()
+      $query->whereNotIn('worker_id', KdPlan::query()
+        ->select('worker_id')
         ->where('deleted', 0)
         ->whereNotNull('worker_id')
         ->where('start_date', '<', $endDate)
         ->where('end_date', '>', $startDate)
-        ->when($excludePlanId, fn ($q) => $q->where('plan_id', '<>', $excludePlanId))
-        ->pluck('worker_id')
-        ->filter()
-        ->values()
-        ->all();
-
-      if (! empty($busyWorkerIds)) {
-        $query->whereNotIn('worker_id', $busyWorkerIds);
-      }
+        ->when($excludePlanId, fn ($q) => $q->where('plan_id', '<>', $excludePlanId)));
     }
 
     if (! empty($data['qualified']) && ! empty($data['task_id'])) {
@@ -98,15 +91,11 @@ class WorkerController extends Controller
         : 0;
 
       if ($qualificationCount > 0) {
-        $qualifiedWorkerIds = KmSkillmap::query()
+        $query->whereIn('worker_id', KmSkillmap::query()
+          ->select('worker_id')
           ->where('kisyu_id', $kisyuId)
           ->where('task_id', $data['task_id'])
-          ->where('skill_level', '>', 0)
-          ->pluck('worker_id')
-          ->values()
-          ->all();
-
-        $query->whereIn('worker_id', $qualifiedWorkerIds);
+          ->where('skill_level', '>', 0));
       }
     }
 

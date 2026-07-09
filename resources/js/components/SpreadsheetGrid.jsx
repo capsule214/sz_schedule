@@ -312,7 +312,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       // 担当者タブは teamId → workerId 昇順固定
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
-      return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName, userNo: wr.userNo }));
+      return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName, teamId: wr.teamId, userNo: wr.userNo }));
     }
   }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
@@ -534,11 +534,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
   }, [settingsReady, mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const buildVisibleFilterBody = useCallback((groupIds) => {
-    const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
+  const buildVisibleFilterBody = useCallback((groups) => {
+    const groupList = (groups || []).map(g => (g && typeof g === 'object') ? g : { id: g });
+    const ids = [...new Set(groupList.map(g => Number(g.id)).filter(Number.isFinite))];
     if (ids.length === 0) return null;
-    if (mode === 'device') return isMorderDevice ? { morder_ids: ids } : { serial_ids: ids };
-    if (mode === 'worker') return { worker_ids: ids };
+    if (mode === 'device') {
+      if (isMorderDevice) return { morder_ids: ids };
+      const kisyuIds = [...new Set(groupList.map(g => Number(g.kisyuId)).filter(Number.isFinite))];
+      return kisyuIds.length > 0 ? { kisyu_ids: kisyuIds } : { serial_ids: ids };
+    }
+    if (mode === 'worker') {
+      const teamIds = [...new Set(groupList.map(g => Number(g.teamId)).filter(Number.isFinite))];
+      return teamIds.length > 0 ? { team_ids: teamIds } : { worker_ids: ids };
+    }
     if (mode === 'task') return { task_ids: ids };
     return { resource_ids: ids };
   }, [mode, isMorderDevice]);
@@ -593,12 +601,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setPlans([]);
   }, [settingsReady, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchLocationOverlayPlans = useCallback(async (from, to, groupIds = []) => {
-    const ids = [...new Set(groupIds.map(Number).filter(Number.isFinite))];
-    if (ids.length === 0 || isMorderDevice) return;
+  const fetchLocationOverlayPlans = useCallback(async (from, to, groups = []) => {
+    const groupList = (groups || []).map(g => (g && typeof g === 'object') ? g : { id: g });
+    const ids = [...new Set(groupList.map(g => Number(g.id)).filter(Number.isFinite))];
+    const visibleKisyuIds = [...new Set(groupList.map(g => Number(g.kisyuId)).filter(Number.isFinite))];
+    if ((ids.length === 0 && visibleKisyuIds.length === 0) || isMorderDevice) return;
     const filter = buildFilterBody();
-    const body = { show_finished: filter.show_finished, serial_ids: ids };
-    if (filter.kisyu_ids) body.kisyu_ids = filter.kisyu_ids;
+    const body = { show_finished: filter.show_finished };
+    if (visibleKisyuIds.length > 0) body.kisyu_ids = visibleKisyuIds;
+    else body.serial_ids = ids;
+    if (filter.kisyu_ids) body.kisyu_ids = body.kisyu_ids
+      ? body.kisyu_ids.filter(id => filter.kisyu_ids.includes(id))
+      : filter.kisyu_ids;
+    if (body.kisyu_ids && body.kisyu_ids.length === 0) return;
     const key = JSON.stringify({ mode: 'place-overlay', from, to, body });
     if (fetchedLocKeysRef.current.has(key)) return;
     fetchedLocKeysRef.current.add(key);
@@ -903,15 +918,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const visColStart = Math.max(0, Math.floor(scrollLeft / colW) - 2);
   const visColEnd   = Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW) + 2);
 
-  const visibleGroupIds = useMemo(() => {
-    const ids = [];
+  const visibleGroups = useMemo(() => {
+    const groups = [];
     for (const g of layoutGroups) {
       const groupEndRow = g.startRow + g.numRows - 1;
       if (g.startRow <= visRowEnd && groupEndRow >= visRowStart && !g.isUnassigned) {
-        ids.push(g.id);
+        groups.push(g);
       }
     }
-    return ids;
+    return groups;
   }, [layoutGroups, visRowStart, visRowEnd]);
 
   const visibleFetchRange = useMemo(() => {
@@ -948,14 +963,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (!settingsReady || !active) return;
     const timer = setTimeout(() => {
-      fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
+      fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroups);
       if (extraLocationRow) {
-        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroupIds);
+        fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroups);
       }
       fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
     }, 250);
     return () => clearTimeout(timer);
-  }, [settingsReady, active, visibleFetchRange, visibleGroupIds, devicePagedGroups.length, deviceGroupOffset, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
+  }, [settingsReady, active, visibleFetchRange, visibleGroups, devicePagedGroups.length, deviceGroupOffset, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
 
   // タブ復帰時にスクロール位置/state を再同期し、可視範囲計算のズレによる白画面化を防ぐ
   useEffect(() => {

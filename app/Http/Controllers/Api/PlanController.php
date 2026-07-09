@@ -8,8 +8,6 @@ use App\Models\KdPlan;
 use App\Models\KdSerial;
 use App\Models\KmQualification;
 use App\Models\KmSkillmap;
-use App\Models\KmTeam;
-use App\Models\KmWorker;
 use App\Models\KsSystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -166,23 +164,31 @@ class PlanController extends Controller
 
   private function applyWorkerModeFilter($query, array $data): void
   {
-    $workerIds = [];
-    if (! empty($data['worker_ids'])) {
-      $workerIds = array_merge($workerIds, $data['worker_ids']);
-    }
-    if (! empty($data['team_szgroup_id'])) {
-      $teamIds = KmTeam::where('equip_group_id', $data['team_szgroup_id'])->pluck('team_id');
-      $workerIds = array_merge($workerIds, KmWorker::whereIn('team_id', $teamIds)->pluck('worker_id')->all());
-    }
-    if (! empty($data['team_ids'])) {
-      $workerIds = array_merge($workerIds, KmWorker::whereIn('team_id', $data['team_ids'])->pluck('worker_id')->all());
-    }
-    $workerIds = array_values(array_unique(array_map('intval', $workerIds)));
+    $hasAssignedWorkerFilter = ! empty($data['worker_ids'])
+      || ! empty($data['team_szgroup_id'])
+      || ! empty($data['team_ids']);
+    $applyAssignedWorkerFilter = function ($q) use ($data) {
+      $q->where(function ($wq) use ($data) {
+        if (! empty($data['worker_ids'])) {
+          $wq->orWhereIn('worker_id', $data['worker_ids']);
+        }
+        if (! empty($data['team_ids'])) {
+          $wq->orWhereHas('km_worker', function ($workerQuery) use ($data) {
+            $workerQuery->whereIn('team_id', $data['team_ids']);
+          });
+        }
+        if (! empty($data['team_szgroup_id'])) {
+          $wq->orWhereHas('km_worker.km_team', function ($teamQuery) use ($data) {
+            $teamQuery->where('equip_group_id', $data['team_szgroup_id']);
+          });
+        }
+      });
+    };
 
     if (! empty($data['show_unassigned_worker'])) {
-      $query->where(function ($q) use ($workerIds, $data) {
-        if (! empty($workerIds)) {
-          $q->whereIn('worker_id', $workerIds)
+      $query->where(function ($q) use ($hasAssignedWorkerFilter, $applyAssignedWorkerFilter, $data) {
+        if ($hasAssignedWorkerFilter) {
+          $q->where($applyAssignedWorkerFilter)
             ->orWhere(function ($uq) use ($data) {
               $this->applyUnassignedWorkerCondition($uq, $data);
             });
@@ -196,10 +202,8 @@ class PlanController extends Controller
       return;
     }
 
-    if (! empty($workerIds)) {
-      $query->whereIn('worker_id', $workerIds);
-    } elseif (! empty($data['worker_ids']) || ! empty($data['team_szgroup_id']) || ! empty($data['team_ids'])) {
-      $query->whereRaw('1 = 0');
+    if ($hasAssignedWorkerFilter) {
+      $query->where($applyAssignedWorkerFilter);
     }
   }
 
