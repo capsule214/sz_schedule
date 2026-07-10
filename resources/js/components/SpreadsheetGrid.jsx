@@ -545,6 +545,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [settingsReady, mode, isMorderDevice, displaySettings, DEVICE_GROUP_PAGE_SIZE, mapSerialToDeviceGroup, mapMorderToGroup, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildVisibleFilterBody = useCallback((groups) => {
+    if (Array.isArray(groups) && groups.length === 1 && groups[0] && typeof groups[0] === 'object') {
+      const body = groups[0];
+      if (body.serial_ids || body.kisyu_ids || body.morder_ids || body.worker_ids || body.team_ids || body.task_ids || body.resource_ids) {
+        return body;
+      }
+    }
     const groupList = (groups || []).map(g => (g && typeof g === 'object') ? g : { id: g });
     const ids = [...new Set(groupList.map(g => Number(g.id)).filter(Number.isFinite))];
     if (ids.length === 0) return null;
@@ -939,6 +945,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     return groups;
   }, [layoutGroups, visRowStart, visRowEnd]);
 
+  const visibleFilterBody = useMemo(
+    () => buildVisibleFilterBody(visibleGroups),
+    [buildVisibleFilterBody, visibleGroups],
+  );
+  const visibleFilterKey = useMemo(
+    () => JSON.stringify(visibleFilterBody || {}),
+    [visibleFilterBody],
+  );
+
   const visibleFetchRange = useMemo(() => {
     const from = colToDateStr(startDate, Math.max(0, Math.floor(scrollLeft / colW)), viewMode);
     const to = colToDateStr(startDate, Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW)), viewMode);
@@ -973,14 +988,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (!settingsReady || !active) return;
     const timer = setTimeout(() => {
-      fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroups);
+      fetchPlans(visibleFetchRange.from, visibleFetchRange.to, visibleFilterBody ? [visibleFilterBody] : []);
       if (extraLocationRow) {
         fetchLocationOverlayPlans(visibleFetchRange.from, visibleFetchRange.to, visibleGroups);
       }
       fetchCalendar(visibleFetchRange.from, visibleFetchRange.to);
     }, 250);
     return () => clearTimeout(timer);
-  }, [settingsReady, active, visibleFetchRange, visibleGroups, devicePagedGroups.length, deviceGroupOffset, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
+  }, [settingsReady, active, visibleFetchRange, visibleFilterKey, devicePagedGroups.length, deviceGroupOffset, extraLocationRow, fetchPlans, fetchLocationOverlayPlans, fetchCalendar, fetchVersion]);
 
   // タブ復帰時にスクロール位置/state を再同期し、可視範囲計算のズレによる白画面化を防ぐ
   useEffect(() => {
