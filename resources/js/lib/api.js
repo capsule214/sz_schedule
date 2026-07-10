@@ -13,6 +13,7 @@ function getCookie(name) {
 
 let csrfInitialized = false;
 let unauthorizedDispatched = false;
+let lastErrorDispatchedAt = 0;
 
 function isLoginRedirectResponse(res) {
   const contentType = res.headers.get('Content-Type') || '';
@@ -26,18 +27,49 @@ function dispatchUnauthorized() {
   window.dispatchEvent(new CustomEvent('api:unauthorized'));
 }
 
+function shouldDispatchUnauthorized(path) {
+  return path !== '/me' && path !== '/login';
+}
+
+function dispatchApiError(message = '処理ができませんでした') {
+  const now = Date.now();
+  if (now - lastErrorDispatchedAt < 500) return;
+  lastErrorDispatchedAt = now;
+  window.dispatchEvent(new CustomEvent('api:error', { detail: { message } }));
+}
+
+function createApiError(message, status = null, data = null) {
+  const error = new Error(message);
+  error.status = status;
+  error.data = data;
+  return error;
+}
+
 export function resetUnauthorizedState() {
   unauthorizedDispatched = false;
 }
 
 export async function initCsrf() {
   if (csrfInitialized) return;
-  const res = await fetch('/csrf-cookie', {
-    credentials: 'include',
-    headers: { 'Accept': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`CSRF initialization failed: ${res.status}`);
-  csrfInitialized = true;
+  try {
+    const res = await fetch('/csrf-cookie', {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      const error = createApiError(`CSRF initialization failed: ${res.status}`, res.status);
+      if (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res)) {
+        dispatchUnauthorized();
+      } else {
+        dispatchApiError();
+      }
+      throw error;
+    }
+    csrfInitialized = true;
+  } catch (e) {
+    if (e?.status !== 401 && e?.status !== 419) dispatchApiError();
+    throw e;
+  }
 }
 
 function buildHeaders(options = {}) {
@@ -61,14 +93,25 @@ async function sendApiRequest(path, options = {}) {
 export async function apiFetch(path, options = {}) {
   await initCsrf();
 
-  let res = await sendApiRequest(path, options);
+  let res;
+  try {
+    res = await sendApiRequest(path, options);
+  } catch (e) {
+    dispatchApiError();
+    throw e;
+  }
   if (res.status === 419) {
     csrfInitialized = false;
     await initCsrf();
-    res = await sendApiRequest(path, options);
+    try {
+      res = await sendApiRequest(path, options);
+    } catch (e) {
+      dispatchApiError();
+      throw e;
+    }
   }
 
-  if (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res)) {
+  if (shouldDispatchUnauthorized(path) && (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res))) {
     dispatchUnauthorized();
   }
   return res;
@@ -77,15 +120,12 @@ export async function apiFetch(path, options = {}) {
 export async function apiJson(path, options = {}) {
   const res = await apiFetch(path, options);
   if (res.status === 401 || res.status === 419 || isLoginRedirectResponse(res)) {
-    const error = new Error('ログインが必要です');
-    error.status = res.status === 419 ? 419 : 401;
-    throw error;
+    throw createApiError('ログインが必要です', res.status === 419 ? 419 : 401);
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const error = new Error(data?.message ?? `API request failed: ${res.status}`);
-    error.status = res.status;
-    error.data = data;
+    const error = createApiError(data?.message ?? `API request failed: ${res.status}`, res.status, data);
+    dispatchApiError();
     throw error;
   }
   return data;
