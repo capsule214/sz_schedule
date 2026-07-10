@@ -340,12 +340,18 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     if (mode !== 'worker' || !displaySettings.synobody) return result;
 
-    // 担当者未定の予定（workerId が NULL/0以下）を製番別にグループ化して末尾に追加
+    // 担当者未定の予定（workerId が NULL/0以下）を製番/M番/直送DPR別にグループ化して末尾に追加
     const unassignedPlans = activePlans.filter(p => p.workerId == null || Number(p.workerId) <= 0);
     const serialMap = new Map();
+    const morderMap = new Map();
     for (const plan of unassignedPlans) {
-      if (!serialMap.has(plan.serialId)) serialMap.set(plan.serialId, []);
-      serialMap.get(plan.serialId).push(plan);
+      if (Number(plan.morderId) > 0) {
+        if (!morderMap.has(plan.morderId)) morderMap.set(plan.morderId, []);
+        morderMap.get(plan.morderId).push(plan);
+      } else if (Number(plan.serialId) > 0) {
+        if (!serialMap.has(plan.serialId)) serialMap.set(plan.serialId, []);
+        serialMap.get(plan.serialId).push(plan);
+      }
     }
 
     const sortedSerialIds = [...serialMap.keys()].sort((a, b) => {
@@ -360,9 +366,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     let uaStartRow = result.totalRows;
     const extraGroups = [];
-    for (const serialId of sortedSerialIds) {
-      const uaPlans = serialMap.get(serialId);
-      const serial = serials.find(s => s.serialId === serialId);
+    const pushUnassignedGroup = (group) => {
+      const { plans: uaPlans } = group;
       const sorted = [...uaPlans].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
       const unassignedMinRows = 1;
       const rows = Array.from({ length: unassignedMinRows }, () => null);
@@ -380,9 +385,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       const numRows = Math.max(unassignedMinRows, rows.length);
       extraGroups.push({
-        id: `ua-${serialId}`,
-        kisyuName: serial?.kisyuName || uaPlans[0]?.kisyuName || '',
-        serialNo: serial?.serialNo || uaPlans[0]?.serialNo || '',
+        ...group,
         isUnassigned: true,
         teamName: '',
         startRow: uaStartRow,
@@ -393,6 +396,45 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         locationPlans: [],
       });
       uaStartRow += numRows;
+    };
+
+    for (const serialId of sortedSerialIds) {
+      const uaPlans = serialMap.get(serialId);
+      const serial = serials.find(s => s.serialId === serialId);
+      pushUnassignedGroup({
+        id: `ua-serial-${serialId}`,
+        unassignedKind: 'serial',
+        kisyuName: serial?.kisyuName || uaPlans[0]?.kisyuName || '',
+        serialNo: serial?.serialNo || uaPlans[0]?.serialNo || '',
+        plans: uaPlans,
+      });
+    }
+
+    const sortedMorderIds = [...morderMap.keys()].sort((a, b) => {
+      const pa = morderMap.get(a)?.[0] || {};
+      const pb = morderMap.get(b)?.[0] || {};
+      const oa = Number(pa.morderOrderTypeId || 0);
+      const ob = Number(pb.morderOrderTypeId || 0);
+      const rank = (orderTypeId) => orderTypeId === 21 ? 0 : orderTypeId === 11 ? 1 : 2;
+      const rc = rank(oa) - rank(ob);
+      if (rc !== 0) return rc;
+      return String(pa.morderNo || '').localeCompare(String(pb.morderNo || ''), 'ja', { numeric: true });
+    });
+    for (const morderId of sortedMorderIds) {
+      const uaPlans = morderMap.get(morderId);
+      const sample = uaPlans[0] || {};
+      const orderTypeId = Number(sample.morderOrderTypeId || 0);
+      pushUnassignedGroup({
+        id: `ua-morder-${morderId}`,
+        unassignedKind: orderTypeId === 11 ? 'dpr' : 'morder',
+        morderId,
+        morderOrderTypeId: orderTypeId || null,
+        morderOrderTypeName: sample.morderOrderTypeName || '',
+        morderNo: sample.morderNo || '',
+        kisyuName: orderTypeId === 11 ? '直送DPR' : 'M番',
+        serialNo: sample.morderNo || '',
+        plans: uaPlans,
+      });
     }
     return { groups: [...result.groups, ...extraGroups], totalRows: uaStartRow };
   }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice, deviceGroupOffset, deviceGroupTotal]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1820,9 +1862,18 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       badges = rowBadges;
     } else if (mode === 'worker') {
       title = '担当者詳細';
-      rows = group.isUnassigned
-        ? [['区分', '担当者未定'], ['機種', group.kisyuName], ['製番', group.serialNo], ['表示予定件数', planCount]]
-        : [['チーム', group.teamName], ['担当者', group.workerName], ['表示予定件数', planCount]];
+      if (group.isUnassigned && (group.unassignedKind === 'morder' || group.unassignedKind === 'dpr')) {
+        rows = [
+          ['区分', '担当者未定'],
+          ['製品区分', group.unassignedKind === 'dpr' ? '直送DPR' : 'M番'],
+          ['M番', group.morderNo],
+          ['表示予定件数', planCount],
+        ];
+      } else {
+        rows = group.isUnassigned
+          ? [['区分', '担当者未定'], ['機種', group.kisyuName], ['製番', group.serialNo], ['表示予定件数', planCount]]
+          : [['チーム', group.teamName], ['担当者', group.workerName], ['表示予定件数', planCount]];
+      }
     } else if (mode === 'task') {
       title = 'タスク詳細';
       rows = [['プロセス', group.processName], ['タスク', group.taskName], ['表示予定件数', planCount]];

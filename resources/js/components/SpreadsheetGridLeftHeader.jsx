@@ -122,10 +122,10 @@ export default function SpreadsheetGridLeftHeader({
         ) : mode === 'worker' ? (
           <div style={{ display: 'flex', width: '100%', height: '100%' }}>
             <div style={{ width: lcw('team'), borderRight: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
-              {g.isUnassigned ? g.kisyuName : (g.teamName || '-')}
+              {g.isUnassigned ? (g.unassignedKind === 'morder' ? 'M番' : g.unassignedKind === 'dpr' ? '直送DPR' : g.kisyuName) : (g.teamName || '-')}
             </div>
             <div style={{ width: lcw('name'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', boxSizing: 'border-box' }}>
-              {g.isUnassigned ? g.serialNo : g.workerName}
+              {g.isUnassigned ? (g.unassignedKind === 'morder' || g.unassignedKind === 'dpr' ? g.morderNo : g.serialNo) : g.workerName}
             </div>
           </div>
         ) : mode === 'place' ? (

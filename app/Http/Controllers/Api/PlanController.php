@@ -152,13 +152,28 @@ class PlanController extends Controller
         $q->whereNull('worker_id')
           ->orWhere('worker_id', '<=', 0);
       })
-      ->whereHas('kd_serial', function ($q) use ($data) {
-        $q->where('deleted', 0)
-          ->where('flg_public', 1);
+      ->where(function ($productQuery) use ($data) {
+        $productQuery
+          ->whereHas('kd_serial', function ($q) use ($data) {
+            $q->where('deleted', 0)
+              ->where('flg_public', 1);
 
-        if (! empty($data['team_szgroup_id'])) {
-          $q->where('seizo_group_id', $data['team_szgroup_id']);
-        }
+            if (! empty($data['team_szgroup_id'])) {
+              $q->where('seizo_group_id', $data['team_szgroup_id']);
+            }
+          })
+          ->orWhere(function ($morderPlanQuery) use ($data) {
+            $morderPlanQuery
+              ->where('morder_id', '>', 0)
+              ->whereHas('kd_morder', function ($q) use ($data) {
+                $q->where('deleted', 0)
+                  ->where('flg_public', 1);
+
+                if (! empty($data['team_szgroup_id'])) {
+                  $q->where('equip_group_id', $data['team_szgroup_id']);
+                }
+              });
+          });
       })
       ->whereHas('km_task', function ($q) {
         $q->whereIn('task_type_id', [1, 3]);
@@ -315,7 +330,8 @@ class PlanController extends Controller
     ]);
     $isMorderDisplay = ($data['product_display'] ?? 'serial') === 'morder';
 
-    $includeMorder = ($mode === 'device' || $mode === 'task') && $isMorderDisplay;
+    $includeMorder = (($mode === 'device' || $mode === 'task') && $isMorderDisplay)
+      || ($mode === 'worker' && ! empty($data['show_unassigned_worker']));
     $query = KdPlan::with($this->planRelations($includeMorder))
       ->where('deleted', 0)
       ->where('start_date', '<=', $data['to'])
@@ -337,8 +353,17 @@ class PlanController extends Controller
     // morder 予定やセンチネル（serial_id <= 0）は製番を持たないため対象外とする。
     if (empty($data['show_finished'])) {
       $query->where(function ($q) {
-        $q->where('serial_id', '<=', 0)
-          ->orWhereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'));
+        $q->where(function ($sentinel) {
+            $sentinel->where('serial_id', '<=', 0)
+              ->where(function ($morder) {
+                $morder->whereNull('morder_id')
+                  ->orWhere('morder_id', '<=', 0);
+              });
+          })
+          ->orWhereIn('serial_id', KdSerial::where('flg_finish', 0)->select('serial_id'))
+          ->orWhereHas('kd_morder', function ($morder) {
+            $morder->where('flg_finish', 0);
+          });
       });
     }
 
