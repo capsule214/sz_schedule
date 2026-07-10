@@ -20,11 +20,23 @@ export default function SpreadsheetGridToolbar({
   workerSearchText = '',
   onWorkerSearchTextChange,
   onWorkerSearch,
+  onRefresh,
+  lastUpdatedAt,
   pllocation,
   onPlLocationChange,
   resources,
 }) {
   const [dateDialogOpen, setDateDialogOpen] = useState(false);
+  const updatedAtLabel = lastUpdatedAt
+    ? new Intl.DateTimeFormat('ja-JP', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(lastUpdatedAt)
+    : '未更新';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexShrink: 0, flexWrap: 'wrap' }}>
@@ -126,6 +138,8 @@ export default function SpreadsheetGridToolbar({
           <button onClick={onSerialSearch} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>検索</button>
         </>
       )}
+      <button onClick={onRefresh} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>再描画</button>
+      <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>表示更新 {updatedAtLabel}</span>
     </div>
   );
 }

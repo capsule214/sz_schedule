@@ -135,6 +135,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [containerW, setContainerW] = useState(1200);
   const [fetchVersion, setFetchVersion] = useState(0);
   const [gridFetchCount, setGridFetchCount] = useState(0);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const gridFetchCountRef = useRef(0);
+  const scheduleFetchCountRef = useRef(0);
 
   const dragRef = useRef(null);
   const [rectSelect, setRectSelect] = useState(null); // {absX1,absY1,absX2,absY2} in content coords
@@ -494,9 +497,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     publicRemark: m.publicRemark || '',
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const beginGridFetch = useCallback(() => {
-    setGridFetchCount(count => count + 1);
-    return () => setGridFetchCount(count => Math.max(0, count - 1));
+  const beginGridFetch = useCallback((countsForUpdatedAt = true) => {
+    gridFetchCountRef.current += 1;
+    if (countsForUpdatedAt) scheduleFetchCountRef.current += 1;
+    setGridFetchCount(gridFetchCountRef.current);
+    return () => {
+      gridFetchCountRef.current = Math.max(0, gridFetchCountRef.current - 1);
+      if (countsForUpdatedAt) scheduleFetchCountRef.current = Math.max(0, scheduleFetchCountRef.current - 1);
+      setGridFetchCount(gridFetchCountRef.current);
+      if (countsForUpdatedAt && scheduleFetchCountRef.current === 0) setLastUpdatedAt(new Date());
+    };
   }, []);
 
   const fetchDeviceGroups = useCallback(async (offset, q = '') => {
@@ -516,7 +526,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     const endpoint = isMorderDevice ? '/morder/groups' : '/serial/device-groups';
     const mapper = isMorderDevice ? mapMorderToGroup : mapSerialToDeviceGroup;
-    const endGridFetch = beginGridFetch();
+    const endGridFetch = beginGridFetch(false);
     try {
       const data = await apiJson(endpoint, {
         method: 'POST',
@@ -1688,6 +1698,18 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setFetchVersion(v => v + 1);
   }
 
+  const handleRefresh = useCallback(() => {
+    if (isDirty) {
+      showToast('未保存の変更があるため再描画できません');
+      return;
+    }
+    fetchedPlanKeysRef.current = new Set();
+    fetchedLocKeysRef.current = new Set();
+    setPlans([]);
+    setLocationOverlayPlans([]);
+    setFetchVersion(v => v + 1);
+  }, [isDirty]);
+
   const handleShiftMonth = useCallback((months) => {
     const d = new Date(startDate + 'T00:00:00');
     d.setMonth(d.getMonth() + months);
@@ -1836,6 +1858,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         workerSearchText={workerSearchText}
         onWorkerSearchTextChange={setWorkerSearchText}
         onWorkerSearch={handleWorkerSearch}
+        onRefresh={handleRefresh}
+        lastUpdatedAt={lastUpdatedAt}
         pllocation={pllocation}
         onPlLocationChange={setPllocation}
         resources={resources}
