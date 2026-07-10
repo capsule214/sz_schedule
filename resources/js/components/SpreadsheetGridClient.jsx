@@ -23,8 +23,19 @@ function setCookie(name, value, days = 365) {
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
 }
 
+const GRID_TABS = ['device', 'worker', 'place', 'task'];
+
 function displaySettingsCookieName(user) {
   return `active_display_setting_no_${encodeURIComponent(user?.email || 'default')}`;
+}
+
+function activeTabCookieName(user) {
+  return `active_grid_tab_${encodeURIComponent(user?.email || 'default')}`;
+}
+
+function loadActiveTab(user) {
+  const saved = getCookie(activeTabCookieName(user));
+  return GRID_TABS.includes(saved) ? saved : 'device';
 }
 
 function pickDisplaySettings(apiPayload, activeNo) {
@@ -47,7 +58,7 @@ function pickDisplaySettings(apiPayload, activeNo) {
 }
 
 export default function SpreadsheetGridClient({ user, onLogout }) {
-  const [tab, setTab] = useState('device');
+  const [tab, setTab] = useState(() => loadActiveTab(user));
   const [serials, setSerials] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -112,6 +123,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const hasMastersForMode = useCallback((mode) => (
     (masterRequirements[mode] || []).every(key => loadedMasters[key])
   ), [loadedMasters, masterRequirements]);
+
+  useEffect(() => {
+    setCookie(activeTabCookieName(user), tab);
+  }, [tab, user]);
 
   const ensureMasters = useCallback(async (keys) => {
     const dataByKey = { serials, workers, tasks, resources, kisyus, teams, dprMachines, dprSalesLocations, dprPublicationYears };
