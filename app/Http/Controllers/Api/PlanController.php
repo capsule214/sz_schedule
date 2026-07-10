@@ -154,13 +154,19 @@ class PlanController extends Controller
       })
       ->where(function ($productQuery) use ($data) {
         $productQuery
-          ->whereHas('kd_serial', function ($q) use ($data) {
-            $q->where('deleted', 0)
-              ->where('flg_public', 1);
+          ->where(function ($serialPlanQuery) use ($data) {
+            $serialPlanQuery
+              ->whereHas('kd_serial', function ($q) use ($data) {
+                $q->where('deleted', 0)
+                  ->where('flg_public', 1);
 
-            if (! empty($data['team_szgroup_id'])) {
-              $q->where('seizo_group_id', $data['team_szgroup_id']);
-            }
+                if (! empty($data['team_szgroup_id'])) {
+                  $q->where('seizo_group_id', $data['team_szgroup_id']);
+                }
+              })
+              ->whereHas('km_task', function ($q) {
+                $q->whereIn('task_type_id', [1, 3]);
+              });
           })
           ->orWhere(function ($morderPlanQuery) use ($data) {
             $morderPlanQuery
@@ -174,9 +180,6 @@ class PlanController extends Controller
                 }
               });
           });
-      })
-      ->whereHas('km_task', function ($q) {
-        $q->whereIn('task_type_id', [1, 3]);
       });
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DatePicker from './DatePicker';
 import { apiArray } from '../lib/api';
 
@@ -7,6 +7,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 export default function DatePickerDialog({ open, value, title = '日付を選択', onCancel, onConfirm }) {
   const [draft, setDraft] = useState(value);
   const [calendarData, setCalendarData] = useState(new Map());
+  const dialogRef = useRef(null);
 
   useEffect(() => {
     if (open) setDraft(value);
@@ -34,10 +35,21 @@ export default function DatePickerDialog({ open, value, title = '日付を選択
     }).catch(() => {});
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event) => {
+      if (dialogRef.current?.contains(event.target)) return;
+      onCancel?.();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
 
   return (
     <div
+      ref={dialogRef}
       style={{
         position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 10000,
       }}

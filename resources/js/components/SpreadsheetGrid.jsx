@@ -1656,6 +1656,24 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     if (!targetGroup) {
+      if (mode === 'device' && isMorderDevice && Number(plan.morderId) > 0) {
+        const morderGroup = {
+          id: plan.morderId,
+          isMorder: true,
+          morderOrderTypeId: plan.morderOrderTypeId,
+          morderOrderTypeName: plan.morderOrderTypeName || MORDER_ORDER_TYPE_NAMES[Number(plan.morderOrderTypeId)] || '',
+          morderNo: plan.morderNo || '',
+          partsNo: plan.partsNo || '',
+          requiredDate: plan.morderShippingDate || null,
+          inspectionDate: null,
+          shippingDate: plan.morderShippingDate || null,
+          kouteiPicNo: plan.morderKouteiPicNo || '',
+          publicRemark: plan.publicRemark || '',
+        };
+        setDevicePagedGroups(prev => prev.some(g => Number(g.id) === Number(plan.morderId)) ? prev : [morderGroup, ...prev]);
+        setDeviceGroupTotal(prev => Math.max(prev, 1));
+        setDeviceGroupOffset(0);
+      }
       // 予定は可視範囲（日付×グループ）単位で遅延フェッチされるため、ジャンプ先タブの
       // スクロール位置や境界条件によっては対象がまだ読み込まれていないことがある。
       // ジャンプ元から受け取った予定オブジェクトを直接 plans に注入して確実に存在させ、

@@ -307,21 +307,33 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   const handleJumpToOtherTab = useCallback(async (plan, targetMode) => {
-    const useDeviceModelFilters = Number(displaySettings.sbsbmb ?? 0) !== 1;
+    const deviceProductDisplay = Number(displaySettings.sbsbmb ?? 0);
+    const planMorderOrderTypeId = Number(plan.morderOrderTypeId || 0);
+    const planIsMorder = Number(plan.morderId) > 0;
+    const requiredDeviceProductDisplay = planIsMorder
+      ? (planMorderOrderTypeId === 11 ? 2 : 1)
+      : 0;
+    const useDeviceModelFilters = deviceProductDisplay === 0;
     const sbmodellist = displaySettings.sbmodellist || [];
     const syteamlist  = displaySettings.syteamlist  || [];
 
     // ① 表示設定チェック（機種 / 担当者が表示対象か）
     if (targetMode === 'device') {
-      // 予定自体が機種ID を持つため、製番マスタ（/serial）を全件取得する必要はない
-      const kisyuId = Number(plan.kisyuId);
-      if (!kisyuId) {
-        showAlert('表示対象データがありませんでした');
+      if (deviceProductDisplay !== requiredDeviceProductDisplay) {
+        showAlert('表示対象データがありませんでした（表示設定で非表示の製品表示です）');
         return;
       }
-      if (useDeviceModelFilters && sbmodellist.length > 0 && !sbmodellist.includes(kisyuId)) {
-        showAlert('表示対象データがありませんでした（表示設定で非表示の機種です）');
-        return;
+      if (!planIsMorder) {
+        // 予定自体が機種ID を持つため、製番マスタ（/serial）を全件取得する必要はない
+        const kisyuId = Number(plan.kisyuId);
+        if (!kisyuId) {
+          showAlert('表示対象データがありませんでした');
+          return;
+        }
+        if (useDeviceModelFilters && sbmodellist.length > 0 && !sbmodellist.includes(kisyuId)) {
+          showAlert('表示対象データがありませんでした（表示設定で非表示の機種です）');
+          return;
+        }
       }
     } else if (targetMode === 'task') {
       const taskId = Number(plan.taskId);
@@ -335,14 +347,20 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         return;
       }
     } else {
-      const { workers: loadedWorkers } = await ensureMasters(['workers']);
-      const worker = loadedWorkers.find(w => w.workerId === plan.workerId);
-      if (!worker) {
-        showAlert('表示対象データがありませんでした');
-        return;
-      }
-      if (syteamlist.length > 0 && !syteamlist.includes(worker.teamId)) {
-        showAlert('表示対象データがありませんでした（表示設定で非表示のチームです）');
+      const workerId = Number(plan.workerId);
+      if (workerId > 0) {
+        const { workers: loadedWorkers } = await ensureMasters(['workers']);
+        const worker = loadedWorkers.find(w => w.workerId === workerId);
+        if (!worker) {
+          showAlert('表示対象データがありませんでした');
+          return;
+        }
+        if (syteamlist.length > 0 && !syteamlist.includes(worker.teamId)) {
+          showAlert('表示対象データがありませんでした（表示設定で非表示のチームです）');
+          return;
+        }
+      } else if (!displaySettings.synobody) {
+        showAlert('表示対象データがありませんでした（担当者未定予定が非表示です）');
         return;
       }
     }
