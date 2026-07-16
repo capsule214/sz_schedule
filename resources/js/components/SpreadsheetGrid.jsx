@@ -51,16 +51,28 @@ function isShippingTask(plan) {
   return Number(plan?.taskId) === SHIPPING_TASK_ID;
 }
 
+function isEditableMorderShippingTask(plan) {
+  const orderTypeId = Number(plan?.morderOrderTypeId);
+  return isShippingTask(plan)
+    && Number(plan?.morderId) > 0
+    && (orderTypeId === 21 || orderTypeId === 11);
+}
+
+function isReadOnlyShippingTask(plan) {
+  return isShippingTask(plan) && !isEditableMorderShippingTask(plan);
+}
+
 function isWorkerUnassignedPlan(plan, mode) {
   return mode === 'worker' && !!plan && (plan.workerId == null || Number(plan.workerId) <= 0);
 }
 
 function isReadOnlyPlan(plan, mode) {
-  return isShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
+  if (isEditableMorderShippingTask(plan)) return false;
+  return isReadOnlyShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
 }
 
 function isDialogReadOnlyPlan(plan) {
-  return isShippingTask(plan);
+  return isReadOnlyShippingTask(plan);
 }
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
