@@ -67,7 +67,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
   mode, serials, workers, tasks, resources, displaySettings, settingsReady = true,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
-  onRangeChange, onDirtyChange, onHistoryChange,
+  onRangeChange, onDirtyChange, onHistoryChange, onBeforeRedraw,
 }, ref) {
   const DEVICE_GROUP_PAGE_SIZE = 240;
   const DEVICE_GROUP_PREFETCH_ROWS = 80;
@@ -657,8 +657,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         body: JSON.stringify({ from, to, ...body }),
       });
       setPlans(prev => {
+        const deletes = pendingDeletesRef.current;
+        const updates = pendingUpdatesRef.current;
         const existingIds = new Set(prev.map(p => p.planId));
-        const newPlans = data.filter(p => !existingIds.has(p.planId));
+        const newPlans = data
+          .filter(p => !deletes.has(p.planId) && !existingIds.has(p.planId))
+          .map(p => updates.has(p.planId) ? { ...p, ...updates.get(p.planId) } : p);
         return newPlans.length ? [...prev, ...newPlans] : prev;
       });
     } catch (e) {
@@ -1792,21 +1796,29 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const handleRefresh = useCallback(() => {
     if (isDirty) {
-      showToast('未保存の変更があるため再描画できません');
+      onBeforeRedraw?.(() => handleRefreshAfterConfirm());
       return;
     }
+    handleRefreshAfterConfirm();
+  }, [isDirty, onBeforeRedraw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleRefreshAfterConfirm() {
     fetchedPlanKeysRef.current = new Set();
     fetchedLocKeysRef.current = new Set();
     setPlans([]);
     setLocationOverlayPlans([]);
     setFetchVersion(v => v + 1);
-  }, [isDirty]);
+  }
 
   const handleShiftMonth = useCallback((months) => {
-    const d = new Date(startDate + 'T00:00:00');
-    d.setMonth(d.getMonth() + months);
-    setStartDate(dateToStr(d));
-  }, [startDate]);
+    const shift = () => {
+      const d = new Date(startDate + 'T00:00:00');
+      d.setMonth(d.getMonth() + months);
+      setStartDate(dateToStr(d));
+    };
+    if (isDirty) onBeforeRedraw?.(shift);
+    else shift();
+  }, [startDate, isDirty, onBeforeRedraw]);
 
   const dateColumns = useMemo(() => {
     const cols = [];
@@ -1942,10 +1954,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <SpreadsheetGridToolbar
         startDate={startDate}
-        onStartDateChange={setStartDate}
+        onStartDateChange={(date) => {
+          if (isDirty) onBeforeRedraw?.(() => setStartDate(date));
+          else setStartDate(date);
+        }}
         onShiftMonth={handleShiftMonth}
         displayMonths={displayMonths}
-        onDisplayMonthsChange={setDisplayMonths}
+        onDisplayMonthsChange={(months) => {
+          if (isDirty) onBeforeRedraw?.(() => setDisplayMonths(months));
+          else setDisplayMonths(months);
+        }}
         deviceCount={deviceCount}
         onDeviceCountChange={setDeviceCount}
         onSeedApply={handleSeedApply}

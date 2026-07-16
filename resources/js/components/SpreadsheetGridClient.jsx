@@ -101,6 +101,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const taskGridRef     = useRef(null);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState(null);
+  const [pendingRedrawAction, setPendingRedrawAction] = useState(null);
+  const redrawPromptOpenRef = useRef(false);
   const [historyState, setHistoryState] = useState({
     device: { canUndo: false, canRedo: false },
     worker: { canUndo: false, canRedo: false },
@@ -291,6 +293,34 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setPendingTab(null);
   }
 
+  const handleBeforeRedraw = useCallback((action) => {
+    if (redrawPromptOpenRef.current) return false;
+    redrawPromptOpenRef.current = true;
+    setPendingRedrawAction(() => action);
+    return true;
+  }, []);
+
+  async function handleRedrawSave() {
+    await handleSave();
+    const action = pendingRedrawAction;
+    redrawPromptOpenRef.current = false;
+    setPendingRedrawAction(null);
+    if (action) setTimeout(action, 0);
+  }
+
+  async function handleRedrawDiscard() {
+    await handleCancel();
+    const action = pendingRedrawAction;
+    redrawPromptOpenRef.current = false;
+    setPendingRedrawAction(null);
+    if (action) setTimeout(action, 0);
+  }
+
+  function handleRedrawClose() {
+    redrawPromptOpenRef.current = false;
+    setPendingRedrawAction(null);
+  }
+
   async function saveDisplaySettings(settings, drawerTab) {
     setShowSettings(false);
     setCookie(displaySettingsCookieName(user), settings.settingNo);
@@ -422,6 +452,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     onEnsureMasters: ensureMasters,
     onJumpHandled: handleJumpHandled,
     onJumpError: handleJumpError,
+    onBeforeRedraw: handleBeforeRedraw,
     onHistoryChange: (mode, state) => setHistoryState(prev => ({ ...prev, [mode]: state })),
   };
   const activeHistory = historyState[tab] || { canUndo: false, canRedo: false };
@@ -517,6 +548,16 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             onSave={handleConfirmSave}
             onDiscard={handleConfirmDiscard}
             onClose={() => setPendingTab(null)}
+          />
+        )}
+        {pendingRedrawAction !== null && (
+          <UnsavedChangesDialog
+            message="表示を更新する前に、変更内容を保存するか破棄してください。"
+            saveLabel="保存して表示を更新"
+            discardLabel="変更を破棄して表示を更新"
+            onSave={handleRedrawSave}
+            onDiscard={handleRedrawDiscard}
+            onClose={handleRedrawClose}
           />
         )}
       </div>
