@@ -129,6 +129,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const fetchedCalendarRangesRef = useRef([]);
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
+  const dateHeaderRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [containerH, setContainerH] = useState(600);
@@ -200,6 +201,22 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     el.scrollTop += e.deltaY;
     el.scrollLeft += e.deltaX;
   }, []);
+
+  // 日付・曜日ヘッダーでは縦ホイール操作を横スクロールとして扱う
+  useEffect(() => {
+    const header = dateHeaderRef.current;
+    if (!header) return undefined;
+
+    const handleWheel = (e) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaX + e.deltaY;
+    };
+
+    header.addEventListener('wheel', handleWheel, { passive: false });
+    return () => header.removeEventListener('wheel', handleWheel);
+  }, [active]);
 
   // 場所タブのフロアフィルタ（ローカル状態、displaySettings.pllocation で初期化）
   const [pllocation, setPllocation] = useState(() => displaySettings?.pllocation ?? null);
@@ -2071,7 +2088,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             {active && (
               <>
                 {/* ヘッダー (sticky) */}
-                <div style={{ position: 'sticky', top: 0, height: TOTAL_HDR_H, zIndex: 15, background: '#f3f4f6' }}>
+                <div
+                  ref={dateHeaderRef}
+                  style={{ position: 'sticky', top: 0, height: TOTAL_HDR_H, zIndex: 15, background: '#f3f4f6' }}
+                >
                   <div style={{ position: 'relative', height: TOTAL_HDR_H, width: totalCols * colW }}>
                     <SpreadsheetGridHeaders
                       viewMode={viewMode}
