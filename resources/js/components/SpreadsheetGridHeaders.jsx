@@ -39,15 +39,21 @@ export default function SpreadsheetGridHeaders({
       if (curMonth !== null) monthSpans.push({ month: curMonth, x: monthStart * dayW, w: (d - monthStart) * dayW });
       curMonth = dc.month; monthStart = d;
     }
-    if (dc.week !== curWeek) {
-      if (curWeek !== null) weekSpans.push({ week: curWeek, x: weekStart * dayW, w: (d - weekStart) * dayW });
-      curWeek = dc.week; weekStart = d;
+    if (dc.weekKey !== curWeek) {
+      if (curWeek !== null) {
+        const week = dateColumns[weekStart];
+        weekSpans.push({ week: week.week, year: week.weekYear, month: week.weekMonth, x: weekStart * dayW, w: (d - weekStart) * dayW });
+      }
+      curWeek = dc.weekKey; weekStart = d;
     }
   }
 
   if (curYear !== null) yearSpans.push({ year: curYear, x: yearStart * dayW, w: (dateColumns.length - yearStart) * dayW });
   if (curMonth !== null) monthSpans.push({ month: curMonth, x: monthStart * dayW, w: (dateColumns.length - monthStart) * dayW });
-  if (curWeek !== null) weekSpans.push({ week: curWeek, x: weekStart * dayW, w: (dateColumns.length - weekStart) * dayW });
+  if (curWeek !== null) {
+    const week = dateColumns[weekStart];
+    weekSpans.push({ week: week.week, year: week.weekYear, month: week.weekMonth, x: weekStart * dayW, w: (dateColumns.length - weekStart) * dayW });
+  }
 
   const commonStyle = {
     position: 'absolute',
@@ -67,7 +73,7 @@ export default function SpreadsheetGridHeaders({
     rows.push(...weekSpans.filter(s => s.x + s.w > scrollLeft && s.x < scrollLeft + containerW).map((s) => {
       const weekStartDay = Math.floor(s.x / dayW);
       const weekStart = dateColumns[weekStartDay];
-      const weekLabel = weekStart ? `${weekStart.year}年${String(weekStart.month).padStart(2, '0')}月(第${s.week}週)` : `第${s.week}週`;
+      const weekLabel = `${s.year}年${s.month}月(${s.week}W)`;
       return (
         <div key={`slot-w${s.x}`} style={{ ...commonStyle, ...firstRowStyle(weekStart?.year, weekStart?.month), left: s.x, width: s.w, top: 0 }}>
           {weekLabel}
@@ -129,7 +135,7 @@ export default function SpreadsheetGridHeaders({
 
   rows.push(...weekSpans.filter(s => s.x + s.w > scrollLeft && s.x < scrollLeft + containerW).map(s => (
     <div key={`w${s.x}`} style={{ ...commonStyle, left: s.x, width: s.w, top: HDR_H }}>
-      {`${String(dateColumns[Math.floor(s.x / dayW)]?.month ?? '').padStart(2, '0')}月(第${s.week}週)`}
+      {`${s.month}月(${s.week}W)`}
     </div>
   )));
 

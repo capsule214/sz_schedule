@@ -42,11 +42,26 @@ export function daysBetween(a, b) {
   return Math.round((db - da) / 86400000);
 }
 
-export function getWeekNumber(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  const diff = Math.floor((d - jan1) / 86400000);
-  return Math.ceil((diff + jan1.getDay() + 1) / 7);
+export function getMonthWeekInfo(dateStr) {
+  const date = new Date(dateStr + 'T00:00:00');
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+
+  const year = saturday.getFullYear();
+  const month = saturday.getMonth() + 1;
+  const firstDay = new Date(year, month - 1, 1);
+  const firstSunday = new Date(firstDay);
+  firstSunday.setDate(firstDay.getDate() - firstDay.getDay());
+  const week = Math.floor((sunday - firstSunday) / 604800000) + 1;
+
+  return {
+    key: `${sunday.getFullYear()}-${sunday.getMonth() + 1}-${sunday.getDate()}`,
+    year,
+    month,
+    week,
+  };
 }
 
 export function colToDateStr(startDate, col, viewMode) {

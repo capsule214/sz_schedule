@@ -29,7 +29,7 @@ import {
   dateToStr,
   addDays,
   daysBetween,
-  getWeekNumber,
+  getMonthWeekInfo,
   colToDateStr,
   planToStartCol,
   planToEndCol,
@@ -1886,7 +1886,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       else if (dow === 0)          type = 'sunday';
       else if (dow === 6)          type = 'saturday';
       else                         type = 'weekday';
-      cols.push({ dateStr: ds, day: dt.getDate(), dow, month: dt.getMonth() + 1, year: dt.getFullYear(), week: getWeekNumber(ds), type });
+      const monthWeek = getMonthWeekInfo(ds);
+      cols.push({
+        dateStr: ds,
+        day: dt.getDate(),
+        dow,
+        month: dt.getMonth() + 1,
+        year: dt.getFullYear(),
+        week: monthWeek.week,
+        weekKey: monthWeek.key,
+        weekYear: monthWeek.year,
+        weekMonth: monthWeek.month,
+        type,
+      });
     }
     return cols;
   }, [startDate, endDate, calendarData]);
