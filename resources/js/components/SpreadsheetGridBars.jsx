@@ -30,6 +30,8 @@ export default function SpreadsheetGridBars({
   visRowStart,
   visRowEnd,
   selected,
+  editedPlanIds = new Set(),
+  readOnlyPlanIds = new Set(),
   groupMoveHighlightIds = new Set(),
   dragRef,
   ghostDrag,
@@ -96,8 +98,9 @@ export default function SpreadsheetGridBars({
       const bg = getColor(mode === 'place' ? plan.backColor : plan.taskBackColor);
       const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
       const isSel = selected.has(plan.planId);
+      const isEdited = editedPlanIds.has(plan.planId);
       const isGroupMoveHighlighted = groupMoveHighlightIds.has(plan.planId);
-      const isLocked = (mode !== 'place' && Number(plan.taskId) === 1) || (mode === 'worker' && (plan.workerId == null || Number(plan.workerId) <= 0));
+      const isLocked = readOnlyPlanIds.has(plan.planId);
       const barX = x;
       const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
       const showStar = flgdiff && plan.updatedAt === TODAY_STR;
@@ -118,8 +121,11 @@ export default function SpreadsheetGridBars({
             display: 'flex', alignItems: 'center',
             // 選択時は内側ボーダーを消し、外枠の赤いリングのみを表示する（フォーカス枠の2重表示を防止）
             border: isSel ? '1px solid transparent' : '1px solid rgba(0,0,0,0.15)',
+            outline: isEdited ? '2px dashed #2563eb' : 'none',
+            outlineOffset: isEdited ? '-2px' : 0,
+            animation: isEdited ? 'unsaved-plan-outline-blink 1s steps(1, end) infinite' : 'none',
             boxShadow: isGroupMoveHighlighted ? '0 0 0 4px #dc2626' : isSel ? '0 0 0 2px #ef4444' : 'none',
-            boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel ? 4 : ghost ? 10 : 2,
+            boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel || isEdited ? 4 : ghost ? 10 : 2,
             opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
           onPointerDown={e => { if (e.button === 0) onBarPointerDown(e, plan, 'move'); }}

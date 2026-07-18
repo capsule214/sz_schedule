@@ -2185,6 +2185,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     visRowStart={visRowStart}
                     visRowEnd={visRowEnd}
                     selected={selected}
+                    editedPlanIds={new Set(pendingUpdatesRef.current.keys())}
+                    readOnlyPlanIds={new Set(plans.filter(p => isReadOnlyPlan(p, mode)).map(p => p.planId))}
                     groupMoveHighlightIds={groupMoveHighlightIds}
                     dragRef={dragRef}
                     ghostDrag={ghostDrag}
