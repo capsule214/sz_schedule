@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\DmEquip;
 use App\Models\DmKisyu;
 use App\Models\KdSerial;
+use App\Models\KdPlan;
+use App\Models\KmTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -120,5 +122,47 @@ class SerialDeviceGroupsApiTest extends TestCase
             ])
             ->assertOk()
             ->assertExactJson(['count' => 0]);
+    }
+
+    public function test_finished_serials_are_limited_to_those_with_plans_in_display_period(): void
+    {
+        $user = User::create([
+            'name' => 'finished-serial-user',
+            'email' => 'finished-serial-user',
+            'password' => Hash::make('12345'),
+        ]);
+        $kisyu = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'sort_no' => 1]);
+        $task = KmTask::create(['task_name' => '組立']);
+        $unfinished = KdSerial::create(['kisyu_id' => $kisyu->kisyu_id, 'serial_no' => 'ACTIVE', 'flg_public' => 1, 'flg_finish' => 0]);
+        $finishedInRange = KdSerial::create(['kisyu_id' => $kisyu->kisyu_id, 'serial_no' => 'FIN-IN', 'flg_public' => 1, 'flg_finish' => 1]);
+        $finishedOutOfRange = KdSerial::create(['kisyu_id' => $kisyu->kisyu_id, 'serial_no' => 'FIN-OUT', 'flg_public' => 1, 'flg_finish' => 1]);
+
+        foreach ([
+            [$finishedInRange, '2026-07-10', '2026-07-12'],
+            [$finishedOutOfRange, '2026-05-10', '2026-05-12'],
+        ] as [$serial, $from, $to]) {
+            KdPlan::create([
+                'serial_id' => $serial->serial_id,
+                'morder_id' => -1,
+                'task_id' => $task->task_id,
+                'deleted' => 0,
+                'start_date' => $from,
+                'end_date' => $to,
+            ]);
+        }
+
+        $response = $this->actingAs($user)->postJson('/api/serial/device-groups', [
+            'show_finished' => 1,
+            'display_from' => '2026-07-01',
+            'display_to' => '2026-07-31',
+            'offset' => 0,
+            'limit' => 50,
+        ]);
+
+        $response->assertOk()->assertJsonPath('total', 2);
+        $serialNos = collect($response->json('groups'))->pluck('serialNo')->all();
+        $this->assertContains($unfinished->serial_no, $serialNos);
+        $this->assertContains($finishedInRange->serial_no, $serialNos);
+        $this->assertNotContains($finishedOutOfRange->serial_no, $serialNos);
     }
 }

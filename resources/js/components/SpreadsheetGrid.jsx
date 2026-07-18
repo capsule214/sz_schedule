@@ -592,6 +592,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       offset,
       limit: q ? 1 : deviceGroupWindowSize,
     };
+    if (!isMorderDevice && body.show_finished) {
+      body.display_from = startDate;
+      body.display_to = endDate;
+    }
     delete body.product_display;
     if (q) body.q = q;
 
@@ -619,7 +623,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     } finally {
       endGridFetch();
     }
-  }, [settingsReady, mode, isMorderDevice, displaySettings, deviceGroupWindowSize, mapSerialToDeviceGroup, mapMorderToGroup, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, mode, isMorderDevice, displaySettings, deviceGroupWindowSize, startDate, endDate, mapSerialToDeviceGroup, mapMorderToGroup, beginGridFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildVisibleFilterBody = useCallback((groups) => {
     if (Array.isArray(groups) && groups.length === 1 && groups[0] && typeof groups[0] === 'object') {
@@ -1056,7 +1060,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     deviceGroupFetchKeyRef.current = '';
     fetchedPlanKeysRef.current = new Set();
     setPlans([]);
-  }, [settingsReady, mode, isMorderDevice, displaySettings, deviceCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, mode, isMorderDevice, displaySettings, deviceCount, startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!settingsReady || !active || mode !== 'device') return;

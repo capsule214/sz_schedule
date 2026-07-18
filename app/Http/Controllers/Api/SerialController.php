@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DmKisyu;
 use App\Models\KdSerial;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SerialController extends Controller
 {
@@ -91,6 +92,8 @@ class SerialController extends Controller
       'seizo_statuses' => 'nullable|array',
       'seizo_statuses.*' => 'integer|min:0|max:2',
       'show_finished' => 'nullable|boolean',
+      'display_from' => 'nullable|required_if:show_finished,1|date',
+      'display_to' => 'nullable|required_if:show_finished,1|date|after_or_equal:display_from',
       'display_order' => 'nullable|integer|min:0|max:2',
       'koutei_pic_nos' => 'nullable|array',
       'koutei_pic_nos.*' => 'string|max:32',
@@ -135,6 +138,19 @@ class SerialController extends Controller
     if (empty($data['show_finished'])) {
       // 「完了製品も表示」OFF のときは flg_finish=0 の製番のみ
       $query->where('kd_serial.flg_finish', 0);
+    } else {
+      // 完了製番は、表示期間と重なる予定を持つものだけを表示対象にする。
+      $query->where(function ($q) use ($data) {
+        $q->where('kd_serial.flg_finish', 0)
+          ->orWhereExists(function ($plan) use ($data) {
+            $plan->selectRaw('1')
+              ->from('kd_plan')
+              ->whereColumn('kd_plan.serial_id', 'kd_serial.serial_id')
+              ->where('kd_plan.deleted', 0)
+              ->where('kd_plan.start_date', '<=', $data['display_to'])
+              ->where('kd_plan.end_date', '>=', $data['display_from']);
+          });
+      });
     }
     $displayOrder = (int) ($data['display_order'] ?? 0);
     $ordered = match ($displayOrder) {
