@@ -117,6 +117,7 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
     const gid = groupKey === 'device' ? plan.serialId
           : groupKey === 'morder' ? plan.morderId
           : groupKey === 'worker' ? plan.workerId
+          : groupKey === 'task-assignment' ? `task:${plan.taskId}:${plan.workerId == null || Number(plan.workerId) <= 0 ? 'unassigned' : 'assigned'}`
           : groupKey === 'task'   ? plan.taskId
           : plan.resourceId;
     const grp = groupMap[gid];

@@ -327,16 +327,31 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       // 未選択時は何も表示しない
       if (tktasklist.length === 0) return [];
       let t = tasks.filter(task => tktasklist.includes(task.taskId));
-      return [...t]
+      const taskGroups = [...t]
         .sort((a, b) => {
           const pd = (a.processSortNo || 0) - (b.processSortNo || 0);
           return pd !== 0 ? pd : (a.sortNo || 0) - (b.sortNo || 0);
         })
         .map(task => ({
           id: task.taskId,
+          taskId: task.taskId,
           processName: task.processName || '(未設定)',
           taskName: task.taskName,
         }));
+      if (!displaySettings.synobody) return taskGroups;
+      return taskGroups.flatMap(task => [
+        {
+          ...task,
+          id: `task:${task.taskId}:assigned`,
+          isUnassigned: false,
+        },
+        {
+          ...task,
+          id: `task:${task.taskId}:unassigned`,
+          taskName: `${task.taskName}(社員未定)`,
+          isUnassigned: true,
+        },
+      ]);
     } else {
       const sygroup = displaySettings.sygroup || 0;
       let w = workers;
@@ -353,7 +368,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, pllocation, isMorderDevice]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
-    const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device') : mode === 'worker' ? 'worker' : mode === 'task' ? 'task' : 'place';
+    const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device')
+      : mode === 'worker' ? 'worker'
+      : mode === 'task' && displaySettings.synobody ? 'task-assignment'
+      : mode === 'task' ? 'task'
+      : 'place';
     const locPlans = extraLocationRow ? locationOverlayPlans : null;
     const activePlans = plans.filter(p => !p.deleted);
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
@@ -633,6 +652,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
     }
     const groupList = (groups || []).map(g => (g && typeof g === 'object') ? g : { id: g });
+    if (mode === 'task') {
+      const taskIds = [...new Set(groupList.map(g => Number(g.taskId ?? g.id)).filter(Number.isFinite))];
+      return taskIds.length > 0 ? { task_ids: taskIds } : null;
+    }
     const ids = [...new Set(groupList.map(g => Number(g.id)).filter(Number.isFinite))];
     if (ids.length === 0) return null;
     if (mode === 'device') {
@@ -644,7 +667,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const teamIds = [...new Set(groupList.map(g => Number(g.teamId)).filter(Number.isFinite))];
       return teamIds.length > 0 ? { team_ids: teamIds } : { worker_ids: ids };
     }
-    if (mode === 'task') return { task_ids: ids };
     return { resource_ids: ids };
   }, [mode, isMorderDevice]);
 
