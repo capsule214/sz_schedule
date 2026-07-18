@@ -81,6 +81,7 @@ class SerialController extends Controller
     $data = $request->validate([
       'offset' => 'nullable|integer|min:0',
       'limit' => 'nullable|integer|min:1|max:1000',
+      'all' => 'nullable|boolean',
       'q' => 'nullable|string|max:120',
       'kisyu_ids' => 'nullable|array',
       'kisyu_ids.*' => 'integer|min:1',
@@ -152,7 +153,8 @@ class SerialController extends Controller
 
     if (($data['q'] ?? '') !== '') {
       $ids = (clone $ordered)->pluck('kd_serial.serial_id')->all();
-      $target = (clone $ordered)->where('kd_serial.serial_no', $data['q'])->first();
+      $target = (clone $ordered)->where('kd_serial.serial_no', $data['q'])->first()
+        ?? (clone $ordered)->where('kd_serial.serial_no', 'like', '%'.$data['q'].'%')->first();
       $index = $target ? array_search($target->serial_id, $ids, true) : false;
 
       return response()->json([
@@ -164,16 +166,14 @@ class SerialController extends Controller
     }
 
     $total = (clone $ordered)->count();
-    $groups = $ordered
-      ->offset($offset)
-      ->limit($limit)
-      ->get()
+    $groupsQuery = empty($data['all']) ? $ordered->offset($offset)->limit($limit) : $ordered;
+    $groups = $groupsQuery->get()
       ->map(fn ($s) => $this->formatDeviceGroup($s));
 
     return response()->json([
       'total' => $total,
-      'offset' => $offset,
-      'limit' => $limit,
+      'offset' => empty($data['all']) ? $offset : 0,
+      'limit' => empty($data['all']) ? $limit : $total,
       'groups' => $groups,
     ]);
   }

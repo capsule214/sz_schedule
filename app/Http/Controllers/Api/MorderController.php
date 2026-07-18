@@ -55,6 +55,7 @@ class MorderController extends Controller
     $data = $request->validate([
       'offset' => 'nullable|integer|min:0',
       'limit' => 'nullable|integer|min:1|max:1000',
+      'all' => 'nullable|boolean',
       'q' => 'nullable|string|max:120',
       'szgroup_ids' => 'nullable|array',
       'szgroup_ids.*' => 'integer|min:1',
@@ -97,6 +98,9 @@ class MorderController extends Controller
       $ids = (clone $ordered)->pluck('morder_id')->all();
       $target = (clone $ordered)->where(function ($qq) use ($data) {
         $qq->where('morder_no', $data['q'])->orWhere('parts_no', $data['q']);
+      })->first() ?? (clone $ordered)->where(function ($qq) use ($data) {
+        $qq->where('morder_no', 'like', '%'.$data['q'].'%')
+          ->orWhere('parts_no', 'like', '%'.$data['q'].'%');
       })->first();
       $index = $target ? array_search($target->morder_id, $ids, true) : false;
 
@@ -109,16 +113,14 @@ class MorderController extends Controller
     }
 
     $total = (clone $ordered)->count();
-    $groups = $ordered
-      ->offset($offset)
-      ->limit($limit)
-      ->get()
+    $groupsQuery = empty($data['all']) ? $ordered->offset($offset)->limit($limit) : $ordered;
+    $groups = $groupsQuery->get()
       ->map(fn ($m) => $this->formatMorderGroup($m));
 
     return response()->json([
       'total' => $total,
-      'offset' => $offset,
-      'limit' => $limit,
+      'offset' => empty($data['all']) ? $offset : 0,
+      'limit' => empty($data['all']) ? $limit : $total,
       'groups' => $groups,
     ]);
   }

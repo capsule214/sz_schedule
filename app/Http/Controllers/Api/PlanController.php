@@ -330,6 +330,7 @@ class PlanController extends Controller
       'morder_ids' => 'nullable|array',
       'morder_ids.*' => 'integer|min:1',
       'show_finished' => 'nullable|boolean',
+      'count_only' => 'nullable|boolean',
     ]);
     $isMorderDisplay = ($data['product_display'] ?? 'serial') === 'morder';
 
@@ -343,13 +344,13 @@ class PlanController extends Controller
     if ($mode === 'device' && ! $isMorderDisplay
      && empty($data['serial_ids']) && empty($data['kisyu_ids'])
      && empty($data['szgroup_ids']) && empty($data['seizo_statuses']) && empty($data['equip_type_id'])) {
-      return response()->json([]);
+      return response()->json(! empty($data['count_only']) ? ['count' => 0] : []);
     }
     if ($mode === 'worker' && empty($data['worker_ids']) && empty($data['team_ids']) && empty($data['team_szgroup_id']) && empty($data['show_unassigned_worker'])) {
-      return response()->json([]);
+      return response()->json(! empty($data['count_only']) ? ['count' => 0] : []);
     }
     if ($mode === 'task' && empty($data['task_ids'])) {
-      return response()->json([]);
+      return response()->json(! empty($data['count_only']) ? ['count' => 0] : []);
     }
 
     // 「完了製品も表示」OFF のときは flg_finish=0 の製番の予定のみ表示する。
@@ -373,6 +374,10 @@ class PlanController extends Controller
     if ($mode === 'device' && $isMorderDisplay) {
       $this->applyMorderFilters($query, $data);
 
+      if (! empty($data['count_only'])) {
+        return response()->json(['count' => $query->count()]);
+      }
+
       return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));
     }
 
@@ -387,6 +392,10 @@ class PlanController extends Controller
     }
     if (! empty($data['task_ids'])) {
       $query->whereIn('task_id', $data['task_ids']);
+    }
+
+    if (! empty($data['count_only'])) {
+      return response()->json(['count' => $query->count()]);
     }
 
     return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));

@@ -76,4 +76,49 @@ class SerialDeviceGroupsApiTest extends TestCase
             ->assertJsonCount(1, 'groups')
             ->assertJsonPath('groups.0.serialNo', 'SN-003');
     }
+
+    public function test_device_groups_can_return_more_than_one_thousand_serials_for_multiple_models(): void
+    {
+        $user = User::create([
+            'name' => 'serial-all-user',
+            'email' => 'serial-all-user',
+            'password' => Hash::make('12345'),
+        ]);
+        $equip = DmEquip::create(['equip_name' => '装置A', 'equip_type_id' => 1]);
+        $modelA = DmKisyu::create(['kisyu_name' => 'MODEL-A', 'equip_id' => $equip->equip_id, 'sort_no' => 1]);
+        $modelB = DmKisyu::create(['kisyu_name' => 'MODEL-B', 'equip_id' => $equip->equip_id, 'sort_no' => 2]);
+        $rows = [];
+        for ($i = 1; $i <= 1005; $i++) {
+            $rows[] = [
+                'kisyu_id' => $i % 2 === 0 ? $modelA->kisyu_id : $modelB->kisyu_id,
+                'serial_no' => 'SN-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT),
+                'flg_public' => 1,
+            ];
+        }
+        foreach (array_chunk($rows, 250) as $chunk) {
+            KdSerial::insert($chunk);
+        }
+
+        $response = $this->actingAs($user)->postJson('/api/serial/device-groups', [
+            'all' => true,
+            'kisyu_ids' => [$modelA->kisyu_id, $modelB->kisyu_id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('total', 1005)
+            ->assertJsonPath('offset', 0)
+            ->assertJsonPath('limit', 1005)
+            ->assertJsonCount(1005, 'groups');
+
+        $serialIds = collect($response->json('groups'))->take(200)->pluck('serialId')->all();
+        $this->actingAs($user)
+            ->postJson('/api/plan/search/device', [
+                'from' => '2026-07-01',
+                'to' => '2026-07-31',
+                'serial_ids' => $serialIds,
+                'count_only' => true,
+            ])
+            ->assertOk()
+            ->assertExactJson(['count' => 0]);
+    }
 }
