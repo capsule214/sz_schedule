@@ -84,6 +84,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   });
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [pendingSettingsOpen, setPendingSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
   const [seeding, setSeeding] = useState(false);
@@ -203,7 +204,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   async function handleSave() {
     const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
-    await activeGridRef.current?.saveChanges();
+    return await activeGridRef.current?.saveChanges();
   }
 
   async function handleCancel() {
@@ -279,8 +280,30 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setTab(nextTab);
   }
 
+  function handleOpenSettings() {
+    if (isDirty) {
+      setPendingSettingsOpen(true);
+      return;
+    }
+    setShowSettings(true);
+  }
+
+  async function handleSettingsSave() {
+    const saved = await handleSave();
+    if (saved === false) return;
+    setPendingSettingsOpen(false);
+    setShowSettings(true);
+  }
+
+  async function handleSettingsDiscard() {
+    await handleCancel();
+    setPendingSettingsOpen(false);
+    setShowSettings(true);
+  }
+
   async function handleConfirmSave() {
-    await handleSave();
+    const saved = await handleSave();
+    if (saved === false) return;
     setTab(pendingTab);
     setPendingTab(null);
   }
@@ -299,7 +322,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }, []);
 
   async function handleRedrawSave() {
-    await handleSave();
+    const saved = await handleSave();
+    if (saved === false) return;
     const action = pendingRedrawAction;
     redrawPromptOpenRef.current = false;
     setPendingRedrawAction(null);
@@ -458,7 +482,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <GridNavBar
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={handleOpenSettings}
         onSeedMaster={handleSeedMaster}
         onSeedPlans={handleSeedPlans}
         seeding={seeding}
@@ -556,6 +580,17 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             onSave={handleRedrawSave}
             onDiscard={handleRedrawDiscard}
             onClose={handleRedrawClose}
+          />
+        )}
+        {pendingSettingsOpen && (
+          <UnsavedChangesDialog
+            message="表示設定を開く前に、変更内容を保存するか破棄してください。"
+            saveLabel="保存して表示設定を開く"
+            discardLabel="変更を破棄して表示設定を開く"
+            closeLabel="表示設定を開かない"
+            onSave={handleSettingsSave}
+            onDiscard={handleSettingsDiscard}
+            onClose={() => setPendingSettingsOpen(false)}
           />
         )}
       </div>

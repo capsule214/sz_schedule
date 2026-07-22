@@ -129,6 +129,8 @@ class PlanController extends Controller
       'taskName' => $task ? $task->task_name : '',
       'kisyuId' => $kisyu ? $kisyu->kisyu_id : null,
       'kisyuName' => $kisyu ? $kisyu->kisyu_name : '',
+      'kisyuBackColor' => $kisyu ? $kisyu->back_color : null,
+      'kisyuFontColor' => $kisyu ? $kisyu->font_color : null,
       'serialNo' => $serial ? $serial->serial_no : '',
       'taskBackColor' => $task ? $task->back_color : 1,
       'taskFontColor' => $task ? $task->font_color : 6,

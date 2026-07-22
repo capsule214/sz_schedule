@@ -194,6 +194,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const isMorderDevice = mode === 'device' && (sbsbmb === 1 || sbsbmb === 2);
   const morderOrderTypeId = sbsbmb === 2 ? 11 : sbsbmb === 1 ? 21 : null;
   const isMorderTask = mode === 'task' && Number(displaySettings.tksbmb ?? 0) === 1;
+  const useKisyuColor = mode === 'device'
+    ? Number(displaySettings.sbcolor ?? 0) === 1
+    : (mode === 'worker' || mode === 'task') && Number(displaySettings.sycolor ?? 0) === 1;
 
   // 左ヘッダ各列の幅（cookie 永続化・最低80px/最大160px、マウスでリサイズ可能）
   const [colWidths, setColWidths] = useState(() => loadLeftColWidths(mode));
@@ -592,6 +595,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const mapSerialToDeviceGroup = useCallback((ser) => ({
     id: ser.serialId,
     kisyuName: ser.kisyuName,
+    kisyuBackColor: ser.kisyuBackColor,
+    kisyuFontColor: ser.kisyuFontColor,
     serialNo: ser.serialNo,
     receiptNo: ser.receiptNo ?? null,
     shippingDate: ser.shippingDate || null,
@@ -1075,6 +1080,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         syncDirtyState();
         if (saveFailed) showToast('一部の予定を保存できませんでした');
       }
+      return !hasPendingChanges();
     },
     async cancelChanges() {
       pendingCreatesRef.current = new Map();
@@ -1873,6 +1879,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             serialNo: g?.serialNo,
             kisyuId: g?.kisyuId,
             kisyuName: g?.kisyuName,
+            kisyuBackColor: g?.kisyuBackColor,
+            kisyuFontColor: g?.kisyuFontColor,
             startDate: startDateTime,
             endDate: endDateTime,
           },
@@ -1905,6 +1913,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
               morderOrderTypeName: mode === 'device' && isMorderDevice ? g?.morderOrderTypeName : null,
               kisyuId:    mode === 'device' && !isMorderDevice ? g?.kisyuId : null,
               kisyuName:  mode === 'device' && !isMorderDevice ? g?.kisyuName : null,
+              kisyuBackColor: mode === 'device' && !isMorderDevice ? g?.kisyuBackColor : null,
+              kisyuFontColor: mode === 'device' && !isMorderDevice ? g?.kisyuFontColor : null,
               workerId:   mode === 'worker'   ? g?.id : null,
               startDate: dateStr,
               endDate: endStr,
@@ -2242,6 +2252,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialNo: selectedSerial?.serialNo ?? dialog.plan?.serialNo ?? dialog.initialData?.serialNo ?? '',
         kisyuId: selectedSerial?.kisyuId ?? dialog.plan?.kisyuId ?? dialog.initialData?.kisyuId,
         kisyuName: selectedSerial?.kisyuName ?? dialog.plan?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+        kisyuBackColor: data.kisyuBackColor ?? selectedSerial?.kisyuBackColor ?? dialog.plan?.kisyuBackColor ?? dialog.initialData?.kisyuBackColor ?? null,
+        kisyuFontColor: data.kisyuFontColor ?? selectedSerial?.kisyuFontColor ?? dialog.plan?.kisyuFontColor ?? dialog.initialData?.kisyuFontColor ?? null,
       }
       : {
         taskName: selectedTask?.taskName ?? dialog.plan?.taskName ?? '',
@@ -2251,6 +2263,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialNo: selectedSerial?.serialNo ?? dialog.plan?.serialNo ?? dialog.initialData?.serialNo ?? '',
         kisyuId: selectedSerial?.kisyuId ?? dialog.plan?.kisyuId ?? dialog.initialData?.kisyuId,
         kisyuName: selectedSerial?.kisyuName ?? dialog.plan?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+        kisyuBackColor: data.kisyuBackColor ?? selectedSerial?.kisyuBackColor ?? dialog.plan?.kisyuBackColor ?? dialog.initialData?.kisyuBackColor ?? null,
+        kisyuFontColor: data.kisyuFontColor ?? selectedSerial?.kisyuFontColor ?? dialog.plan?.kisyuFontColor ?? dialog.initialData?.kisyuFontColor ?? null,
         morderOrderTypeId: dialog.plan?.morderOrderTypeId ?? dialog.initialData?.morderOrderTypeId ?? null,
         morderOrderTypeName: dialog.plan?.morderOrderTypeName ?? dialog.initialData?.morderOrderTypeName ?? '',
         morderNo: dialog.plan?.morderNo ?? dialog.initialData?.morderNo ?? '',
@@ -2300,6 +2314,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             serialNo: dialog.plan.serialNo,
             kisyuId: dialog.plan.kisyuId,
             kisyuName: dialog.plan.kisyuName,
+            kisyuBackColor: dialog.plan.kisyuBackColor,
+            kisyuFontColor: dialog.plan.kisyuFontColor,
           },
           afterState: { ...payload, ...visualFields },
           previousPendingHad,
@@ -2327,6 +2343,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           serialNo: serial?.serialNo ?? dialog.initialData?.serialNo ?? '',
           kisyuId: serial?.kisyuId ?? dialog.initialData?.kisyuId,
           kisyuName: serial?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+          kisyuBackColor: data.kisyuBackColor ?? serial?.kisyuBackColor ?? dialog.initialData?.kisyuBackColor ?? null,
+          kisyuFontColor: data.kisyuFontColor ?? serial?.kisyuFontColor ?? dialog.initialData?.kisyuFontColor ?? null,
           resourceName: resource?.resourceName ?? '',
           morderOrderTypeId: visualFields.morderOrderTypeId,
           morderOrderTypeName: visualFields.morderOrderTypeName,
@@ -2944,6 +2962,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     onBarRightClick={handleBarRightClick}
                     flgdiff={!!displaySettings.flgdiff}
                     flgsyoyo={!!displaySettings.flgsyoyo}
+                    useKisyuColor={useKisyuColor}
                   />
                   <SpreadsheetGridLocationOverlayBars
                     extraLocationRow={extraLocationRow}

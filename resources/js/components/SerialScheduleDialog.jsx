@@ -235,6 +235,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     const selectedSerialId = serialId || serialSelectRef.current?.value || init.serialId || initialData?.serialId || '';
     const selectedWorkerId = workerId !== '' ? workerId : (init.workerId ?? initialData?.workerId ?? '');
     const selectedTask = tasks.find(t => String(t.taskId) === String(taskId));
+    const selectedSerial = serials.find(s => String(s.serialId) === String(selectedSerialId));
     const isPersonalPlan = gridMode === 'worker' && Number(selectedTask?.taskTypeId) === 3;
     if (sd2 > ed2) { setError('開始日時が終了日時より後になっています'); return; }
     if (!isPersonalPlan && !selectedSerialId) { setError('製番を選択してください'); return; }
@@ -245,6 +246,11 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
     setError('');
     onSave({
       serialId: selectedSerialId ? Number(selectedSerialId) : -1,
+      serialNo: selectedSerial?.serialNo ?? init.serialNo ?? initialData?.serialNo ?? '',
+      kisyuId: selectedSerial?.kisyuId ?? init.kisyuId ?? initialData?.kisyuId ?? null,
+      kisyuName: selectedSerial?.kisyuName ?? init.kisyuName ?? initialData?.kisyuName ?? '',
+      kisyuBackColor: selectedSerial?.kisyuBackColor ?? init.kisyuBackColor ?? initialData?.kisyuBackColor ?? null,
+      kisyuFontColor: selectedSerial?.kisyuFontColor ?? init.kisyuFontColor ?? initialData?.kisyuFontColor ?? null,
       morderId: -1,
       taskId: Number(taskId),
       workerId: selectedWorkerId !== '' ? Number(selectedWorkerId) : null,

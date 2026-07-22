@@ -15,7 +15,7 @@ class DmKisyu extends Model
 
   public $timestamps = false;
 
-  protected $fillable = ['kisyu_name', 'equip_id', 'sort_no', 'waku_display', 'deleted'];
+  protected $fillable = ['kisyu_name', 'equip_id', 'sort_no', 'waku_display', 'back_color', 'font_color', 'deleted'];
 
   public function serials()
   {

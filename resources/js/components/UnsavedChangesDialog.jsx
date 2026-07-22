@@ -5,6 +5,7 @@ export default function UnsavedChangesDialog({
   message = 'タブを切り替える前に、変更内容を保存するか破棄してください。',
   saveLabel = '保存してタブを切り替え',
   discardLabel = '変更を破棄してタブを切り替え',
+  closeLabel = '閉じる',
 }) {
   return (
     <div style={{
@@ -36,7 +37,7 @@ export default function UnsavedChangesDialog({
             padding: '9px 0', border: '1px solid #d1d5db', borderRadius: 6,
             background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13,
           }}>
-            閉じる
+            {closeLabel}
           </button>
         </div>
       </div>

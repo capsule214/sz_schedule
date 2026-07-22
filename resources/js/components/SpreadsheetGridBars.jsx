@@ -42,6 +42,7 @@ export default function SpreadsheetGridBars({
   onBarRightClick,
   flgdiff = false,
   flgsyoyo = false,
+  useKisyuColor = false,
 }) {
   const bars = [];
   const labels = [];
@@ -95,8 +96,14 @@ export default function SpreadsheetGridBars({
       if (x + w < scrollLeft || x > scrollLeft + containerW) continue;
       if (absRow < visRowStart || absRow > visRowEnd) continue;
 
-      const bg = getColor(mode === 'place' ? plan.backColor : plan.taskBackColor);
-      const fg = getColor(mode === 'place' ? plan.fontColor : plan.taskFontColor);
+      const bgColorIndex = mode === 'place'
+        ? plan.backColor
+        : useKisyuColor && plan.kisyuBackColor != null ? plan.kisyuBackColor : plan.taskBackColor;
+      const fontColorIndex = mode === 'place'
+        ? plan.fontColor
+        : useKisyuColor && plan.kisyuFontColor != null ? plan.kisyuFontColor : plan.taskFontColor;
+      const bg = getColor(bgColorIndex);
+      const fg = getColor(fontColorIndex);
       const isSel = selected.has(plan.planId);
       const isEdited = editedPlanIds.has(plan.planId);
       const isGroupMoveHighlighted = groupMoveHighlightIds.has(plan.planId);
