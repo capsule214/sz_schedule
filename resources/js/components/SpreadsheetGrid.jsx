@@ -1954,6 +1954,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       label: jumpLabels[t],
       onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, t),
     }));
+    const serialPlanItem = (mode === 'worker' || mode === 'task') && plan.serialId
+      ? { label: '前後予定を表示', onClick: () => {
+          apiArray(`/plan/by-serial/${plan.serialId}`)
+            .then(data => setSerialOverlay({ triggerPlan: plan, serialPlans: data || [] }))
+            .catch(() => {});
+        }}
+      : null;
 
     // タスクタブの右クリックメニューは詳細とジャンプのみ表示する。
     // 日付変更は予定バーのドラッグ・伸縮で行う。
@@ -1961,17 +1968,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
         ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
+        ...(serialPlanItem ? ['separator', serialPlanItem] : []),
       ]});
       return;
     }
-
-    const serialPlanItem = mode === 'worker' && plan.serialId
-      ? { label: '前後予定を表示', onClick: () => {
-          apiArray(`/plan/by-serial/${plan.serialId}`)
-            .then(data => setSerialOverlay({ triggerPlan: plan, serialPlans: data || [] }))
-            .catch(() => {});
-        }}
-      : null;
 
     const items = isMulti ? [
       { label: `${n}件コピー`, onClick: () => {
@@ -3080,8 +3080,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         // バー描画領域の画面矩形（左ヘッダ・日付ヘッダを除く）
         const areaLeft   = scrollRect.left;
         const areaTop    = scrollRect.top + TOTAL_HDR_H;
-        const areaRight  = scrollRect.right;
-        const areaBottom = scrollRect.bottom;
+        // clientWidth/clientHeight はスクロールバーを含まないため、マスクが操作部へ被らない。
+        const areaRight  = Math.min(scrollRect.right, scrollRect.left + scrollEl.clientWidth);
+        const areaBottom = Math.min(scrollRect.bottom, scrollRect.top + scrollEl.clientHeight);
         const areaW      = areaRight - areaLeft;
 
         // 対象行の絶対行番号を layoutGroups から特定
@@ -3104,29 +3105,55 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           if (el) { el.scrollTop += e.deltaY; el.scrollLeft += e.deltaX; }
         };
 
-        // オーバーレイを対象行の上下に分割（対象行はオーバーレイなし→バーが鮮明に見える）
-        const overlayColor = 'rgba(0,0,0,0.55)';
-        const topH   = Math.max(0, Math.min(rowScreenY, areaBottom) - areaTop);
-        const botTop = Math.max(areaTop, rowScreenYBot);
-        const botH   = Math.max(0, areaBottom - botTop);
-
-        // 対象行が可視範囲内かどうか
-        const rowVisible = rowScreenY < areaBottom && rowScreenYBot > areaTop;
-
         // 表示範囲に重なる予定だけに絞る
         const contentRight = totalCols * colW;
         const visPlans = serialPlans.filter(p => p.endDate >= startDate && p.startDate <= endDate);
 
-        // ラベルクリッピング用にX座標ソート
-        const xArr = visPlans
-          .map(p => ({ planId: p.planId, x: planToStartCol(p, startDate, viewMode) * colW }))
-          .sort((a, b) => a.x - b.x);
+        // 期間が重なる予定を別レーンへ配置する。終了列より後に始まる予定は同じレーンを再利用する。
+        const laneEnds = [];
+        const laidOutPlans = [...visPlans]
+          .map(plan => ({
+            plan,
+            startCol: planToStartCol(plan, startDate, viewMode),
+            endCol: planToEndCol(plan, startDate, viewMode),
+          }))
+          .sort((a, b) => (a.startCol - b.startCol) || (a.endCol - b.endCol) || (a.plan.planId - b.plan.planId))
+          .map(item => {
+            let lane = laneEnds.findIndex(endCol => endCol < item.startCol);
+            if (lane < 0) lane = laneEnds.length;
+            laneEnds[lane] = item.endCol;
+            return { ...item, lane };
+          });
+        const laneCount = Math.max(1, laneEnds.length);
+        const triggerLane = laidOutPlans.find(item => item.plan.planId === triggerPlan.planId)?.lane ?? 0;
+        const bandHeight = laneCount * CELL_SIZE;
+        const rawBandTop = rowScreenY - triggerLane * CELL_SIZE;
+        const viewportHeight = Math.max(0, areaBottom - areaTop);
+        const triggerRowVisible = rowScreenY < areaBottom && rowScreenYBot > areaTop;
+        const bandTop = triggerRowVisible && bandHeight <= viewportHeight
+          ? Math.max(areaTop, Math.min(rawBandTop, areaBottom - bandHeight))
+          : rawBandTop;
+        const bandBottom = bandTop + bandHeight;
+
+        // 複数レーン分をマスクから除外し、重なった予定をすべて鮮明に表示する。
+        const overlayColor = 'rgba(0,0,0,0.55)';
+        const topH   = Math.max(0, Math.min(bandTop, areaBottom) - areaTop);
+        const botTop = Math.max(areaTop, Math.min(areaBottom, bandBottom));
+        const botH   = Math.max(0, areaBottom - botTop);
+
+        // ラベルは同じレーンにある次のバーまででクリップする。
+        const xByLane = new Map();
+        for (const item of laidOutPlans) {
+          if (!xByLane.has(item.lane)) xByLane.set(item.lane, []);
+          xByLane.get(item.lane).push({ planId: item.plan.planId, x: item.startCol * colW });
+        }
 
         const overlayBars = [];
-        if (rowVisible) {
-          for (const p of visPlans) {
-            const sc = planToStartCol(p, startDate, viewMode);
-            const ec = planToEndCol(p, startDate, viewMode);
+        if (triggerRowVisible) {
+          for (const item of laidOutPlans) {
+            const { plan: p, startCol: sc, endCol: ec, lane } = item;
+            const laneTop = bandTop + lane * CELL_SIZE;
+            if (laneTop < areaTop || laneTop + CELL_SIZE > areaBottom) continue;
             const barX = sc * colW;
             if (barX >= contentRight) continue;
             const barW = Math.min(Math.max(colW, (ec - sc + 1) * colW), contentRight - barX);
@@ -3142,8 +3169,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             const fg = getColor(p.taskFontColor);
 
             // ラベル幅（次バー・コンテンツ右端・エリア右端でクリップ）
-            const myIdx    = xArr.findIndex(r => r.planId === p.planId);
-            const nextX    = myIdx >= 0 && myIdx + 1 < xArr.length ? xArr[myIdx + 1].x : null;
+            const laneXArr = xByLane.get(lane) || [];
+            const myIdx    = laneXArr.findIndex(r => r.planId === p.planId);
+            const nextX    = myIdx >= 0 && myIdx + 1 < laneXArr.length ? laneXArr[myIdx + 1].x : null;
             const labelLeft    = barX + HANDLE_W;
             const rawLabelW    = nextX != null ? Math.max(0, nextX - labelLeft) : Math.max(0, contentRight - labelLeft);
             const labelScreenX = areaLeft + labelLeft - scrollLeft;
@@ -3166,7 +3194,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   ]});
                 }}
                 style={{
-                  position: 'fixed', left: clampLeft, top: rowScreenY,
+                  position: 'fixed', left: clampLeft, top: laneTop,
                   width: clampRight - clampLeft, height: CELL_SIZE,
                   background: bg,
                   border: isCurrent ? '2px solid #1d4ed8' : '1px solid rgba(0,0,0,0.20)',
@@ -3178,7 +3206,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             if (labelW > 0) {
               overlayBars.push(
                 <div key={`lbl-${p.planId}`} style={{
-                  position: 'fixed', left: lblClampL, top: rowScreenY,
+                  position: 'fixed', left: lblClampL, top: laneTop,
                   width: labelW, height: CELL_SIZE,
                   display: 'flex', alignItems: 'center',
                   overflow: 'hidden', whiteSpace: 'nowrap',
@@ -3220,7 +3248,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                 }}
               />
             )}
-            {/* 製番の全予定バーを対象行に重ねて描画 */}
+            {/* 製番の全予定バーを、重複期間ごとに複数レーンで描画 */}
             {overlayBars}
           </>
         );
