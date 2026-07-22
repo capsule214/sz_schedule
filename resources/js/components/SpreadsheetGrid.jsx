@@ -114,6 +114,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const pendingCreatesRef = useRef(new Map());
   const pendingUpdatesRef = useRef(new Map());
   const pendingDeletesRef = useRef(new Set());
+  // 装置タブに重ねて表示する場所予定は /reserve API で保存するため、通常予定と分けて保持する。
+  const pendingLocationCreatesRef = useRef(new Map());
+  const pendingLocationUpdatesRef = useRef(new Map());
+  const pendingLocationDeletesRef = useRef(new Set());
   const tempIdCounterRef  = useRef(-1); // 貼り付け時のローカル仮ID（負数）
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
@@ -123,9 +127,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [tooltip, setTooltip] = useState(null);
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [selected, setSelected] = useState(new Set());
+  const [selectedLocation, setSelectedLocation] = useState(new Set());
   const [groupMoveHighlightIds, setGroupMoveHighlightIds] = useState(new Set());
   const [selectedCell, setSelectedCell] = useState(null);
   const [copied, setCopied] = useState([]);
+  const [copiedKind, setCopiedKind] = useState('plan');
   const [sonar, setSonar] = useState(null);
   const sonarClearTimerRef = useRef(null);
   const sonarRafRef = useRef(null);
@@ -154,6 +160,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const planFetchSequenceRef = useRef(0);
 
   const dragRef = useRef(null);
+  const locationDragRef = useRef(null);
+  const [locationGhostDrag, setLocationGhostDrag] = useState(null);
   const [rectSelect, setRectSelect] = useState(null); // {absX1,absY1,absX2,absY2} in content coords
   const suppressNextCellClickRef = useRef(false);
   const layoutGroupsRef = useRef([]);
@@ -765,9 +773,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         body: JSON.stringify({ from, to, ...body }),
       });
       setLocationOverlayPlans(prev => {
-        const existingIds = new Set(prev.map(p => p.planId));
-        const newPlans = data.filter(p => !existingIds.has(p.planId));
-        return newPlans.length ? [...prev, ...newPlans] : prev;
+        const deletes = pendingLocationDeletesRef.current;
+        const updates = pendingLocationUpdatesRef.current;
+        const byId = new Map(prev.filter(p => !deletes.has(p.planId)).map(p => [p.planId, p]));
+        for (const plan of data) {
+          if (deletes.has(plan.planId)) continue;
+          byId.set(plan.planId, updates.has(plan.planId) ? { ...plan, ...updates.get(plan.planId) } : plan);
+        }
+        return [...byId.values()];
       });
     } catch (e) {
       fetchedLocKeysRef.current.delete(key);
@@ -835,20 +848,26 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     notifyHistoryChange();
   }
 
-  function applyHistoryChanges(changes, direction) {
+  function applyHistoryChanges(changes, direction, kind = 'plan') {
     const useAfter = direction === 'redo';
-    setPlans(prev => prev.map(plan => {
+    const updateState = kind === 'location' ? setLocationOverlayPlans : setPlans;
+    const updatesRef = kind === 'location' ? pendingLocationUpdatesRef : pendingUpdatesRef;
+    updateState(prev => prev.map(plan => {
       const change = changes.find(c => c.planId === plan.planId);
       return change ? { ...plan, ...(useAfter ? change.after : change.before) } : plan;
     }));
 
     for (const change of changes) {
+      if (kind === 'location' && change.planId < 0 && pendingLocationCreatesRef.current.has(change.planId)) {
+        pendingLocationCreatesRef.current.set(change.planId, useAfter ? change.after : change.before);
+        continue;
+      }
       if (useAfter) {
-        pendingUpdatesRef.current.set(change.planId, change.after);
+        updatesRef.current.set(change.planId, change.after);
       } else if (change.previousPendingHad) {
-        pendingUpdatesRef.current.set(change.planId, change.previousPending);
+        updatesRef.current.set(change.planId, change.previousPending);
       } else {
-        pendingUpdatesRef.current.delete(change.planId);
+        updatesRef.current.delete(change.planId);
       }
     }
     setIsDirty(true);
@@ -858,7 +877,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function undoLastEdit() {
     const action = undoStackRef.current.pop();
     if (!action) return;
-    applyHistoryChanges(action.changes, 'undo');
+    applyHistoryChanges(action.changes, 'undo', action.kind);
     redoStackRef.current.push(action);
     notifyHistoryChange();
   }
@@ -866,7 +885,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function redoLastEdit() {
     const action = redoStackRef.current.pop();
     if (!action) return;
-    applyHistoryChanges(action.changes, 'redo');
+    applyHistoryChanges(action.changes, 'redo', action.kind);
     undoStackRef.current.push(action);
     notifyHistoryChange();
   }
@@ -912,9 +931,40 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         } catch (err) { console.error('saveChanges update error', err); }
       }
 
+      // 装置タブ内で編集した場所予定を /reserve に保存する。
+      for (const [tempId, payload] of pendingLocationCreatesRef.current) {
+        try {
+          const newPlan = await apiJson('/reserve', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          setLocationOverlayPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
+        } catch (err) { console.error('saveChanges location create error', err); }
+      }
+      if (pendingLocationDeletesRef.current.size > 0) {
+        try {
+          await apiJson('/reserve', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids: [...pendingLocationDeletesRef.current].map(String) }),
+          });
+        } catch (err) { console.error('saveChanges location delete error', err); }
+      }
+      for (const [planId, payload] of pendingLocationUpdatesRef.current) {
+        if (pendingLocationDeletesRef.current.has(planId)) continue;
+        try {
+          await apiJson(`/reserve/${planId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+        } catch (err) { console.error('saveChanges location update error', err); }
+      }
+
       pendingCreatesRef.current = new Map();
       pendingUpdatesRef.current = new Map();
       pendingDeletesRef.current = new Set();
+      pendingLocationCreatesRef.current = new Map();
+      pendingLocationUpdatesRef.current = new Map();
+      pendingLocationDeletesRef.current = new Set();
       clearEditHistory();
       setIsDirty(false);
       onDirtyChange?.(false);
@@ -923,10 +973,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       pendingCreatesRef.current = new Map();
       pendingUpdatesRef.current = new Map();
       pendingDeletesRef.current = new Set();
+      pendingLocationCreatesRef.current = new Map();
+      pendingLocationUpdatesRef.current = new Map();
+      pendingLocationDeletesRef.current = new Set();
       tempIdCounterRef.current = -1;
       clearEditHistory();
       fetchedPlanKeysRef.current = new Set();
+      fetchedLocKeysRef.current = new Set();
       setPlans([]);
+      setLocationOverlayPlans([]);
       setIsDirty(false);
       onDirtyChange?.(false);
       setFetchVersion(v => v + 1);
@@ -1153,6 +1208,29 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     return { startCol, endCol, rowIdx: pp.rowIdx, groupStartRow: g.startRow };
   }
 
+  function isLocationRow(group, rowIdx) {
+    if (!group || group.locationRowIdx < 0) return false;
+    const relativeRow = rowIdx - group.startRow;
+    return relativeRow >= group.locationRowIdx
+      && relativeRow < group.locationRowIdx + (group.locationNumRows || 1);
+  }
+
+  function getLocationPlanBar(plan) {
+    const startCol = planToStartCol(plan, startDate, viewMode);
+    const endCol = planToEndCol(plan, startDate, viewMode);
+    const g = layoutGroups.find(group => group.locationPlans?.some(p => p.planId === plan.planId));
+    if (!g) return null;
+    const pp = g.locationPlans.find(p => p.planId === plan.planId);
+    if (!pp) return null;
+    return {
+      startCol,
+      endCol,
+      rowIdx: pp.rowIdx,
+      groupStartRow: g.startRow,
+      locationRowIdx: g.locationRowIdx,
+    };
+  }
+
   function handleContentPointerDown(e) {
     if (e.button !== 0) return;
     const scrollEl = scrollRef.current;
@@ -1206,9 +1284,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const selY2 = Math.max(s.y, en.y);
 
       const newSelected = new Set();
+      const newSelectedLocation = new Set();
       for (const g of layoutGroupsRef.current) {
-        if (!g.plans) continue;
-        for (const p of g.plans) {
+        for (const p of (g.plans || [])) {
           const sc = planToStartCol(p, startDate, viewMode);
           const ec = planToEndCol(p, startDate, viewMode);
           const absRow = g.startRow + p.rowIdx;
@@ -1220,9 +1298,22 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             newSelected.add(p.planId);
           }
         }
+        for (const p of (g.locationPlans || [])) {
+          const sc = planToStartCol(p, startDate, viewMode);
+          const ec = planToEndCol(p, startDate, viewMode);
+          const absRow = g.startRow + g.locationRowIdx + p.rowIdx;
+          const bx1 = sc * colW;
+          const bx2 = (ec + 1) * colW;
+          const by1 = absRow * CELL_SIZE;
+          const by2 = (absRow + 1) * CELL_SIZE;
+          if (bx1 < selX2 && bx2 > selX1 && by1 < selY2 && by2 > selY1) {
+            newSelectedLocation.add(p.planId);
+          }
+        }
       }
 
       setSelected(newSelected);
+      setSelectedLocation(newSelectedLocation);
       setSelectedCell(null);
       setRectSelect(null);
     };
@@ -1244,8 +1335,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         return s;
       });
     } else {
-      // 既に複数選択に含まれている場合はそのままにしてドラッグできるようにする
-      setSelected(prev => prev.has(plan.planId) ? prev : new Set([plan.planId]));
+      // 装置・場所の混在選択に含まれている場合は、両方の選択を保ったままドラッグする。
+      if (!selected.has(plan.planId)) {
+        setSelected(new Set([plan.planId]));
+        setSelectedLocation(new Set());
+      }
     }
 
     if (isReadOnlyPlan(plan, mode)) return;
@@ -1261,6 +1355,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
     if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
     if (dragPlans.length === 0) return;
+    const locationDragPlans = [...selectedLocation]
+      .map(id => locationOverlayPlans.find(p => p.planId === id))
+      .filter(Boolean);
 
     dragRef.current = {
       type,
@@ -1269,7 +1366,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       startX, startY,
       deltaCol: 0, deltaRow: 0,
       active: false,
+      locationDragPlans,
     };
+    if (locationDragPlans.length > 0) {
+      locationDragRef.current = {
+        ...dragRef.current,
+        plan: locationDragPlans[0],
+        dragPlans: locationDragPlans,
+      };
+    }
 
     const onMove = (e2) => {
       if (!dragRef.current) return;
@@ -1283,6 +1388,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       dragRef.current.deltaCol = dc;
       dragRef.current.deltaRow = dr;
+      if (locationDragRef.current) {
+        locationDragRef.current.deltaCol = dc;
+        locationDragRef.current.deltaRow = dr;
+        locationDragRef.current.active = dragRef.current.active;
+        setLocationGhostDrag({ ...locationDragRef.current });
+      }
       containerRef.current && (containerRef.current._dragState = { ...dragRef.current });
       containerRef.current?.dispatchEvent(new CustomEvent('dragupdate'));
     };
@@ -1290,24 +1401,52 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const onUp = async () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      if (!dragRef.current || !dragRef.current.active) { dragRef.current = null; return; }
-      await commitDrag(dragRef.current);
+      if (!dragRef.current || !dragRef.current.active) {
+        dragRef.current = null;
+        locationDragRef.current = null;
+        setGhostDrag(null);
+        setLocationGhostDrag(null);
+        return;
+      }
+      const drag = dragRef.current;
+      const destinationGroupId = resolveDragDestinationGroupId(drag.plan, drag.type, drag.deltaRow, 'plan');
+      await commitDrag({ ...drag, destinationGroupId });
+      if (drag.locationDragPlans.length > 0) {
+        await commitLocationDrag({
+          ...drag,
+          plan: drag.locationDragPlans[0],
+          dragPlans: drag.locationDragPlans,
+          destinationGroupId,
+        });
+      }
       dragRef.current = null;
+      locationDragRef.current = null;
       setGhostDrag(null);
+      setLocationGhostDrag(null);
     };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   }
 
+  function resolveDragDestinationGroupId(plan, type, deltaRow, kind) {
+    if (type !== 'move' || deltaRow === 0) return null;
+    const bar = kind === 'location' ? getLocationPlanBar(plan) : getPlanBar(plan);
+    if (!bar) return null;
+    const sourceRow = kind === 'location'
+      ? bar.groupStartRow + bar.locationRowIdx + bar.rowIdx
+      : bar.groupStartRow + bar.rowIdx;
+    return getGroupAtRow(sourceRow + deltaRow)?.id ?? null;
+  }
+
   async function commitDrag(drag) {
-    const { type, plan, dragPlans, deltaCol, deltaRow } = drag;
+    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId } = drag;
     const movedGroupPlanIds = [];
     const historyChanges = [];
 
     // 複数選択ドラッグ時の移動先グループは、ドラッグ主対象の着地先を全プランに共通適用する
-    let destGroupId = null;
-    if (type === 'move' && deltaRow !== 0) {
+    let destGroupId = destinationGroupId === undefined ? null : destinationGroupId;
+    if (destinationGroupId === undefined && type === 'move' && deltaRow !== 0) {
       const mainBar = getPlanBar(plan);
       if (mainBar) {
         const destAbsRow = mainBar.groupStartRow + mainBar.rowIdx + deltaRow;
@@ -1399,6 +1538,169 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
   }
 
+  function handleLocationBarPointerDown(e, plan, type) {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+
+    setSelectedCell(null);
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedLocation(prev => {
+        const next = new Set(prev);
+        next.has(plan.planId) ? next.delete(plan.planId) : next.add(plan.planId);
+        return next;
+      });
+    } else {
+      if (!selectedLocation.has(plan.planId)) {
+        setSelectedLocation(new Set([plan.planId]));
+        setSelected(new Set());
+      }
+    }
+
+    const bar = getLocationPlanBar(plan);
+    if (!bar) return;
+    const capturedSelected = selectedLocation.has(plan.planId) ? selectedLocation : new Set([plan.planId]);
+    const dragPlans = [...capturedSelected]
+      .map(id => locationOverlayPlans.find(p => p.planId === id))
+      .filter(Boolean);
+    if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
+    const regularDragPlans = [...selected]
+      .map(id => plans.find(p => p.planId === id))
+      .filter(p => p && !isReadOnlyPlan(p, mode));
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    locationDragRef.current = {
+      type,
+      plan,
+      dragPlans,
+      startX,
+      startY,
+      deltaCol: 0,
+      deltaRow: 0,
+      active: false,
+      regularDragPlans,
+    };
+    if (regularDragPlans.length > 0) {
+      dragRef.current = {
+        ...locationDragRef.current,
+        plan: regularDragPlans[0],
+        dragPlans: regularDragPlans,
+      };
+    }
+
+    const onMove = (e2) => {
+      if (!locationDragRef.current) return;
+      const dx = e2.clientX - startX;
+      const dy = e2.clientY - startY;
+      locationDragRef.current.deltaCol = Math.round(dx / colW);
+      locationDragRef.current.deltaRow = Math.round(dy / CELL_SIZE);
+      if (!locationDragRef.current.active && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        locationDragRef.current.active = true;
+      }
+      if (dragRef.current) {
+        dragRef.current.deltaCol = locationDragRef.current.deltaCol;
+        dragRef.current.deltaRow = locationDragRef.current.deltaRow;
+        dragRef.current.active = locationDragRef.current.active;
+        containerRef.current && (containerRef.current._dragState = { ...dragRef.current });
+        containerRef.current?.dispatchEvent(new CustomEvent('dragupdate'));
+      }
+      setLocationGhostDrag({ ...locationDragRef.current });
+    };
+
+    const onUp = async () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      const drag = locationDragRef.current;
+      locationDragRef.current = null;
+      dragRef.current = null;
+      setLocationGhostDrag(null);
+      setGhostDrag(null);
+      if (!drag?.active) return;
+      const destinationGroupId = resolveDragDestinationGroupId(drag.plan, drag.type, drag.deltaRow, 'location');
+      await commitLocationDrag({ ...drag, destinationGroupId });
+      if (drag.regularDragPlans.length > 0) {
+        await commitDrag({
+          ...drag,
+          plan: drag.regularDragPlans[0],
+          dragPlans: drag.regularDragPlans,
+          destinationGroupId,
+        });
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  async function commitLocationDrag(drag) {
+    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId } = drag;
+    let destinationSerialId = destinationGroupId === undefined ? null : destinationGroupId;
+    if (destinationGroupId === undefined && type === 'move' && deltaRow !== 0) {
+      const mainBar = getLocationPlanBar(plan);
+      if (mainBar) {
+        const sourceRow = mainBar.groupStartRow + mainBar.locationRowIdx + mainBar.rowIdx;
+        const destinationGroup = getGroupAtRow(sourceRow + deltaRow);
+        if (destinationGroup && Number(destinationGroup.id) > 0) {
+          destinationSerialId = Number(destinationGroup.id);
+        }
+      }
+    }
+
+    const historyChanges = [];
+    for (const locationPlan of dragPlans) {
+      const bar = getLocationPlanBar(locationPlan);
+      if (!bar) continue;
+      let newStartCol = bar.startCol;
+      let newEndCol = bar.endCol;
+      if (type === 'move') {
+        newStartCol += deltaCol;
+        newEndCol += deltaCol;
+      } else if (type === 'resize-left') {
+        newStartCol = Math.min(bar.endCol, bar.startCol + deltaCol);
+      } else {
+        newEndCol = Math.max(bar.startCol, bar.endCol + deltaCol);
+      }
+      newStartCol = Math.max(0, Math.min(newStartCol, totalCols - 1));
+      newEndCol = Math.max(newStartCol, Math.min(newEndCol, totalCols - 1));
+
+      const before = {
+        resourceId: locationPlan.resourceId,
+        serialId: locationPlan.serialId,
+        startDate: locationPlan.startDate,
+        endDate: locationPlan.endDate,
+        remark: locationPlan.remark ?? '',
+      };
+      const after = {
+        ...before,
+        serialId: destinationSerialId ?? locationPlan.serialId,
+        startDate: colToDateTime(startDate, newStartCol, 'start', viewMode),
+        endDate: colToDateTime(startDate, newEndCol, 'end', viewMode),
+      };
+      if (!Object.keys(after).some(key => String(after[key] ?? '') !== String(before[key] ?? ''))) continue;
+      const previousPendingHad = pendingLocationUpdatesRef.current.has(locationPlan.planId);
+      const previousPending = previousPendingHad
+        ? { ...pendingLocationUpdatesRef.current.get(locationPlan.planId) }
+        : null;
+      historyChanges.push({
+        planId: locationPlan.planId,
+        before,
+        after,
+        previousPendingHad,
+        previousPending,
+      });
+      setLocationOverlayPlans(prev => prev.map(p => p.planId === locationPlan.planId ? { ...p, ...after } : p));
+      if (locationPlan.planId < 0 && pendingLocationCreatesRef.current.has(locationPlan.planId)) {
+        pendingLocationCreatesRef.current.set(locationPlan.planId, after);
+      } else {
+        pendingLocationUpdatesRef.current.set(locationPlan.planId, after);
+      }
+    }
+    if (historyChanges.length === 0) return;
+    pushEditHistory({ type: 'drag', kind: 'location', changes: historyChanges });
+    setIsDirty(true);
+    onDirtyChange?.(true);
+  }
+
   const [ghostDrag, setGhostDrag] = useState(null);
 
   useEffect(() => {
@@ -1418,10 +1720,38 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function handleCellRightClick(e, col, row) {
     e.preventDefault();
     if (mode === 'task') return;
+    const g = getGroupAtRow(row);
+    const locationCell = mode === 'device' && extraLocationRow && isLocationRow(g, row);
     setSelectedCell({ col, row });
     setSelected(new Set());
-    const g = getGroupAtRow(row);
-    const colDate = colToDateStr(startDate, col, viewMode);
+    setSelectedLocation(new Set());
+    if (locationCell) {
+      const startDateTime = colToDateTime(startDate, col, 'start', viewMode);
+      const endDateTime = colToDateTime(startDate, col + (viewMode === 'slot' ? 5 : 0), 'end', viewMode);
+      const items = [{
+        label: '場所予定を追加',
+        onClick: () => openScheduleDialog({
+          plan: null,
+          kind: 'location',
+          initialData: {
+            serialId: g?.id,
+            serialNo: g?.serialNo,
+            kisyuId: g?.kisyuId,
+            kisyuName: g?.kisyuName,
+            startDate: startDateTime,
+            endDate: endDateTime,
+          },
+        }),
+      }];
+      if (copiedKind === 'location' && copied.length > 0) {
+        items.push({
+          label: `場所予定を貼り付け（${copied.length}件）`,
+          onClick: () => pasteLocationPlans(col, row),
+        });
+      }
+      setContextMenu({ x: e.clientX, y: e.clientY, items });
+      return;
+    }
     const items = [
       // 社員未定の行は予定の新規登録不可（担当者が定まらないため）
       ...(g?.isUnassigned ? [] : [{
@@ -1447,7 +1777,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           });
         }
       }]),
-      ...(copied.length > 0 ? [{
+      ...(copiedKind === 'plan' && copied.length > 0 ? [{
         label: `貼り付け（${copied.length}件）`,
         onClick: () => pastePlans(col, row),
       }] : []),
@@ -1463,6 +1793,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const alreadyInMulti = selected.size > 1 && selected.has(plan.planId);
     if (!alreadyInMulti) {
       setSelected(new Set([plan.planId]));
+      setSelectedLocation(new Set());
       setSelectedCell(null);
     }
     const isMulti = alreadyInMulti;
@@ -1501,6 +1832,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       { label: `${n}件コピー`, onClick: () => {
         const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
         setCopied(toCopy);
+        setCopiedKind('plan');
       }},
       'separator',
       { label: `${n}件削除`, danger: true, onClick: () => {
@@ -1512,12 +1844,39 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },
       ] : []),
       ...(!isReadOnlyPlan(plan, mode) ? [
-        { label: 'コピー', onClick: () => setCopied([plan]) },
+        { label: 'コピー', onClick: () => { setCopied([plan]); setCopiedKind('plan'); } },
         'separator',
         { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
       ] : []),
       ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
       ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+    ];
+    setContextMenu({ x: e.clientX, y: e.clientY, items });
+  }
+
+  function handleLocationBarRightClick(e, plan) {
+    e.preventDefault();
+    e.stopPropagation();
+    const alreadyInMulti = selectedLocation.size > 1 && selectedLocation.has(plan.planId);
+    if (!alreadyInMulti) {
+      setSelectedLocation(new Set([plan.planId]));
+      setSelected(new Set());
+      setSelectedCell(null);
+    }
+    const ids = alreadyInMulti ? [...selectedLocation] : [plan.planId];
+    const locationPlans = ids
+      .map(id => locationOverlayPlans.find(p => p.planId === id))
+      .filter(Boolean);
+    const items = locationPlans.length > 1 ? [
+      { label: `${locationPlans.length}件コピー`, onClick: () => { setCopied(locationPlans); setCopiedKind('location'); } },
+      'separator',
+      { label: `${locationPlans.length}件削除`, danger: true, onClick: () => deleteLocationPlans(ids) },
+    ] : [
+      { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+      { label: '編集', onClick: () => openScheduleDialog({ plan, kind: 'location' }) },
+      { label: 'コピー', onClick: () => { setCopied([plan]); setCopiedKind('location'); } },
+      'separator',
+      { label: '削除', danger: true, onClick: () => deleteLocationPlans([plan.planId]) },
     ];
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }
@@ -1542,8 +1901,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     onDirtyChange?.(true);
   }
 
+  function deleteLocationPlans(ids) {
+    if (ids.length === 0) return;
+    setLocationOverlayPlans(prev => prev.filter(p => !ids.includes(p.planId)));
+    setSelectedLocation(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+    ids.forEach(id => {
+      if (id < 0) {
+        pendingLocationCreatesRef.current.delete(id);
+      } else {
+        pendingLocationDeletesRef.current.add(id);
+        pendingLocationUpdatesRef.current.delete(id);
+      }
+    });
+    setIsDirty(true);
+    onDirtyChange?.(true);
+  }
+
   function pastePlans(targetCol, targetRow) {
-    if (!copied.length) return;
+    if (!copied.length || copiedKind !== 'plan') return;
     // 貼り付け先の行グループ（装置 or 担当者）を特定
     const targetGroup = getGroupAtRow(targetRow);
     if (!targetGroup) return; // グループが特定できない場合は貼り付けしない
@@ -1608,6 +1987,34 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     onDirtyChange?.(true);
   }
 
+  function pasteLocationPlans(targetCol, targetRow) {
+    if (!copied.length || copiedKind !== 'location') return;
+    const targetGroup = getGroupAtRow(targetRow);
+    if (!targetGroup || !isLocationRow(targetGroup, targetRow) || Number(targetGroup.id) <= 0) return;
+
+    const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
+    const offset = targetCol - firstStartCol;
+    const newPlans = copied.map(plan => {
+      const startCol = Math.max(0, planToStartCol(plan, startDate, viewMode) + offset);
+      const endCol = Math.max(startCol, planToEndCol(plan, startDate, viewMode) + offset);
+      const payload = {
+        resourceId: plan.resourceId,
+        serialId: Number(targetGroup.id),
+        startDate: colToDateTime(startDate, startCol, 'start', viewMode),
+        endDate: colToDateTime(startDate, endCol, 'end', viewMode),
+        remark: plan.remark ?? '',
+      };
+      const tempId = tempIdCounterRef.current--;
+      pendingLocationCreatesRef.current.set(tempId, payload);
+      return { ...plan, ...payload, planId: tempId, reserveId: tempId };
+    });
+    setLocationOverlayPlans(prev => [...prev, ...newPlans]);
+    setSelectedLocation(new Set(newPlans.map(plan => plan.planId)));
+    setSelected(new Set());
+    setIsDirty(true);
+    onDirtyChange?.(true);
+  }
+
   function showToast(message) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(message);
@@ -1626,7 +2033,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
     setScheduleDialog(null);
-    const payload = mode === 'place'
+    const isLocationPlan = mode === 'place' || dialog?.kind === 'location';
+    const payload = isLocationPlan
       ? {
         resourceId: data.resourceId || dialog.initialData?.resourceId,
         serialId:   data.serialId,
@@ -1647,18 +2055,20 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         remark: data.remark ?? '',
       };
 
+    const updateState = dialog?.kind === 'location' ? setLocationOverlayPlans : setPlans;
+    const endpoint = isLocationPlan ? '/reserve' : planEndpoint;
     if (dialog.plan) {
       // 編集：楽観的に即時反映し、失敗時に元に戻す
       const prevPlan = { ...dialog.plan };
-      setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...payload } : p));
+      updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...payload } : p));
       try {
-        const updated = await apiJson(`${planEndpoint}/${dialog.plan.planId}`, {
+        const updated = await apiJson(`${endpoint}/${dialog.plan.planId}`, {
           method: 'PUT',
           body: JSON.stringify(payload),
         });
-        setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...updated } : p));
+        updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...updated } : p));
       } catch {
-        setPlans(prev => prev.map(p => p.planId === dialog.plan.planId ? prevPlan : p));
+        updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? prevPlan : p));
         showToast('予定の更新に失敗しました');
       }
     } else {
@@ -1670,16 +2080,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         tempId: tempIdCounterRef.current--,
         payload: createPayload,
       }));
-      setPlans(prev => [...prev, ...tempPlans.map(({ tempId, payload }) => ({ planId: tempId, ...payload }))]);
+      updateState(prev => [...prev, ...tempPlans.map(({ tempId, payload }) => ({ planId: tempId, ...payload }))]);
       for (const { tempId, payload: createPayload } of tempPlans) {
         try {
-          const newPlan = await apiJson(planEndpoint, {
+          const newPlan = await apiJson(endpoint, {
             method: 'POST',
             body: JSON.stringify(createPayload),
           });
-          setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
+          updateState(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
         } catch {
-          setPlans(prev => prev.filter(p => p.planId !== tempId));
+          updateState(prev => prev.filter(p => p.planId !== tempId));
           showToast('予定の登録に失敗しました');
         }
       }
@@ -1689,19 +2099,32 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     const handleKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        const selectedLocationPlans = [...selectedLocation]
+          .map(id => locationOverlayPlans.find(p => p.planId === id))
+          .filter(Boolean);
+        if (selectedLocationPlans.length) {
+          setCopied(selectedLocationPlans);
+          setCopiedKind('location');
+          return;
+        }
         const sel = [...selected].map(id => plans.find(p => p.planId === id)).filter(Boolean);
-        if (sel.length) setCopied(sel);
+        if (sel.length) {
+          setCopied(sel);
+          setCopiedKind('plan');
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         if (copied.length && mode !== 'task') {
           const col = Math.floor(scrollLeft / colW);
-          pastePlans(col);
+          const row = selectedCell?.row ?? Math.floor(scrollTop / CELL_SIZE);
+          if (copiedKind === 'location') pasteLocationPlans(col, row);
+          else pastePlans(col, row);
         }
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [selected, plans, copied, scrollLeft, colW]);
+  }, [selected, selectedLocation, selectedCell, plans, locationOverlayPlans, copied, copiedKind, scrollLeft, scrollTop, colW]);
 
   useEffect(() => {
     if (!jumpTarget || jumpTarget.targetMode !== mode || mode !== 'device') return;
@@ -2186,6 +2609,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           onClick={e => {
             if (e.target === scrollRef.current) {
               setSelected(new Set());
+              setSelectedLocation(new Set());
               setSelectedCell(null);
             }
           }}
@@ -2222,6 +2646,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     if (col >= 0 && col < totalCols && row >= 0 && row < totalRows) {
                       setSelectedCell({ col, row });
                       setSelected(new Set());
+                      setSelectedLocation(new Set());
                     }
                   }}
                   onContextMenu={(e) => {
@@ -2287,6 +2712,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     totalCols={totalCols}
                     scrollLeft={scrollLeft}
                     containerW={containerW}
+                    selected={selectedLocation}
+                    editedPlanIds={new Set(pendingLocationUpdatesRef.current.keys())}
+                    dragRef={locationDragRef}
+                    ghostDrag={locationGhostDrag}
+                    onBarPointerDown={handleLocationBarPointerDown}
+                    onBarRightClick={handleLocationBarRightClick}
                   />
                   {/* 矩形選択オーバーレイ */}
                   {rectSelect && (
@@ -2369,7 +2800,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         totalRows={totalRows}
         dayCount={daysBetween(startDate, endDate)}
         planCount={planCount}
-        selectedCount={selected.size}
+        selectedCount={selected.size + selectedLocation.size}
         copiedCount={copied.length}
         loading={isScheduleAreaFetching}
       />
@@ -2534,7 +2965,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           plan={scheduleDialog.plan}
           initialData={scheduleDialog.initialData}
           resources={resources}
-          gridMode={mode}
+          gridMode={scheduleDialog.kind === 'location' ? 'place' : mode}
           onSave={savePlan}
           onClose={() => setScheduleDialog(null)}
         />
