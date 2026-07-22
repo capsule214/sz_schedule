@@ -1249,7 +1249,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     }
 
     if (isReadOnlyPlan(plan, mode)) return;
-    if (mode === 'task') return;
 
     const bar = getPlanBar(plan);
     if (!bar) return;
@@ -1277,7 +1276,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const dx = e2.clientX - startX;
       const dy = e2.clientY - startY;
       const dc = Math.round(dx / colW);
-      const dr = Math.round(dy / CELL_SIZE);
+      // タスクタブでは担当タスク（行）を変えず、日付方向の移動・伸縮だけを許可する。
+      const dr = mode === 'task' ? 0 : Math.round(dy / CELL_SIZE);
       if (!dragRef.current.active && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
         dragRef.current.active = true;
       }
@@ -1479,7 +1479,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, t),
     }));
 
-    // タスクタブは閲覧専用（編集・コピー・削除なし）。詳細とジャンプのみ表示する。
+    // タスクタブの右クリックメニューは詳細とジャンプのみ表示する。
+    // 日付変更は予定バーのドラッグ・伸縮で行う。
     if (mode === 'task') {
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
