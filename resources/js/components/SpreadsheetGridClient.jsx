@@ -204,13 +204,11 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function handleSave() {
     const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.saveChanges();
-    setIsDirty(false);
   }
 
   async function handleCancel() {
     const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.cancelChanges();
-    setIsDirty(false);
   }
 
   function activeGridRef() {
@@ -500,7 +498,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             mode="device"
             jumpTarget={tab === 'device' ? jumpTarget : null}
             onRangeChange={r => { deviceRangeRef.current = r; }}
-            onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
+            onDirtyChange={setIsDirty}
           />
         </GridTabPane>
 
@@ -512,7 +510,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             mode="worker"
             jumpTarget={tab === 'worker' ? jumpTarget : null}
             onRangeChange={r => { workerRangeRef.current = r; }}
-            onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
+            onDirtyChange={setIsDirty}
           />
         </GridTabPane>
 
@@ -524,7 +522,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             mode="place"
             jumpTarget={null}
             onRangeChange={r => { locationRangeRef.current = r; }}
-            onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
+            onDirtyChange={setIsDirty}
           />
         </GridTabPane>
 
@@ -536,7 +534,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             mode="task"
             jumpTarget={tab === 'task' ? jumpTarget : null}
             onRangeChange={r => { taskRangeRef.current = r; }}
-            onDirtyChange={dirty => setIsDirty(prev => dirty || prev)}
+            onDirtyChange={setIsDirty}
           />
         </GridTabPane>
 

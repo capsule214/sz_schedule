@@ -26,7 +26,7 @@ export default function GridTabBar({
         </button>
       ))}
       <div style={{ flex: 1 }} />
-      {isDirty && (
+      {(canUndo || canRedo) && (
         <>
           <button
             onClick={onUndo}
@@ -38,6 +38,10 @@ export default function GridTabBar({
             disabled={!canRedo}
             style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: canRedo ? '#fff' : '#f3f4f6', color: canRedo ? '#374151' : '#9ca3af', cursor: canRedo ? 'pointer' : 'not-allowed', fontSize: 13, marginRight: 6 }}
           >Redo</button>
+        </>
+      )}
+      {isDirty && (
+        <>
           <button onClick={onSave} style={{ padding: '6px 14px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>保存</button>
           <button onClick={onCancel} style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, marginLeft: 6 }}>キャンセル</button>
         </>

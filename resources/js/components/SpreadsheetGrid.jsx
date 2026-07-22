@@ -13,6 +13,7 @@ import SpreadsheetGridLeftHeader from './SpreadsheetGridLeftHeader';
 import SpreadsheetGridLocationOverlayBars from './SpreadsheetGridLocationOverlayBars';
 import DeviceHeaderTooltip from './DeviceHeaderTooltip';
 import AlertToast from './AlertToast';
+import { loadTaskMaster } from '../lib/taskMaster';
 import { loadLeftColWidths, saveLeftColWidth, visibleLeftColumns, clampLeftColW } from '../lib/leftHeaderColumns';
 import { loadExcludedDays, splitPastedSchedulePreservingLength } from '../lib/scheduleExclusions';
 import {
@@ -67,11 +68,13 @@ function isWorkerUnassignedPlan(plan, mode) {
 }
 
 function isReadOnlyPlan(plan, mode) {
+  if (Number(plan?.planId) < 0) return false;
   if (isEditableMorderShippingTask(plan)) return false;
   return isReadOnlyShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
 }
 
 function isDialogReadOnlyPlan(plan) {
+  if (Number(plan?.planId) < 0) return false;
   return isReadOnlyShippingTask(plan);
 }
 
@@ -158,6 +161,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const gridFetchCountRef = useRef(0);
   const scheduleFetchCountRef = useRef(0);
   const planFetchSequenceRef = useRef(0);
+
+  const retainPendingPlans = useCallback((current) => current.filter(plan => {
+    if (pendingDeletesRef.current.has(plan.planId)) return false;
+    return plan.planId < 0
+      ? pendingCreatesRef.current.has(plan.planId)
+      : pendingUpdatesRef.current.has(plan.planId);
+  }), []);
+  const retainPendingLocationPlans = useCallback((current) => current.filter(plan => {
+    if (pendingLocationDeletesRef.current.has(plan.planId)) return false;
+    return plan.planId < 0
+      ? pendingLocationCreatesRef.current.has(plan.planId)
+      : pendingLocationUpdatesRef.current.has(plan.planId);
+  }), []);
 
   const dragRef = useRef(null);
   const locationDragRef = useRef(null);
@@ -747,7 +763,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (!settingsReady) return;
     fetchedPlanKeysRef.current = new Set();
-    setPlans([]);
+    setPlans(retainPendingPlans);
   }, [settingsReady, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchLocationOverlayPlans = useCallback(async (from, to, groups = []) => {
@@ -825,7 +841,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   // showLocationInDevice の ON/OFF 切り替え、または表示期間・設定変更時に場所予定をフェッチ
   useEffect(() => {
     // 表示期間・表示設定の変更で機種フィルタが変わるため、古いオーバーレイ予定を破棄して取り直す
-    setLocationOverlayPlans([]);
+    setLocationOverlayPlans(retainPendingLocationPlans);
     fetchedLocKeysRef.current = new Set();
   }, [extraLocationRow, startDate, endDate, displaySettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -843,51 +859,134 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function pushEditHistory(action) {
-    undoStackRef.current = [...undoStackRef.current, action].slice(-10);
+    undoStackRef.current = [...undoStackRef.current, action];
     redoStackRef.current = [];
     notifyHistoryChange();
   }
 
+  function refsForKind(kind) {
+    return kind === 'location'
+      ? {
+        setState: setLocationOverlayPlans,
+        creates: pendingLocationCreatesRef,
+        updates: pendingLocationUpdatesRef,
+        deletes: pendingLocationDeletesRef,
+      }
+      : {
+        setState: setPlans,
+        creates: pendingCreatesRef,
+        updates: pendingUpdatesRef,
+        deletes: pendingDeletesRef,
+      };
+  }
+
+  function hasPendingChanges() {
+    return pendingCreatesRef.current.size > 0
+      || pendingUpdatesRef.current.size > 0
+      || pendingDeletesRef.current.size > 0
+      || pendingLocationCreatesRef.current.size > 0
+      || pendingLocationUpdatesRef.current.size > 0
+      || pendingLocationDeletesRef.current.size > 0;
+  }
+
+  function syncDirtyState() {
+    const dirty = hasPendingChanges();
+    setIsDirty(dirty);
+    onDirtyChange?.(dirty);
+  }
+
   function applyHistoryChanges(changes, direction, kind = 'plan') {
     const useAfter = direction === 'redo';
-    const updateState = kind === 'location' ? setLocationOverlayPlans : setPlans;
-    const updatesRef = kind === 'location' ? pendingLocationUpdatesRef : pendingUpdatesRef;
-    updateState(prev => prev.map(plan => {
+    const refs = refsForKind(kind);
+    refs.setState(prev => prev.map(plan => {
       const change = changes.find(c => c.planId === plan.planId);
-      return change ? { ...plan, ...(useAfter ? change.after : change.before) } : plan;
+      if (!change) return plan;
+      const stateValue = useAfter
+        ? (change.afterState ?? change.after)
+        : (change.beforeState ?? change.before);
+      return { ...plan, ...stateValue };
     }));
 
     for (const change of changes) {
-      if (kind === 'location' && change.planId < 0 && pendingLocationCreatesRef.current.has(change.planId)) {
-        pendingLocationCreatesRef.current.set(change.planId, useAfter ? change.after : change.before);
+      if (change.planId < 0 && refs.creates.current.has(change.planId)) {
+        refs.creates.current.set(change.planId, useAfter ? change.after : change.before);
         continue;
       }
       if (useAfter) {
-        updatesRef.current.set(change.planId, change.after);
+        refs.updates.current.set(change.planId, change.after);
       } else if (change.previousPendingHad) {
-        updatesRef.current.set(change.planId, change.previousPending);
+        refs.updates.current.set(change.planId, change.previousPending);
       } else {
-        updatesRef.current.delete(change.planId);
+        refs.updates.current.delete(change.planId);
       }
     }
-    setIsDirty(true);
-    onDirtyChange?.(true);
+  }
+
+  function applyCreateHistory(action, direction) {
+    const refs = refsForKind(action.kind);
+    const ids = new Set(action.plans.map(plan => plan.planId));
+    if (direction === 'undo') {
+      refs.setState(prev => prev.filter(plan => !ids.has(plan.planId)));
+      ids.forEach(id => refs.creates.current.delete(id));
+      return;
+    }
+    refs.setState(prev => {
+      const existing = new Set(prev.map(plan => plan.planId));
+      return [...prev, ...action.plans.filter(plan => !existing.has(plan.planId))];
+    });
+    for (const plan of action.plans) refs.creates.current.set(plan.planId, action.payloads.get(plan.planId));
+  }
+
+  function applyDeleteHistory(action, direction) {
+    const refs = refsForKind(action.kind);
+    const ids = new Set(action.records.map(record => record.plan.planId));
+    if (direction === 'undo') {
+      refs.setState(prev => {
+        const existing = new Set(prev.map(plan => plan.planId));
+        return [...prev, ...action.records.map(record => record.plan).filter(plan => !existing.has(plan.planId))];
+      });
+      for (const record of action.records) {
+        const id = record.plan.planId;
+        refs.deletes.current.delete(id);
+        if (record.hadCreate) refs.creates.current.set(id, record.createPayload);
+        if (record.hadUpdate) refs.updates.current.set(id, record.updatePayload);
+      }
+      return;
+    }
+    refs.setState(prev => prev.filter(plan => !ids.has(plan.planId)));
+    for (const record of action.records) {
+      const id = record.plan.planId;
+      if (id < 0) refs.creates.current.delete(id);
+      else refs.deletes.current.add(id);
+      refs.updates.current.delete(id);
+    }
+  }
+
+  function applyHistoryAction(action, direction) {
+    if (action.type === 'create') applyCreateHistory(action, direction);
+    else if (action.type === 'delete') applyDeleteHistory(action, direction);
+    else if (action.type === 'mixed') {
+      for (const part of action.parts) applyHistoryChanges(part.changes, direction, part.kind);
+    }
+    else applyHistoryChanges(action.changes, direction, action.kind);
   }
 
   function undoLastEdit() {
     const action = undoStackRef.current.pop();
     if (!action) return;
-    applyHistoryChanges(action.changes, 'undo', action.kind);
+    applyHistoryAction(action, 'undo');
     redoStackRef.current.push(action);
     notifyHistoryChange();
+    syncDirtyState();
   }
 
   function redoLastEdit() {
     const action = redoStackRef.current.pop();
     if (!action) return;
-    applyHistoryChanges(action.changes, 'redo', action.kind);
+    applyHistoryAction(action, 'redo');
     undoStackRef.current.push(action);
     notifyHistoryChange();
+    syncDirtyState();
   }
 
   // 保存・キャンセルを親から呼び出せるようにする
@@ -898,6 +997,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const creates = pendingCreatesRef.current;
       const updates = pendingUpdatesRef.current;
       const deletes = pendingDeletesRef.current;
+      const deletedPlanIds = new Set(deletes);
+      const deletedLocationPlanIds = new Set(pendingLocationDeletesRef.current);
+      let saveFailed = false;
 
       // 新規作成（貼り付け）：仮IDを DB の本IDで置き換える
       for (const [tempId, payload] of creates) {
@@ -907,7 +1009,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             body: JSON.stringify(payload),
           });
           setPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
-        } catch (err) { console.error('saveChanges create error', err); }
+          creates.delete(tempId);
+        } catch (err) { saveFailed = true; console.error('saveChanges create error', err); }
       }
 
       // 削除（DB 上に存在する正のIDのみ）
@@ -917,18 +1020,20 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             method: 'DELETE',
             body: JSON.stringify({ ids: [...deletes].map(String) }),
           });
-        } catch (err) { console.error('saveChanges delete error', err); }
+          deletes.clear();
+        } catch (err) { saveFailed = true; console.error('saveChanges delete error', err); }
       }
 
       // 更新（削除済みは除外）
       for (const [planId, payload] of updates) {
-        if (deletes.has(planId)) continue;
+        if (deletedPlanIds.has(planId)) continue;
         try {
           await apiJson(`${planEndpoint}/${planId}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
           });
-        } catch (err) { console.error('saveChanges update error', err); }
+          updates.delete(planId);
+        } catch (err) { saveFailed = true; console.error('saveChanges update error', err); }
       }
 
       // 装置タブ内で編集した場所予定を /reserve に保存する。
@@ -939,7 +1044,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             body: JSON.stringify(payload),
           });
           setLocationOverlayPlans(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
-        } catch (err) { console.error('saveChanges location create error', err); }
+          pendingLocationCreatesRef.current.delete(tempId);
+        } catch (err) { saveFailed = true; console.error('saveChanges location create error', err); }
       }
       if (pendingLocationDeletesRef.current.size > 0) {
         try {
@@ -947,27 +1053,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             method: 'DELETE',
             body: JSON.stringify({ ids: [...pendingLocationDeletesRef.current].map(String) }),
           });
-        } catch (err) { console.error('saveChanges location delete error', err); }
+          pendingLocationDeletesRef.current.clear();
+        } catch (err) { saveFailed = true; console.error('saveChanges location delete error', err); }
       }
       for (const [planId, payload] of pendingLocationUpdatesRef.current) {
-        if (pendingLocationDeletesRef.current.has(planId)) continue;
+        if (deletedLocationPlanIds.has(planId)) continue;
         try {
           await apiJson(`/reserve/${planId}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
           });
-        } catch (err) { console.error('saveChanges location update error', err); }
+          pendingLocationUpdatesRef.current.delete(planId);
+        } catch (err) { saveFailed = true; console.error('saveChanges location update error', err); }
       }
 
-      pendingCreatesRef.current = new Map();
-      pendingUpdatesRef.current = new Map();
-      pendingDeletesRef.current = new Set();
-      pendingLocationCreatesRef.current = new Map();
-      pendingLocationUpdatesRef.current = new Map();
-      pendingLocationDeletesRef.current = new Set();
-      clearEditHistory();
-      setIsDirty(false);
-      onDirtyChange?.(false);
+      if (!hasPendingChanges()) {
+        clearEditHistory();
+        setIsDirty(false);
+        onDirtyChange?.(false);
+      } else {
+        syncDirtyState();
+        if (saveFailed) showToast('一部の予定を保存できませんでした');
+      }
     },
     async cancelChanges() {
       pendingCreatesRef.current = new Map();
@@ -1136,7 +1243,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setDeviceGroupOffset(0);
     deviceGroupFetchKeyRef.current = '';
     fetchedPlanKeysRef.current = new Set();
-    setPlans([]);
+    setPlans(retainPendingPlans);
   }, [settingsReady, mode, isMorderDevice, displaySettings, deviceCount, startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1410,14 +1517,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       const drag = dragRef.current;
       const destinationGroupId = resolveDragDestinationGroupId(drag.plan, drag.type, drag.deltaRow, 'plan');
-      await commitDrag({ ...drag, destinationGroupId });
+      const mixed = drag.locationDragPlans.length > 0;
+      const planChanges = await commitDrag({ ...drag, destinationGroupId, recordHistory: !mixed });
       if (drag.locationDragPlans.length > 0) {
-        await commitLocationDrag({
+        const locationChanges = await commitLocationDrag({
           ...drag,
           plan: drag.locationDragPlans[0],
           dragPlans: drag.locationDragPlans,
           destinationGroupId,
+          recordHistory: false,
         });
+        const parts = [
+          { kind: 'plan', changes: planChanges },
+          { kind: 'location', changes: locationChanges },
+        ].filter(part => part.changes.length > 0);
+        if (parts.length > 0) pushEditHistory({ type: 'mixed', parts });
       }
       dragRef.current = null;
       locationDragRef.current = null;
@@ -1440,7 +1554,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function commitDrag(drag) {
-    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId } = drag;
+    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId, recordHistory = true } = drag;
     const movedGroupPlanIds = [];
     const historyChanges = [];
 
@@ -1502,11 +1616,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
       // API は呼ばず、ローカル state を即時更新して保留リストに積む
       const beforePayload = mode === 'place'
-        ? { resourceId: dp.resourceId, serialId: dp.serialId, startDate: dp.startDate, endDate: dp.endDate }
-        : { serialId: dp.serialId, morderId: dp.morderId, taskId: dp.taskId, workerId: dp.workerId, startDate: dp.startDate, endDate: dp.endDate };
+        ? { resourceId: dp.resourceId, serialId: dp.serialId, startDate: dp.startDate, endDate: dp.endDate, remark: dp.remark ?? '' }
+        : {
+          serialId: dp.serialId, morderId: dp.morderId, taskId: dp.taskId, workerId: dp.workerId,
+          teacherId: dp.teacherId, startDate: dp.startDate, endDate: dp.endDate,
+          plannedMinutes: dp.plannedMinutes ?? 0, price: dp.price ?? 0, remark: dp.remark ?? '',
+        };
       const payload = mode === 'place'
-        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate }
-        : { serialId: newSerialId, morderId: newMorderId, taskId: dp.taskId, workerId: newWorkerId, startDate: newStartDate, endDate: newEndDate };
+        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate, remark: dp.remark ?? '' }
+        : {
+          serialId: newSerialId, morderId: newMorderId, taskId: dp.taskId, workerId: newWorkerId,
+          teacherId: dp.teacherId, startDate: newStartDate, endDate: newEndDate,
+          plannedMinutes: dp.plannedMinutes ?? 0, price: dp.price ?? 0, remark: dp.remark ?? '',
+        };
       const changed = Object.keys(payload).some(key => String(payload[key] ?? '') !== String(beforePayload[key] ?? ''));
       if (!changed) continue;
       const previousPendingHad = pendingUpdatesRef.current.has(dp.planId);
@@ -1521,11 +1643,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setPlans(prev => prev.map(p =>
         p.planId === dp.planId ? { ...p, ...payload } : p
       ));
-      pendingUpdatesRef.current.set(dp.planId, payload);
+      if (dp.planId < 0 && pendingCreatesRef.current.has(dp.planId)) {
+        pendingCreatesRef.current.set(dp.planId, payload);
+      } else {
+        pendingUpdatesRef.current.set(dp.planId, payload);
+      }
       setIsDirty(true);
       onDirtyChange?.(true);
     }
-    if (historyChanges.length > 0) {
+    if (recordHistory && historyChanges.length > 0) {
       pushEditHistory({ type: 'drag', changes: historyChanges });
     }
     if (movedGroupPlanIds.length > 0) {
@@ -1536,6 +1662,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         groupMoveHighlightTimerRef.current = null;
       }, 3500);
     }
+    return historyChanges;
   }
 
   function handleLocationBarPointerDown(e, plan, type) {
@@ -1617,14 +1744,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setGhostDrag(null);
       if (!drag?.active) return;
       const destinationGroupId = resolveDragDestinationGroupId(drag.plan, drag.type, drag.deltaRow, 'location');
-      await commitLocationDrag({ ...drag, destinationGroupId });
+      const mixed = drag.regularDragPlans.length > 0;
+      const locationChanges = await commitLocationDrag({ ...drag, destinationGroupId, recordHistory: !mixed });
       if (drag.regularDragPlans.length > 0) {
-        await commitDrag({
+        const planChanges = await commitDrag({
           ...drag,
           plan: drag.regularDragPlans[0],
           dragPlans: drag.regularDragPlans,
           destinationGroupId,
+          recordHistory: false,
         });
+        const parts = [
+          { kind: 'location', changes: locationChanges },
+          { kind: 'plan', changes: planChanges },
+        ].filter(part => part.changes.length > 0);
+        if (parts.length > 0) pushEditHistory({ type: 'mixed', parts });
       }
     };
 
@@ -1633,7 +1767,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   async function commitLocationDrag(drag) {
-    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId } = drag;
+    const { type, plan, dragPlans, deltaCol, deltaRow, destinationGroupId, recordHistory = true } = drag;
     let destinationSerialId = destinationGroupId === undefined ? null : destinationGroupId;
     if (destinationGroupId === undefined && type === 'move' && deltaRow !== 0) {
       const mainBar = getLocationPlanBar(plan);
@@ -1695,10 +1829,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         pendingLocationUpdatesRef.current.set(locationPlan.planId, after);
       }
     }
-    if (historyChanges.length === 0) return;
-    pushEditHistory({ type: 'drag', kind: 'location', changes: historyChanges });
+    if (historyChanges.length === 0) return [];
+    if (recordHistory) pushEditHistory({ type: 'drag', kind: 'location', changes: historyChanges });
     setIsDirty(true);
     onDirtyChange?.(true);
+    return historyChanges;
   }
 
   const [ghostDrag, setGhostDrag] = useState(null);
@@ -1884,6 +2019,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function deletePlans(ids) {
     const deletableIds = ids.filter(id => !isReadOnlyPlan(plans.find(p => p.planId === id), mode));
     if (deletableIds.length === 0) return;
+    const records = deletableIds.map(id => ({
+      plan: plans.find(p => p.planId === id),
+      hadCreate: pendingCreatesRef.current.has(id),
+      createPayload: pendingCreatesRef.current.has(id) ? { ...pendingCreatesRef.current.get(id) } : null,
+      hadUpdate: pendingUpdatesRef.current.has(id),
+      updatePayload: pendingUpdatesRef.current.has(id) ? { ...pendingUpdatesRef.current.get(id) } : null,
+    })).filter(record => record.plan);
     // API は呼ばず、ローカル state を即時更新して保留リストに積む
     setPlans(prev => prev.filter(p => !deletableIds.includes(p.planId)));
     setSelected(prev => { const s = new Set(prev); deletableIds.forEach(id => s.delete(id)); return s; });
@@ -1899,10 +2041,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     });
     setIsDirty(true);
     onDirtyChange?.(true);
+    pushEditHistory({ type: 'delete', kind: 'plan', records });
   }
 
   function deleteLocationPlans(ids) {
     if (ids.length === 0) return;
+    const records = ids.map(id => ({
+      plan: locationOverlayPlans.find(p => p.planId === id),
+      hadCreate: pendingLocationCreatesRef.current.has(id),
+      createPayload: pendingLocationCreatesRef.current.has(id) ? { ...pendingLocationCreatesRef.current.get(id) } : null,
+      hadUpdate: pendingLocationUpdatesRef.current.has(id),
+      updatePayload: pendingLocationUpdatesRef.current.has(id) ? { ...pendingLocationUpdatesRef.current.get(id) } : null,
+    })).filter(record => record.plan);
+    if (records.length === 0) return;
     setLocationOverlayPlans(prev => prev.filter(p => !ids.includes(p.planId)));
     setSelectedLocation(prev => {
       const next = new Set(prev);
@@ -1919,6 +2070,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     });
     setIsDirty(true);
     onDirtyChange?.(true);
+    pushEditHistory({ type: 'delete', kind: 'location', records });
   }
 
   function pastePlans(targetCol, targetRow) {
@@ -1951,7 +2103,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const newLocationId = mode === 'place' ? targetLocationId : p.resourceId;
 
       const basePayload = mode === 'place'
-        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd }
+        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd, remark: p.remark ?? '' }
         : {
           serialId: newSerialId,
           morderId: newMorderId,
@@ -1983,6 +2135,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
     setPlans(prev => [...prev, ...newPlans]);
+    pushEditHistory({
+      type: 'create',
+      kind: 'plan',
+      plans: newPlans.map(plan => ({ ...plan })),
+      payloads: new Map(newPlans.map(plan => [plan.planId, { ...pendingCreatesRef.current.get(plan.planId) }])),
+    });
     setIsDirty(true);
     onDirtyChange?.(true);
   }
@@ -2009,6 +2167,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return { ...plan, ...payload, planId: tempId, reserveId: tempId };
     });
     setLocationOverlayPlans(prev => [...prev, ...newPlans]);
+    pushEditHistory({
+      type: 'create',
+      kind: 'location',
+      plans: newPlans.map(plan => ({ ...plan })),
+      payloads: new Map(newPlans.map(plan => [plan.planId, { ...pendingLocationCreatesRef.current.get(plan.planId) }])),
+    });
     setSelectedLocation(new Set(newPlans.map(plan => plan.planId)));
     setSelected(new Set());
     setIsDirty(true);
@@ -2055,45 +2219,130 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         remark: data.remark ?? '',
       };
 
-    const updateState = dialog?.kind === 'location' ? setLocationOverlayPlans : setPlans;
-    const endpoint = isLocationPlan ? '/reserve' : planEndpoint;
-    if (dialog.plan) {
-      // 編集：楽観的に即時反映し、失敗時に元に戻す
-      const prevPlan = { ...dialog.plan };
-      updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...payload } : p));
-      try {
-        const updated = await apiJson(`${endpoint}/${dialog.plan.planId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-        updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? { ...p, ...updated } : p));
-      } catch {
-        updateState(prev => prev.map(p => p.planId === dialog.plan.planId ? prevPlan : p));
-        showToast('予定の更新に失敗しました');
-      }
-    } else {
-      // 新規：仮IDで即時追加し、失敗時に除去する。装置・担当者予定は除外曜日に応じて複数件になる。
-      const createPayloads = (Array.isArray(data.segments) && data.segments.length > 0)
-        ? data.segments.map(segment => ({ ...payload, startDate: segment.startDate, endDate: segment.endDate }))
-        : [payload];
-      const tempPlans = createPayloads.map(createPayload => ({
-        tempId: tempIdCounterRef.current--,
-        payload: createPayload,
-      }));
-      updateState(prev => [...prev, ...tempPlans.map(({ tempId, payload }) => ({ planId: tempId, ...payload }))]);
-      for (const { tempId, payload: createPayload } of tempPlans) {
+    const historyKind = dialog?.kind === 'location' ? 'location' : 'plan';
+    const refs = refsForKind(historyKind);
+    let selectedTask = null;
+    if (!isLocationPlan) {
+      selectedTask = tasks.find(item => Number(item.taskId) === Number(payload.taskId)) ?? null;
+      if (!selectedTask) {
         try {
-          const newPlan = await apiJson(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(createPayload),
-          });
-          updateState(prev => prev.map(p => p.planId === tempId ? { ...p, ...newPlan } : p));
+          const cachedTasks = await loadTaskMaster();
+          selectedTask = cachedTasks.find(item => Number(item.taskId) === Number(payload.taskId)) ?? null;
         } catch {
-          updateState(prev => prev.filter(p => p.planId !== tempId));
-          showToast('予定の登録に失敗しました');
+          // 親から渡されたマスタにもキャッシュにもない場合は、既存表示値または既定色を使う。
         }
       }
     }
+    const selectedWorker = workers.find(item => Number(item.workerId) === Number(payload.workerId));
+    const selectedSerial = serials.find(item => Number(item.serialId) === Number(payload.serialId));
+    const selectedResource = resources?.find(item => Number(item.resourceId) === Number(payload.resourceId));
+    const visualFields = isLocationPlan
+      ? {
+        resourceName: selectedResource?.resourceName ?? dialog.plan?.resourceName ?? '',
+        serialNo: selectedSerial?.serialNo ?? dialog.plan?.serialNo ?? dialog.initialData?.serialNo ?? '',
+        kisyuId: selectedSerial?.kisyuId ?? dialog.plan?.kisyuId ?? dialog.initialData?.kisyuId,
+        kisyuName: selectedSerial?.kisyuName ?? dialog.plan?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+      }
+      : {
+        taskName: selectedTask?.taskName ?? dialog.plan?.taskName ?? '',
+        taskBackColor: selectedTask?.backColor ?? dialog.plan?.taskBackColor ?? 1,
+        taskFontColor: selectedTask?.fontColor ?? dialog.plan?.taskFontColor ?? 6,
+        workerName: selectedWorker?.workerName ?? dialog.plan?.workerName ?? '',
+        serialNo: selectedSerial?.serialNo ?? dialog.plan?.serialNo ?? dialog.initialData?.serialNo ?? '',
+        kisyuId: selectedSerial?.kisyuId ?? dialog.plan?.kisyuId ?? dialog.initialData?.kisyuId,
+        kisyuName: selectedSerial?.kisyuName ?? dialog.plan?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+        morderOrderTypeId: dialog.plan?.morderOrderTypeId ?? dialog.initialData?.morderOrderTypeId ?? null,
+        morderOrderTypeName: dialog.plan?.morderOrderTypeName ?? dialog.initialData?.morderOrderTypeName ?? '',
+        morderNo: dialog.plan?.morderNo ?? dialog.initialData?.morderNo ?? '',
+      };
+    if (dialog.plan) {
+      // 編集内容は保存ボタンが押されるまでローカルに保留する。
+      const planId = dialog.plan.planId;
+      const before = isLocationPlan
+        ? {
+          resourceId: dialog.plan.resourceId,
+          serialId: dialog.plan.serialId,
+          startDate: dialog.plan.startDate,
+          endDate: dialog.plan.endDate,
+          remark: dialog.plan.remark ?? '',
+        }
+        : {
+          serialId: dialog.plan.serialId,
+          morderId: dialog.plan.morderId,
+          taskId: dialog.plan.taskId,
+          workerId: dialog.plan.workerId,
+          teacherId: dialog.plan.teacherId,
+          startDate: dialog.plan.startDate,
+          endDate: dialog.plan.endDate,
+          plannedMinutes: dialog.plan.plannedMinutes ?? 0,
+          price: dialog.plan.price ?? 0,
+          remark: dialog.plan.remark ?? '',
+        };
+      const previousPendingHad = refs.updates.current.has(planId);
+      const previousPending = previousPendingHad ? { ...refs.updates.current.get(planId) } : null;
+      refs.setState(prev => prev.map(p => p.planId === planId ? { ...p, ...payload, ...visualFields } : p));
+      if (planId < 0 && refs.creates.current.has(planId)) refs.creates.current.set(planId, payload);
+      else refs.updates.current.set(planId, payload);
+      pushEditHistory({
+        type: 'edit',
+        kind: historyKind,
+        changes: [{
+          planId,
+          before,
+          after: payload,
+          beforeState: {
+            ...before,
+            taskName: dialog.plan.taskName,
+            taskBackColor: dialog.plan.taskBackColor,
+            taskFontColor: dialog.plan.taskFontColor,
+            workerName: dialog.plan.workerName,
+            resourceName: dialog.plan.resourceName,
+            serialNo: dialog.plan.serialNo,
+            kisyuId: dialog.plan.kisyuId,
+            kisyuName: dialog.plan.kisyuName,
+          },
+          afterState: { ...payload, ...visualFields },
+          previousPendingHad,
+          previousPending,
+        }],
+      });
+    } else {
+      // 新規予定も仮IDで表示し、保存ボタンが押されるまでAPIには送信しない。
+      const createPayloads = (Array.isArray(data.segments) && data.segments.length > 0)
+        ? data.segments.map(segment => ({ ...payload, startDate: segment.startDate, endDate: segment.endDate }))
+        : [payload];
+      const tempPlans = createPayloads.map(createPayload => {
+        const planId = tempIdCounterRef.current--;
+        const worker = workers.find(item => Number(item.workerId) === Number(createPayload.workerId));
+        const serial = serials.find(item => Number(item.serialId) === Number(createPayload.serialId));
+        const resource = resources?.find(item => Number(item.resourceId) === Number(createPayload.resourceId));
+        refs.creates.current.set(planId, createPayload);
+        return {
+          planId,
+          ...createPayload,
+          taskName: selectedTask?.taskName ?? '',
+          taskBackColor: selectedTask?.backColor ?? 1,
+          taskFontColor: selectedTask?.fontColor ?? 6,
+          workerName: worker?.workerName ?? '',
+          serialNo: serial?.serialNo ?? dialog.initialData?.serialNo ?? '',
+          kisyuId: serial?.kisyuId ?? dialog.initialData?.kisyuId,
+          kisyuName: serial?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
+          resourceName: resource?.resourceName ?? '',
+          morderOrderTypeId: visualFields.morderOrderTypeId,
+          morderOrderTypeName: visualFields.morderOrderTypeName,
+          morderNo: visualFields.morderNo,
+        };
+      });
+      refs.setState(prev => [...prev, ...tempPlans]);
+      pushEditHistory({
+        type: 'create',
+        kind: historyKind,
+        plans: tempPlans.map(plan => ({ ...plan })),
+        payloads: new Map(tempPlans.map(plan => [plan.planId, { ...refs.creates.current.get(plan.planId) }])),
+      });
+    }
+    setIsDirty(true);
+    onDirtyChange?.(true);
   }
 
   useEffect(() => {
@@ -2293,19 +2542,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setFetchVersion(v => v + 1);
   }
 
+  // 再描画は未保存変更を破棄せず、サーバー再取得結果へローカル変更を重ね直す。
   const handleRefresh = useCallback(() => {
-    if (isDirty) {
-      onBeforeRedraw?.(() => handleRefreshAfterConfirm());
-      return;
-    }
     handleRefreshAfterConfirm();
-  }, [isDirty, onBeforeRedraw]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleRefreshAfterConfirm() {
     fetchedPlanKeysRef.current = new Set();
     fetchedLocKeysRef.current = new Set();
-    setPlans([]);
-    setLocationOverlayPlans([]);
+    setPlans(retainPendingPlans);
+    setLocationOverlayPlans(retainPendingLocationPlans);
     setFetchVersion(v => v + 1);
   }
 
