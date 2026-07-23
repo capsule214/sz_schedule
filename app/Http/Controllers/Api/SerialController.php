@@ -143,18 +143,72 @@ class SerialController extends Controller
       // 「完了製品も表示」OFF のときは flg_finish=0 の製番のみ
       $query->where('kd_serial.flg_finish', 0);
     } else {
-      // 完了製番は、表示期間と重なる予定を持つものだけを表示対象にする。
-      $query->where(function ($q) use ($data) {
-        $q->where('kd_serial.flg_finish', 0)
-          ->orWhereExists(function ($plan) use ($data) {
-            $plan->selectRaw('1')
-              ->from('kd_plan')
-              ->whereColumn('kd_plan.serial_id', 'kd_serial.serial_id')
-              ->where('kd_plan.deleted', 0)
-              ->where('kd_plan.start_date', '<=', $data['display_to'])
-              ->where('kd_plan.end_date', '>=', $data['display_from']);
-          });
-      });
+      // OR + 相関 EXISTS が全製番へ評価されるのを避けるため、完了・未完了を別々に取得する。
+      // 完了製番側だけを表示期間と重なる予定で絞り込み、最後に従来と同じ表示順へ並べ直す。
+      $finished = (clone $query)
+        ->where('kd_serial.flg_finish', 1)
+        ->whereIn('kd_serial.serial_id', function ($plans) use ($data) {
+          $plans->select('kd_plan.serial_id')
+            ->from('kd_plan')
+            ->where('kd_plan.deleted', 0)
+            ->where('kd_plan.start_date', '<=', $data['display_to'])
+            ->where('kd_plan.end_date', '>=', $data['display_from']);
+        })
+        ->get();
+
+      $unfinished = (clone $query)
+        ->where('kd_serial.flg_finish', 0)
+        ->get();
+
+      $displayOrder = (int) ($data['display_order'] ?? 0);
+      $serials = $finished
+        ->concat($unfinished)
+        ->sort(function (KdSerial $a, KdSerial $b) use ($displayOrder): int {
+          if ($displayOrder === 1 || $displayOrder === 2) {
+            $field = $displayOrder === 1 ? 'morder_start_date' : 'shipping_date';
+            $aNull = empty($a->{$field}) ? 1 : 0;
+            $bNull = empty($b->{$field}) ? 1 : 0;
+            $nullOrder = $aNull <=> $bNull;
+            if ($nullOrder !== 0) return $nullOrder;
+
+            $dateOrder = strcmp((string) $a->{$field}, (string) $b->{$field});
+            if ($dateOrder !== 0) return $dateOrder;
+          } else {
+            $sortOrder = ((int) ($a->dm_kisyu?->sort_no ?? 0)) <=> ((int) ($b->dm_kisyu?->sort_no ?? 0));
+            if ($sortOrder !== 0) return $sortOrder;
+          }
+
+          return strcmp((string) $a->serial_no, (string) $b->serial_no);
+        })
+        ->values();
+
+      if (($data['q'] ?? '') !== '') {
+        $search = (string) $data['q'];
+        $target = $serials->first(fn (KdSerial $serial) => (string) $serial->serial_no === $search)
+          ?? $serials->first(fn (KdSerial $serial) => str_contains((string) $serial->serial_no, $search));
+        $index = $target
+          ? $serials->search(fn (KdSerial $serial) => (int) $serial->serial_id === (int) $target->serial_id)
+          : false;
+
+        return response()->json([
+          'total' => $serials->count(),
+          'offset' => $index === false ? 0 : (int) $index,
+          'limit' => 1,
+          'groups' => $target ? [$this->formatDeviceGroup($target)] : [],
+        ]);
+      }
+
+      $total = $serials->count();
+      $groups = (empty($data['all']) ? $serials->slice($offset, $limit) : $serials)
+        ->map(fn (KdSerial $serial) => $this->formatDeviceGroup($serial))
+        ->values();
+
+      return response()->json([
+        'total' => $total,
+        'offset' => empty($data['all']) ? $offset : 0,
+        'limit' => empty($data['all']) ? $limit : $total,
+        'groups' => $groups,
+      ]);
     }
     $displayOrder = (int) ($data['display_order'] ?? 0);
     $ordered = match ($displayOrder) {

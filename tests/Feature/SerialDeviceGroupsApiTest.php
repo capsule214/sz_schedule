@@ -161,8 +161,33 @@ class SerialDeviceGroupsApiTest extends TestCase
 
         $response->assertOk()->assertJsonPath('total', 2);
         $serialNos = collect($response->json('groups'))->pluck('serialNo')->all();
-        $this->assertContains($unfinished->serial_no, $serialNos);
-        $this->assertContains($finishedInRange->serial_no, $serialNos);
+        $this->assertSame([$unfinished->serial_no, $finishedInRange->serial_no], $serialNos);
         $this->assertNotContains($finishedOutOfRange->serial_no, $serialNos);
+
+        $this->actingAs($user)
+            ->postJson('/api/serial/device-groups', [
+                'show_finished' => 1,
+                'display_from' => '2026-07-01',
+                'display_to' => '2026-07-31',
+                'offset' => 1,
+                'limit' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('offset', 1)
+            ->assertJsonPath('groups.0.serialNo', $finishedInRange->serial_no);
+
+        $this->actingAs($user)
+            ->postJson('/api/serial/device-groups', [
+                'show_finished' => 1,
+                'display_from' => '2026-07-01',
+                'display_to' => '2026-07-31',
+                'q' => $finishedInRange->serial_no,
+            ])
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('offset', 1)
+            ->assertJsonPath('limit', 1)
+            ->assertJsonPath('groups.0.serialNo', $finishedInRange->serial_no);
     }
 }
