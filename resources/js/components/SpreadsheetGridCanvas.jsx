@@ -83,6 +83,26 @@ export default function SpreadsheetGridCanvas({
     }
     ctx.stroke();
 
+    // 日単位は週の境目（土曜と日曜の間）、時間割は各日の境目へ黒い実線を描く。
+    const solidBoundaries = [];
+    if (viewMode === 'day') {
+      for (let dayIdx = 1; dayIdx < dateColumns.length; dayIdx++) {
+        if (dateColumns[dayIdx - 1]?.dow === 6 && dateColumns[dayIdx]?.dow === 0) {
+          solidBoundaries.push(dayIdx);
+        }
+      }
+    } else {
+      for (let dayIdx = 1; dayIdx < dateColumns.length; dayIdx++) {
+        solidBoundaries.push(dayIdx * SLOT_COUNT);
+      }
+    }
+    ctx.fillStyle = '#000000';
+    for (const boundaryCol of solidBoundaries) {
+      const x = Math.round(boundaryCol * colW - scrollLeft);
+      if (x < 0 || x > width) continue;
+      ctx.fillRect(x, 0, 1, height);
+    }
+
     // グループ区切り線（グリッド線より太く/濃く上書き）
     // CSS の box-sizing:border-box では borderBottom がグループ高さの最終ピクセル（内側）に描画される。
     // Canvas の fillRect は border-box と同じ位置に合わせるため 1px 上 (lineY - 1) に描画する。
