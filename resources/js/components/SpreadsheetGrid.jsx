@@ -3484,7 +3484,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   paddingLeft: lblClampL > labelScreenX ? 0 : 2,
                   userSelect: 'none',
                 }}>
-                  {p.taskName}
+                  {`${p.taskName}${p.remark ? `＜${p.remark}＞` : ''}`}
                 </div>
               );
             }

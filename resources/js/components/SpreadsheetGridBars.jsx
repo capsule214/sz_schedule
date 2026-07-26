@@ -162,9 +162,11 @@ export default function SpreadsheetGridBars({
         </div>
       );
 
+      const currentLabel = plan.workerName ? `${plan.taskName} ${plan.workerName}` : plan.taskName;
+      const remarkSuffix = plan.remark ? `＜${plan.remark}＞` : '';
       const label = mode === 'place'
         ? (plan.serialNo ? `${plan.kisyuName} ${plan.serialNo}` : '')
-        : (plan.workerName ? `${plan.taskName} ${plan.workerName}` : plan.taskName);
+        : `${currentLabel}${remarkSuffix}`;
 
       labels.push(
         <div
