@@ -79,6 +79,67 @@ class SerialDeviceGroupsApiTest extends TestCase
             ->assertJsonPath('groups.0.serialNo', 'SN-003');
     }
 
+    public function test_serial_search_can_find_a_serial_outside_display_settings_and_load_only_its_plans(): void
+    {
+        $user = User::create([
+            'name' => 'serial-fallback-user',
+            'email' => 'serial-fallback-user',
+            'password' => Hash::make('12345'),
+        ]);
+        $visibleKisyu = DmKisyu::create(['kisyu_name' => 'VISIBLE', 'sort_no' => 1]);
+        $hiddenKisyu = DmKisyu::create(['kisyu_name' => 'HIDDEN', 'sort_no' => 2]);
+        $task = KmTask::create(['task_name' => '組立']);
+        $visible = KdSerial::create([
+            'kisyu_id' => $visibleKisyu->kisyu_id,
+            'serial_no' => 'VISIBLE-001',
+            'flg_public' => 1,
+        ]);
+        $hidden = KdSerial::create([
+            'kisyu_id' => $hiddenKisyu->kisyu_id,
+            'serial_no' => 'HIDDEN-001',
+            'flg_public' => 0,
+            'flg_finish' => 1,
+        ]);
+
+        foreach ([
+            [$hidden, '2026-06-15', '2026-06-16'],
+            [$hidden, '2026-05-01', '2026-05-02'],
+            [$visible, '2026-04-01', '2026-04-02'],
+        ] as [$serial, $from, $to]) {
+            KdPlan::create([
+                'serial_id' => $serial->serial_id,
+                'morder_id' => -1,
+                'task_id' => $task->task_id,
+                'deleted' => 0,
+                'start_date' => $from,
+                'end_date' => $to,
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->postJson('/api/serial/device-groups', [
+                'q' => $hidden->serial_no,
+                'kisyu_ids' => [$visibleKisyu->kisyu_id],
+            ])
+            ->assertOk()
+            ->assertJsonCount(0, 'groups');
+
+        $this->actingAs($user)
+            ->getJson('/api/serial/search?q='.$hidden->serial_no)
+            ->assertOk()
+            ->assertJsonPath('serialId', $hidden->serial_id)
+            ->assertJsonPath('serialNo', $hidden->serial_no);
+
+        $plans = $this->actingAs($user)
+            ->getJson('/api/plan/by-serial/'.$hidden->serial_id)
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->json();
+
+        $this->assertSame(['2026-05-01', '2026-06-15'], array_column($plans, 'startDate'));
+        $this->assertSame([$hidden->serial_id, $hidden->serial_id], array_column($plans, 'serialId'));
+    }
+
     public function test_device_groups_can_return_more_than_one_thousand_serials_for_multiple_models(): void
     {
         $user = User::create([

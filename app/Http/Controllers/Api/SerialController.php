@@ -81,6 +81,22 @@ class SerialController extends Controller
     return response()->json($serials->map(fn ($s) => $this->formatSerial($s)));
   }
 
+  /** 表示設定を適用せず、製番検索で指定された1製番だけを返す。 */
+  public function search(Request $request)
+  {
+    $data = $request->validate([
+      'q' => 'required|string|max:120',
+    ]);
+    $search = trim((string) $data['q']);
+
+    $query = KdSerial::with('dm_kisyu')
+      ->where('deleted', 0);
+    $serial = (clone $query)->where('serial_no', $search)->first()
+      ?? (clone $query)->where('serial_no', 'like', '%'.$search.'%')->orderBy('serial_no')->first();
+
+    return response()->json($serial ? $this->formatDeviceGroup($serial) : null);
+  }
+
   public function deviceGroups(Request $request)
   {
     $data = $request->validate([

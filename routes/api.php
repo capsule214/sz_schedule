@@ -24,6 +24,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/me', [AuthController::class, 'me']);
 
   Route::get('/serial', [SerialController::class, 'index']);
+  Route::get('/serial/search', [SerialController::class, 'search']);
   Route::post('/serial/device-groups', [SerialController::class, 'deviceGroups']);
   Route::get('/serial/kisyu', [SerialController::class, 'kisyu']);
   Route::get('/serial/kisyu/{kisyuId}', [SerialController::class, 'byKisyu']);
