@@ -135,6 +135,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [selectedCell, setSelectedCell] = useState(null);
   const [copied, setCopied] = useState([]);
   const [copiedKind, setCopiedKind] = useState('plan');
+  const [clipboardAction, setClipboardAction] = useState('copy');
+  const [cutApplied, setCutApplied] = useState(false);
+  const cutAppliedRef = useRef(false);
+  const clipboardVersionRef = useRef(0);
   const [sonar, setSonar] = useState(null);
   const sonarClearTimerRef = useRef(null);
   const sonarRafRef = useRef(null);
@@ -869,6 +873,20 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     notifyHistoryChange();
   }
 
+  function setScheduleClipboard(items, kind, action = 'copy') {
+    clipboardVersionRef.current += 1;
+    setCopied(items.map(item => ({ ...item })));
+    setCopiedKind(kind);
+    setClipboardAction(action);
+    cutAppliedRef.current = false;
+    setCutApplied(false);
+  }
+
+  function markCutApplied(applied) {
+    cutAppliedRef.current = applied;
+    setCutApplied(applied);
+  }
+
   function refsForKind(kind) {
     return kind === 'location'
       ? {
@@ -970,6 +988,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function applyHistoryAction(action, direction) {
     if (action.type === 'create') applyCreateHistory(action, direction);
     else if (action.type === 'delete') applyDeleteHistory(action, direction);
+    else if (action.type === 'batch') {
+      const actions = direction === 'undo' ? [...action.actions].reverse() : action.actions;
+      for (const child of actions) applyHistoryAction(child, direction);
+      if (action.clipboardVersion === clipboardVersionRef.current) {
+        markCutApplied(direction === 'redo');
+      }
+    }
     else if (action.type === 'mixed') {
       for (const part of action.parts) applyHistoryChanges(part.changes, direction, part.kind);
     }
@@ -1860,8 +1885,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   function handleCellRightClick(e, col, row) {
     e.preventDefault();
-    if (mode === 'task') return;
     const g = getGroupAtRow(row);
+    if (mode === 'task') {
+      setSelectedCell({ col, row });
+      setSelected(new Set());
+      setSelectedLocation(new Set());
+      if (copiedKind === 'plan' && copied.length > 0 && g) {
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          items: [{
+            label: `貼り付け（${copied.length}件）`,
+            onClick: () => pastePlans(col, row),
+          }],
+        });
+      }
+      return;
+    }
     const locationCell = mode === 'device' && extraLocationRow && isLocationRow(g, row);
     setSelectedCell({ col, row });
     setSelected(new Set());
@@ -1962,11 +2002,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }}
       : null;
 
-    // タスクタブの右クリックメニューは詳細とジャンプのみ表示する。
-    // 日付変更は予定バーのドラッグ・伸縮で行う。
+    // タスクタブでも選択した予定をコピー・切り取りできる。
+    // 日付変更は予定バーのドラッグ・伸縮、または貼り付け先セルの指定で行う。
     if (mode === 'task') {
+      const clipboardPlans = (isMulti ? [...selected] : [plan.planId])
+        .map(id => plans.find(p => p.planId === id))
+        .filter(p => p && !isReadOnlyPlan(p, mode));
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+        ...(clipboardPlans.length > 0 ? [
+          'separator',
+          { label: `${isMulti ? `${clipboardPlans.length}件` : ''}コピー`, onClick: () => setScheduleClipboard(clipboardPlans, 'plan', 'copy') },
+          { label: `${isMulti ? `${clipboardPlans.length}件` : ''}切り取り`, onClick: () => setScheduleClipboard(clipboardPlans, 'plan', 'cut') },
+        ] : []),
         ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
         ...(serialPlanItem ? ['separator', serialPlanItem] : []),
       ]});
@@ -1976,8 +2024,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const items = isMulti ? [
       { label: `${n}件コピー`, onClick: () => {
         const toCopy = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
-        setCopied(toCopy);
-        setCopiedKind('plan');
+        setScheduleClipboard(toCopy, 'plan', 'copy');
+      }},
+      { label: `${n}件切り取り`, onClick: () => {
+        const toCut = [...selected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
+        setScheduleClipboard(toCut, 'plan', 'cut');
       }},
       'separator',
       { label: `${n}件削除`, danger: true, onClick: () => {
@@ -1989,7 +2040,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },
       ] : []),
       ...(!isReadOnlyPlan(plan, mode) ? [
-        { label: 'コピー', onClick: () => { setCopied([plan]); setCopiedKind('plan'); } },
+        { label: 'コピー', onClick: () => setScheduleClipboard([plan], 'plan', 'copy') },
+        { label: '切り取り', onClick: () => setScheduleClipboard([plan], 'plan', 'cut') },
         'separator',
         { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
       ] : []),
@@ -2013,29 +2065,38 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       .map(id => locationOverlayPlans.find(p => p.planId === id))
       .filter(Boolean);
     const items = locationPlans.length > 1 ? [
-      { label: `${locationPlans.length}件コピー`, onClick: () => { setCopied(locationPlans); setCopiedKind('location'); } },
+      { label: `${locationPlans.length}件コピー`, onClick: () => setScheduleClipboard(locationPlans, 'location', 'copy') },
+      { label: `${locationPlans.length}件切り取り`, onClick: () => setScheduleClipboard(locationPlans, 'location', 'cut') },
       'separator',
       { label: `${locationPlans.length}件削除`, danger: true, onClick: () => deleteLocationPlans(ids) },
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
       { label: '編集', onClick: () => openScheduleDialog({ plan, kind: 'location' }) },
-      { label: 'コピー', onClick: () => { setCopied([plan]); setCopiedKind('location'); } },
+      { label: 'コピー', onClick: () => setScheduleClipboard([plan], 'location', 'copy') },
+      { label: '切り取り', onClick: () => setScheduleClipboard([plan], 'location', 'cut') },
       'separator',
       { label: '削除', danger: true, onClick: () => deleteLocationPlans([plan.planId]) },
     ];
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }
 
+  function makeDeleteHistoryAction(kind, ids) {
+    const refs = refsForKind(kind);
+    const sourcePlans = kind === 'location' ? locationOverlayPlans : plans;
+    const records = ids.map(id => ({
+      plan: sourcePlans.find(p => p.planId === id),
+      hadCreate: refs.creates.current.has(id),
+      createPayload: refs.creates.current.has(id) ? { ...refs.creates.current.get(id) } : null,
+      hadUpdate: refs.updates.current.has(id),
+      updatePayload: refs.updates.current.has(id) ? { ...refs.updates.current.get(id) } : null,
+    })).filter(record => record.plan);
+    return { type: 'delete', kind, records };
+  }
+
   function deletePlans(ids) {
     const deletableIds = ids.filter(id => !isReadOnlyPlan(plans.find(p => p.planId === id), mode));
     if (deletableIds.length === 0) return;
-    const records = deletableIds.map(id => ({
-      plan: plans.find(p => p.planId === id),
-      hadCreate: pendingCreatesRef.current.has(id),
-      createPayload: pendingCreatesRef.current.has(id) ? { ...pendingCreatesRef.current.get(id) } : null,
-      hadUpdate: pendingUpdatesRef.current.has(id),
-      updatePayload: pendingUpdatesRef.current.has(id) ? { ...pendingUpdatesRef.current.get(id) } : null,
-    })).filter(record => record.plan);
+    const action = makeDeleteHistoryAction('plan', deletableIds);
     // API は呼ばず、ローカル state を即時更新して保留リストに積む
     setPlans(prev => prev.filter(p => !deletableIds.includes(p.planId)));
     setSelected(prev => { const s = new Set(prev); deletableIds.forEach(id => s.delete(id)); return s; });
@@ -2051,19 +2112,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     });
     setIsDirty(true);
     onDirtyChange?.(true);
-    pushEditHistory({ type: 'delete', kind: 'plan', records });
+    pushEditHistory(action);
   }
 
   function deleteLocationPlans(ids) {
     if (ids.length === 0) return;
-    const records = ids.map(id => ({
-      plan: locationOverlayPlans.find(p => p.planId === id),
-      hadCreate: pendingLocationCreatesRef.current.has(id),
-      createPayload: pendingLocationCreatesRef.current.has(id) ? { ...pendingLocationCreatesRef.current.get(id) } : null,
-      hadUpdate: pendingLocationUpdatesRef.current.has(id),
-      updatePayload: pendingLocationUpdatesRef.current.has(id) ? { ...pendingLocationUpdatesRef.current.get(id) } : null,
-    })).filter(record => record.plan);
-    if (records.length === 0) return;
+    const action = makeDeleteHistoryAction('location', ids);
+    if (action.records.length === 0) return;
     setLocationOverlayPlans(prev => prev.filter(p => !ids.includes(p.planId)));
     setSelectedLocation(prev => {
       const next = new Set(prev);
@@ -2080,7 +2135,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     });
     setIsDirty(true);
     onDirtyChange?.(true);
-    pushEditHistory({ type: 'delete', kind: 'location', records });
+    pushEditHistory(action);
   }
 
   function pastePlans(targetCol, targetRow) {
@@ -2094,6 +2149,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const targetMorderId   = mode === 'device' && isMorderDevice ? targetGroup.id : null;
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
     const targetLocationId = mode === 'place' ? targetGroup.id : null;
+    const targetTaskId     = mode === 'task' ? targetGroup.taskId : null;
+    const targetTask       = mode === 'task'
+      ? tasks.find(task => Number(task.taskId) === Number(targetTaskId))
+      : null;
 
     // 先頭プランの開始列を基準に列オフセットを算出
     const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
@@ -2117,7 +2176,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         : {
           serialId: newSerialId,
           morderId: newMorderId,
-          taskId: p.taskId,
+          taskId: mode === 'task' ? targetTaskId : p.taskId,
           workerId: newWorkerId,
           teacherId: p.teacherId,
           startDate: newStart,
@@ -2136,7 +2195,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         : [basePayload];
       for (const payload of payloads) {
         const tempId = tempIdCounterRef.current--;
-        newPlans.push({ ...p, planId: tempId, ...payload });
+        newPlans.push({
+          ...p,
+          planId: tempId,
+          ...payload,
+          ...(targetTask ? {
+            taskName: targetTask.taskName,
+            taskBackColor: targetTask.backColor,
+            taskFontColor: targetTask.fontColor,
+          } : {}),
+        });
         pendingCreatesRef.current.set(tempId, payload);
       }
     }
@@ -2145,12 +2213,30 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
     setPlans(prev => [...prev, ...newPlans]);
-    pushEditHistory({
+    const createAction = {
       type: 'create',
       kind: 'plan',
       plans: newPlans.map(plan => ({ ...plan })),
       payloads: new Map(newPlans.map(plan => [plan.planId, { ...pendingCreatesRef.current.get(plan.planId) }])),
-    });
+    };
+    if (clipboardAction === 'cut' && !cutAppliedRef.current) {
+      const deleteAction = makeDeleteHistoryAction('plan', copied.map(plan => plan.planId));
+      if (deleteAction.records.length > 0) {
+        applyDeleteHistory(deleteAction, 'redo');
+        markCutApplied(true);
+        pushEditHistory({
+          type: 'batch',
+          actions: [deleteAction, createAction],
+          clipboardVersion: clipboardVersionRef.current,
+        });
+      } else {
+        pushEditHistory(createAction);
+      }
+    } else {
+      pushEditHistory(createAction);
+    }
+    setSelected(new Set(newPlans.map(plan => plan.planId)));
+    setSelectedLocation(new Set());
     setIsDirty(true);
     onDirtyChange?.(true);
   }
@@ -2177,12 +2263,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return { ...plan, ...payload, planId: tempId, reserveId: tempId };
     });
     setLocationOverlayPlans(prev => [...prev, ...newPlans]);
-    pushEditHistory({
+    const createAction = {
       type: 'create',
       kind: 'location',
       plans: newPlans.map(plan => ({ ...plan })),
       payloads: new Map(newPlans.map(plan => [plan.planId, { ...pendingLocationCreatesRef.current.get(plan.planId) }])),
-    });
+    };
+    if (clipboardAction === 'cut' && !cutAppliedRef.current) {
+      const deleteAction = makeDeleteHistoryAction('location', copied.map(plan => plan.planId));
+      if (deleteAction.records.length > 0) {
+        applyDeleteHistory(deleteAction, 'redo');
+        markCutApplied(true);
+        pushEditHistory({
+          type: 'batch',
+          actions: [deleteAction, createAction],
+          clipboardVersion: clipboardVersionRef.current,
+        });
+      } else {
+        pushEditHistory(createAction);
+      }
+    } else {
+      pushEditHistory(createAction);
+    }
     setSelectedLocation(new Set(newPlans.map(plan => plan.planId)));
     setSelected(new Set());
     setIsDirty(true);
@@ -2365,23 +2467,28 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   useEffect(() => {
     const handleKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      const clipboardKey = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x');
+      if (clipboardKey) {
+        const action = e.key === 'x' ? 'cut' : 'copy';
         const selectedLocationPlans = [...selectedLocation]
           .map(id => locationOverlayPlans.find(p => p.planId === id))
           .filter(Boolean);
         if (selectedLocationPlans.length) {
-          setCopied(selectedLocationPlans);
-          setCopiedKind('location');
+          e.preventDefault();
+          setScheduleClipboard(selectedLocationPlans, 'location', action);
           return;
         }
-        const sel = [...selected].map(id => plans.find(p => p.planId === id)).filter(Boolean);
+        const sel = [...selected]
+          .map(id => plans.find(p => p.planId === id))
+          .filter(p => p && !isReadOnlyPlan(p, mode));
         if (sel.length) {
-          setCopied(sel);
-          setCopiedKind('plan');
+          e.preventDefault();
+          setScheduleClipboard(sel, 'plan', action);
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        if (copied.length && mode !== 'task') {
+        if (copied.length) {
+          e.preventDefault();
           const col = Math.floor(scrollLeft / colW);
           const row = selectedCell?.row ?? Math.floor(scrollTop / CELL_SIZE);
           if (copiedKind === 'location') pasteLocationPlans(col, row);
@@ -2391,7 +2498,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [selected, selectedLocation, selectedCell, plans, locationOverlayPlans, copied, copiedKind, scrollLeft, scrollTop, colW]);
+  }, [selected, selectedLocation, selectedCell, plans, locationOverlayPlans, copied, copiedKind, clipboardAction, mode, scrollLeft, scrollTop, colW]);
 
   useEffect(() => {
     if (!jumpTarget || jumpTarget.targetMode !== mode || mode !== 'device') return;
@@ -2838,6 +2945,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                 colW={colW}
                 dateColumns={dateColumns}
                 viewMode={viewMode}
+                mode={mode}
                 layoutGroups={layoutGroups}
                 locationRowAbsSet={locationRowAbsSet}
               />
@@ -3067,6 +3175,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         planCount={planCount}
         selectedCount={selected.size + selectedLocation.size}
         copiedCount={copied.length}
+        clipboardAction={clipboardAction}
+        cutApplied={cutApplied}
         loading={isScheduleAreaFetching}
       />
 

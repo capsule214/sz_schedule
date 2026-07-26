@@ -46,7 +46,9 @@ export default function SpreadsheetGridLeftHeader({
     items.push(
       <div key={g.id} style={{
         position: 'absolute', left: 0, top: mainY, width: leftHdrW, height: mainH,
-        borderBottom: hasLocRow ? '1px solid #93c5fd' : '1px solid #9ca3af',
+        borderBottom: hasLocRow
+          ? '1px solid #93c5fd'
+          : `1px solid ${mode === 'device' ? '#000000' : '#9ca3af'}`,
         borderRight: '1px solid #d1d5db',
         background: g.isUnassigned ? '#fef9c3' : '#f9fafb',
         boxSizing: 'border-box',
@@ -149,7 +151,8 @@ export default function SpreadsheetGridLeftHeader({
       items.push(
         <div key={`${g.id}-loc`} style={{
           position: 'absolute', left: 0, top: locY, width: leftHdrW, height: locH,
-          borderBottom: '1px solid #9ca3af', borderRight: '1px solid #d1d5db',
+          borderBottom: `1px solid ${mode === 'device' ? '#000000' : '#9ca3af'}`,
+          borderRight: '1px solid #d1d5db',
           background: '#dbeafe', boxSizing: 'border-box',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, color: '#1d4ed8', fontWeight: 700, letterSpacing: '0.05em',

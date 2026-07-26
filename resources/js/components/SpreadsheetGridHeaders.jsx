@@ -25,6 +25,36 @@ export default function SpreadsheetGridHeaders({
   const yearSpans = [];
   const monthSpans = [];
   const weekSpans = [];
+  const solidBoundaryDayIndexes = [];
+
+  // 予定表示エリアと同じ条件で、ヘッダー全体にも黒い実線を描画する。
+  for (let dayIdx = 1; dayIdx < dateColumns.length; dayIdx++) {
+    if (viewMode === 'slot'
+      || (dateColumns[dayIdx - 1]?.dow === 6 && dateColumns[dayIdx]?.dow === 0)) {
+      solidBoundaryDayIndexes.push(dayIdx);
+    }
+  }
+
+  function appendSolidBoundaryLines() {
+    rows.push(...solidBoundaryDayIndexes.filter(dayIdx => {
+      const x = dayIdx * dayW;
+      return x >= scrollLeft && x <= scrollLeft + containerW;
+    }).map(dayIdx => (
+      <div
+        key={`solid-boundary-${dayIdx}`}
+        style={{
+          position: 'absolute',
+          left: dayIdx * dayW,
+          top: HDR_H,
+          width: 1,
+          height: HDR_H * 3,
+          background: '#000',
+          pointerEvents: 'none',
+          zIndex: 2,
+        }}
+      />
+    )));
+  }
 
   let curYear = null, curMonth = null, curWeek = null;
   let yearStart = 0, monthStart = 0, weekStart = 0;
@@ -121,6 +151,7 @@ export default function SpreadsheetGridHeaders({
       return [dateCell, dowCell, ...slotCells];
     }));
 
+    appendSolidBoundaryLines();
     return rows;
   }
 
@@ -170,5 +201,6 @@ export default function SpreadsheetGridHeaders({
     ));
   }));
 
+  appendSolidBoundaryLines();
   return rows;
 }

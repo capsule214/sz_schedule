@@ -18,6 +18,7 @@ export default function SpreadsheetGridCanvas({
   colW,
   dateColumns,
   viewMode,
+  mode,
   layoutGroups,
   locationRowAbsSet,
 }) {
@@ -109,7 +110,7 @@ export default function SpreadsheetGridCanvas({
     for (const g of layoutGroups) {
       const lineY = g.startRow * CELL_SIZE - scrollTop - 1;
       if (lineY >= -1 && lineY <= height + 1) {
-        ctx.fillStyle = '#9ca3af';
+        ctx.fillStyle = mode === 'device' ? '#000000' : '#9ca3af';
         ctx.fillRect(0, Math.round(lineY), width, 1);
       }
       if (g.locationRowIdx >= 0) {
@@ -125,6 +126,7 @@ export default function SpreadsheetGridCanvas({
     scrollLeft, scrollTop,
     visColStart, visColEnd, visRowStart, visRowEnd,
     colW, dateColumns, viewMode,
+    mode,
     layoutGroups, locationRowAbsSet,
   ]);
 

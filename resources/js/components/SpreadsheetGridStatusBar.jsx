@@ -6,6 +6,8 @@ export default function SpreadsheetGridStatusBar({
   planCount,
   selectedCount,
   copiedCount,
+  clipboardAction = 'copy',
+  cutApplied = false,
   loading = false,
 }) {
   return (
@@ -14,7 +16,13 @@ export default function SpreadsheetGridStatusBar({
       <span>予定 {planCount} 件</span>
       {loading && <span style={{ color: '#2563eb', fontWeight: 600 }}>データ取得中...</span>}
       {selectedCount > 0 && <span style={{ color: '#2563eb' }}>{selectedCount}件選択中</span>}
-      {copiedCount > 0 && <span style={{ color: '#059669' }}>{copiedCount}件コピー済み</span>}
+      {copiedCount > 0 && (
+        <span style={{ color: clipboardAction === 'cut' ? '#d97706' : '#059669' }}>
+          {clipboardAction === 'cut'
+            ? `${copiedCount}件切り取り済み${cutApplied ? '（再貼り付け可）' : ''}`
+            : `${copiedCount}件コピー済み`}
+        </span>
+      )}
     </div>
   );
 }
