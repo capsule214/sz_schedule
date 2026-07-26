@@ -101,6 +101,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const locationGridRef = useRef(null);
   const taskGridRef     = useRef(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingPromiseRef = useRef(null);
   const [pendingTab, setPendingTab] = useState(null);
   const [pendingRedrawAction, setPendingRedrawAction] = useState(null);
   const redrawPromptOpenRef = useRef(false);
@@ -202,14 +204,27 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     alertTimerRef.current = setTimeout(() => setAlertMessage(null), 4000);
   }
 
-  async function handleSave() {
-    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
-    return await activeGridRef.current?.saveChanges();
+  function handleSave() {
+    if (savingPromiseRef.current) return savingPromiseRef.current;
+    const targetGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
+    const promise = (async () => {
+      setIsSaving(true);
+      try {
+        return await targetGridRef.current?.saveChanges();
+      } finally {
+        savingPromiseRef.current = null;
+        setIsSaving(false);
+      }
+    })();
+    savingPromiseRef.current = promise;
+    return promise;
   }
 
   async function handleCancel() {
+    if (savingPromiseRef.current) return false;
     const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
     await activeGridRef.current?.cancelChanges();
+    return true;
   }
 
   function activeGridRef() {
@@ -217,10 +232,12 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }
 
   function handleUndo() {
+    if (savingPromiseRef.current) return;
     activeGridRef().current?.undoLastEdit?.();
   }
 
   function handleRedo() {
+    if (savingPromiseRef.current) return;
     activeGridRef().current?.redoLastEdit?.();
   }
 
@@ -499,6 +516,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
         canRedo={activeHistory.canRedo}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        isSaving={isSaving}
       />
 
       {/* グリッド — 全タブを常時マウントし visibility で切り替え。スクロール位置を保持する */}

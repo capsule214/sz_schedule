@@ -8,6 +8,7 @@ export default function GridTabBar({
   canRedo = false,
   onUndo,
   onRedo,
+  isSaving = false,
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '2px solid #e5e7eb', padding: '0 12px', flexShrink: 0 }}>
@@ -30,20 +31,20 @@ export default function GridTabBar({
         <>
           <button
             onClick={onUndo}
-            disabled={!canUndo}
-            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: canUndo ? '#fff' : '#f3f4f6', color: canUndo ? '#374151' : '#9ca3af', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 13, marginRight: 6 }}
+            disabled={!canUndo || isSaving}
+            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: canUndo && !isSaving ? '#fff' : '#f3f4f6', color: canUndo && !isSaving ? '#374151' : '#9ca3af', cursor: canUndo && !isSaving ? 'pointer' : 'not-allowed', fontSize: 13, marginRight: 6 }}
           >Undo</button>
           <button
             onClick={onRedo}
-            disabled={!canRedo}
-            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: canRedo ? '#fff' : '#f3f4f6', color: canRedo ? '#374151' : '#9ca3af', cursor: canRedo ? 'pointer' : 'not-allowed', fontSize: 13, marginRight: 6 }}
+            disabled={!canRedo || isSaving}
+            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: canRedo && !isSaving ? '#fff' : '#f3f4f6', color: canRedo && !isSaving ? '#374151' : '#9ca3af', cursor: canRedo && !isSaving ? 'pointer' : 'not-allowed', fontSize: 13, marginRight: 6 }}
           >Redo</button>
         </>
       )}
       {isDirty && (
         <>
-          <button onClick={onSave} style={{ padding: '6px 14px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>保存</button>
-          <button onClick={onCancel} style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, marginLeft: 6 }}>キャンセル</button>
+          <button disabled={isSaving} onClick={onSave} style={{ padding: '6px 14px', border: 'none', borderRadius: 6, background: isSaving ? '#93c5fd' : '#2563eb', color: '#fff', cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600 }}>保存</button>
+          <button disabled={isSaving} onClick={onCancel} style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: isSaving ? '#f3f4f6' : '#fff', color: isSaving ? '#9ca3af' : '#374151', cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 13, marginLeft: 6 }}>キャンセル</button>
         </>
       )}
     </div>
