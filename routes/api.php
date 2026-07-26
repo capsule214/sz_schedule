@@ -43,6 +43,7 @@ Route::middleware('auth:web')->group(function () {
   Route::post('/plan/search/device', [PlanController::class, 'searchDevice']);
   Route::post('/plan/search/worker', [PlanController::class, 'searchWorker']);
   Route::post('/plan/search/task', [PlanController::class, 'searchTask']);
+  Route::post('/plan/check-updates', [PlanController::class, 'checkUpdates']);
   Route::get('/plan/by-serial/{serialId}', [PlanController::class, 'bySerial']);
   Route::post('/plan', [PlanController::class, 'store']);
   Route::delete('/plan', [PlanController::class, 'destroy']);
@@ -54,6 +55,7 @@ Route::middleware('auth:web')->group(function () {
 
   Route::get('/reserve', [ReserveController::class, 'index']);
   Route::post('/reserve/search', [ReserveController::class, 'search']);
+  Route::post('/reserve/check-updates', [ReserveController::class, 'checkUpdates']);
   Route::post('/reserve', [ReserveController::class, 'store']);
   Route::put('/reserve/{id}', [ReserveController::class, 'update']);
   Route::delete('/reserve', [ReserveController::class, 'destroy']);

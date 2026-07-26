@@ -13,7 +13,9 @@ class KdReserve extends Model
 
   protected $primaryKey = 'reserve_id';
 
-  public $timestamps = false;
+  const CREATED_AT = null;
+
+  public $timestamps = true;
 
   protected $fillable = ['resource_id', 'serial_id', 'start_date', 'end_date', 'remark', 'deleted'];
 

@@ -144,6 +144,7 @@ class PlanController extends Controller
       'remark' => $plan->remark ?? '',
       'isSyoyoTask' => $isSyoyoTask,
       'updatedAt' => $plan->updated_at ? substr($plan->updated_at, 0, 10) : null,
+      'updatedAtVersion' => $plan->updated_at?->format('Y-m-d H:i:s.u'),
     ];
   }
 
@@ -303,6 +304,32 @@ class PlanController extends Controller
   public function searchTask(Request $request)
   {
     return $this->searchForMode($request, 'task');
+  }
+
+  public function checkUpdates(Request $request)
+  {
+    $data = $request->validate([
+      'updates' => 'required|array',
+      'updates.*.id' => 'required|integer|min:1',
+      'updates.*.updatedAt' => 'nullable|string|max:64',
+    ]);
+    $currentVersions = KdPlan::whereIn('plan_id', collect($data['updates'])->pluck('id'))
+      ->get(['plan_id', 'updated_at'])
+      ->mapWithKeys(fn (KdPlan $plan) => [
+        (int) $plan->plan_id => $plan->updated_at?->format('Y-m-d H:i:s.u'),
+      ]);
+
+    $conflictIds = collect($data['updates'])
+      ->filter(function (array $update) use ($currentVersions): bool {
+        $id = (int) $update['id'];
+        return ! $currentVersions->has($id)
+          || $currentVersions->get($id) !== ($update['updatedAt'] ?? null);
+      })
+      ->pluck('id')
+      ->map(fn ($id) => (int) $id)
+      ->values();
+
+    return response()->json(['conflictIds' => $conflictIds]);
   }
 
   private function searchForMode(Request $request, ?string $mode = null)

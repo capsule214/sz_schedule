@@ -13,6 +13,7 @@ import SpreadsheetGridLeftHeader from './SpreadsheetGridLeftHeader';
 import SpreadsheetGridLocationOverlayBars from './SpreadsheetGridLocationOverlayBars';
 import DeviceHeaderTooltip from './DeviceHeaderTooltip';
 import AlertToast from './AlertToast';
+import UpdateConflictDialog from './UpdateConflictDialog';
 import { loadTaskMaster } from '../lib/taskMaster';
 import { loadLeftColWidths, saveLeftColWidth, visibleLeftColumns, clampLeftColW } from '../lib/leftHeaderColumns';
 import { loadExcludedDays, splitPastedSchedulePreservingLength } from '../lib/scheduleExclusions';
@@ -145,11 +146,17 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const sonarRafRef = useRef(null);
   const [deviceDetail, setDeviceDetail] = useState(null);
   const [toast, setToast] = useState(null);
+  const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
+  const conflictDecisionPromiseRef = useRef(null);
   const toastTimerRef = useRef(null);
   const groupMoveHighlightTimerRef = useRef(null);
 
   const fetchedPlanKeysRef  = useRef(new Set());
   const [locationOverlayPlans, setLocationOverlayPlans] = useState([]);
+  const plansRef = useRef(plans);
+  const locationOverlayPlansRef = useRef(locationOverlayPlans);
+  plansRef.current = plans;
+  locationOverlayPlansRef.current = locationOverlayPlans;
   const fetchedLocKeysRef   = useRef(new Set());
   const [calendarData, setCalendarData] = useState(new Map()); // dateStr → { dayType } (0=平日 1=土日 3=祝日 4=会社休日)
   const fetchedCalendarRangesRef = useRef([]);
@@ -1026,6 +1033,31 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     syncDirtyState();
   }
 
+  function requestConflictDecision() {
+    if (conflictDecisionPromiseRef.current) {
+      return conflictDecisionPromiseRef.current.promise;
+    }
+    let resolveDecision;
+    const promise = new Promise(resolve => {
+      resolveDecision = resolve;
+    });
+    conflictDecisionPromiseRef.current = { promise, resolve: resolveDecision };
+    setUpdateConflictDialogOpen(true);
+    return promise;
+  }
+
+  function resolveConflictDecision(decision) {
+    const pending = conflictDecisionPromiseRef.current;
+    conflictDecisionPromiseRef.current = null;
+    setUpdateConflictDialogOpen(false);
+    pending?.resolve(decision);
+  }
+
+  useEffect(() => () => {
+    conflictDecisionPromiseRef.current?.resolve('cancel');
+    conflictDecisionPromiseRef.current = null;
+  }, []);
+
   // 保存・キャンセルを親から呼び出せるようにする
   useImperativeHandle(ref, () => ({
     undoLastEdit,
@@ -1037,6 +1069,62 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const deletedPlanIds = new Set(deletes);
       const deletedLocationPlanIds = new Set(pendingLocationDeletesRef.current);
       let saveFailed = false;
+      let skippedUpdates = false;
+
+      // 画面取得時の更新日時とDBの現在値を、実際の保存処理に入る前に一括照合する。
+      const primaryUpdateVersions = [...updates.keys()]
+        .filter(planId => planId > 0 && !deletedPlanIds.has(planId))
+        .map(planId => ({
+          id: planId,
+          updatedAt: plansRef.current.find(plan => plan.planId === planId)?.updatedAtVersion ?? null,
+        }));
+      const locationUpdateVersions = [...pendingLocationUpdatesRef.current.keys()]
+        .filter(planId => planId > 0 && !deletedLocationPlanIds.has(planId))
+        .map(planId => ({
+          id: planId,
+          updatedAt: locationOverlayPlansRef.current.find(plan => plan.planId === planId)?.updatedAtVersion ?? null,
+        }));
+
+      let primaryConflictIds = new Set();
+      let locationConflictIds = new Set();
+      try {
+        const [primaryResult, locationResult] = await Promise.all([
+          primaryUpdateVersions.length > 0
+            ? apiJson(`${planEndpoint}/check-updates`, {
+              method: 'POST',
+              body: JSON.stringify({ updates: primaryUpdateVersions }),
+            })
+            : Promise.resolve({ conflictIds: [] }),
+          locationUpdateVersions.length > 0
+            ? apiJson('/reserve/check-updates', {
+              method: 'POST',
+              body: JSON.stringify({ updates: locationUpdateVersions }),
+            })
+            : Promise.resolve({ conflictIds: [] }),
+        ]);
+        primaryConflictIds = new Set((primaryResult.conflictIds || []).map(Number));
+        locationConflictIds = new Set((locationResult.conflictIds || []).map(Number));
+      } catch (err) {
+        console.error('saveChanges conflict check error', err);
+        showToast('予定の更新状況を確認できませんでした');
+        return false;
+      }
+
+      if (primaryConflictIds.size > 0 || locationConflictIds.size > 0) {
+        const decision = await requestConflictDecision();
+        if (decision === 'cancel') return false;
+        if (decision === 'skip') {
+          skippedUpdates = true;
+          primaryConflictIds.forEach(planId => updates.delete(planId));
+          locationConflictIds.forEach(planId => pendingLocationUpdatesRef.current.delete(planId));
+          if (primaryConflictIds.size > 0) {
+            setPlans(prev => prev.filter(plan => !primaryConflictIds.has(Number(plan.planId))));
+          }
+          if (locationConflictIds.size > 0) {
+            setLocationOverlayPlans(prev => prev.filter(plan => !locationConflictIds.has(Number(plan.planId))));
+          }
+        }
+      }
 
       // 新規作成（貼り付け）：仮IDを DB の本IDで置き換える
       for (const [tempId, payload] of creates) {
@@ -1065,10 +1153,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       for (const [planId, payload] of updates) {
         if (deletedPlanIds.has(planId)) continue;
         try {
-          await apiJson(`${planEndpoint}/${planId}`, {
+          const updatedPlan = await apiJson(`${planEndpoint}/${planId}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
           });
+          setPlans(prev => prev.map(plan => plan.planId === planId ? { ...plan, ...updatedPlan } : plan));
           updates.delete(planId);
         } catch (err) { saveFailed = true; console.error('saveChanges update error', err); }
       }
@@ -1096,12 +1185,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       for (const [planId, payload] of pendingLocationUpdatesRef.current) {
         if (deletedLocationPlanIds.has(planId)) continue;
         try {
-          await apiJson(`/reserve/${planId}`, {
+          const updatedPlan = await apiJson(`/reserve/${planId}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
           });
+          setLocationOverlayPlans(prev => prev.map(plan => plan.planId === planId ? { ...plan, ...updatedPlan } : plan));
           pendingLocationUpdatesRef.current.delete(planId);
         } catch (err) { saveFailed = true; console.error('saveChanges location update error', err); }
+      }
+
+      if (skippedUpdates) {
+        fetchedPlanKeysRef.current = new Set();
+        fetchedLocKeysRef.current = new Set();
+        setFetchVersion(version => version + 1);
       }
 
       if (!hasPendingChanges()) {
@@ -3434,6 +3530,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           gridMode={scheduleDialog.kind === 'location' ? 'place' : mode}
           onSave={savePlan}
           onClose={() => setScheduleDialog(null)}
+        />
+      )}
+      {updateConflictDialogOpen && (
+        <UpdateConflictDialog
+          onOverwrite={() => resolveConflictDecision('overwrite')}
+          onSkip={() => resolveConflictDecision('skip')}
+          onCancel={() => resolveConflictDecision('cancel')}
         />
       )}
       <DeviceHeaderTooltip detail={deviceDetail} onClose={() => setDeviceDetail(null)} />
