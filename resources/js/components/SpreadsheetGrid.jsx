@@ -2046,19 +2046,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     e.preventDefault();
     const g = getGroupAtRow(row);
     if (mode === 'task') {
-      setSelectedCell({ col, row });
-      setSelected(new Set());
-      setSelectedLocation(new Set());
-      if (copiedKind === 'plan' && copied.length > 0 && g) {
-        setContextMenu({
-          x: e.clientX,
-          y: e.clientY,
-          items: [{
-            label: `貼り付け（${copied.length}件）`,
-            onClick: () => pastePlans(col, row),
-          }],
-        });
-      }
       return;
     }
     const locationCell = mode === 'device' && extraLocationRow && isLocationRow(g, row);
@@ -2121,7 +2108,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           });
         }
       }]),
-      ...(copiedKind === 'plan' && copied.length > 0 ? [{
+      ...(copiedKind === 'plan' && copied.length > 0 && !g?.isUnassigned ? [{
         label: `貼り付け（${copied.length}件）`,
         onClick: () => pastePlans(col, row),
       }] : []),
@@ -2161,19 +2148,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }}
       : null;
 
-    // タスクタブでも選択した予定をコピー・切り取りできる。
-    // 日付変更は予定バーのドラッグ・伸縮、または貼り付け先セルの指定で行う。
+    // タスクタブではコピー・切り取り・貼り付けを行わない。
+    // 日付変更は予定バーのドラッグ・伸縮で行う。
     if (mode === 'task') {
-      const clipboardPlans = (isMulti ? [...selected] : [plan.planId])
-        .map(id => plans.find(p => p.planId === id))
-        .filter(p => p && !isReadOnlyPlan(p, mode));
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-        ...(clipboardPlans.length > 0 ? [
-          'separator',
-          { label: `${isMulti ? `${clipboardPlans.length}件` : ''}コピー`, onClick: () => setScheduleClipboard(clipboardPlans, 'plan', 'copy') },
-          { label: `${isMulti ? `${clipboardPlans.length}件` : ''}切り取り`, onClick: () => setScheduleClipboard(clipboardPlans, 'plan', 'cut') },
-        ] : []),
         ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
         ...(serialPlanItem ? ['separator', serialPlanItem] : []),
       ]});
@@ -2298,10 +2277,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function pastePlans(targetCol, targetRow) {
-    if (!copied.length || copiedKind !== 'plan') return;
+    if (mode === 'task' || !copied.length || copiedKind !== 'plan') return;
     // 貼り付け先の行グループ（装置 or 担当者）を特定
     const targetGroup = getGroupAtRow(targetRow);
     if (!targetGroup) return; // グループが特定できない場合は貼り付けしない
+    if (mode === 'worker' && targetGroup.isUnassigned) return;
 
     // 貼り付け先の serialId / workerId / locationId（全プランに共通で適用）
     const targetSerialId   = mode === 'device' && !isMorderDevice ? targetGroup.id : null;
@@ -2626,8 +2606,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   useEffect(() => {
     const handleKey = (e) => {
+      const target = e.target;
+      const tagName = target?.tagName?.toLowerCase();
+      const isFormInput = tagName === 'input'
+        || tagName === 'textarea'
+        || tagName === 'select'
+        || target?.isContentEditable;
+      if (isFormInput) return;
+
       const clipboardKey = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x');
-      if (clipboardKey) {
+      if (clipboardKey && mode !== 'task') {
         const action = e.key === 'x' ? 'cut' : 'copy';
         const selectedLocationPlans = [...selectedLocation]
           .map(id => locationOverlayPlans.find(p => p.planId === id))
@@ -2646,7 +2634,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        if (copied.length) {
+        if (copied.length && mode !== 'task') {
           e.preventDefault();
           const col = Math.floor(scrollLeft / colW);
           const row = selectedCell?.row ?? Math.floor(scrollTop / CELL_SIZE);
