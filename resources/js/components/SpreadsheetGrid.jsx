@@ -81,7 +81,7 @@ function isDialogReadOnlyPlan(plan) {
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   active = true,
-  mode, serials, workers, tasks, resources, displaySettings, settingsReady = true,
+  mode, serials, workers, tasks, resources, displaySettings, displaySettingsApplyVersion = 0, settingsReady = true,
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange, onHistoryChange, onBeforeRedraw,
 }, ref) {
@@ -1234,15 +1234,49 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     scrollRef.current.scrollLeft = 0;
   }, []);
 
+  const resetSerialSearch = useCallback(() => {
+    if (mode !== 'device') return;
+    deviceGroupFetchSequenceRef.current += 1;
+    planFetchSequenceRef.current += 1;
+    deviceGroupFetchKeyRef.current = '';
+    fetchedPlanKeysRef.current = new Set();
+    fetchedLocKeysRef.current = new Set();
+    setSerialSearchText('');
+    setForcedSerialId(null);
+    setForcedSerialGroup(null);
+    setDevicePagedGroups([]);
+    setDeviceGroupTotal(0);
+    setDeviceGroupOffset(0);
+    setPlans(retainPendingPlans);
+    setLocationOverlayPlans(retainPendingLocationPlans);
+    pendingScrollSerialIdRef.current = null;
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+      scrollRef.current.scrollLeft = 0;
+    }
+    setScrollTop(0);
+    setScrollLeft(0);
+    setSerialSearchTick(tick => tick + 1);
+    setFetchVersion(version => version + 1);
+  }, [mode, retainPendingPlans, retainPendingLocationPlans]);
+
+  const handleSerialSearchClear = useCallback(() => {
+    if (isDirty && onBeforeRedraw) onBeforeRedraw(resetSerialSearch);
+    else resetSerialSearch();
+  }, [isDirty, onBeforeRedraw, resetSerialSearch]);
+
+  const previousDisplaySettingsApplyVersionRef = useRef(displaySettingsApplyVersion);
+  useEffect(() => {
+    if (previousDisplaySettingsApplyVersionRef.current === displaySettingsApplyVersion) return;
+    previousDisplaySettingsApplyVersionRef.current = displaySettingsApplyVersion;
+    if (mode === 'device') resetSerialSearch();
+  }, [displaySettingsApplyVersion, mode, resetSerialSearch]);
+
   const handleSerialSearch = useCallback(async () => {
     if (mode !== 'device') return;
     const q = serialSearchText.trim();
     if (!q) {
-      setForcedSerialId(null);
-      setForcedSerialGroup(null);
-      deviceGroupFetchKeyRef.current = '';
-      pendingScrollSerialIdRef.current = null;
-      setSerialSearchTick(t => t + 1);
+      handleSerialSearchClear();
       return;
     }
 
@@ -1335,7 +1369,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     if (isDirty && onBeforeRedraw) onBeforeRedraw(showOnlyTargetSerial);
     else showOnlyTargetSerial();
-  }, [mode, serialSearchText, baseDeviceGroups, baseMorderGroups, isMorderDevice, fetchDeviceGroups, isDirty, onBeforeRedraw, retainPendingPlans]);
+  }, [mode, serialSearchText, baseDeviceGroups, baseMorderGroups, isMorderDevice, fetchDeviceGroups, isDirty, onBeforeRedraw, retainPendingPlans, handleSerialSearchClear]);
 
   const handleWorkerSearch = useCallback(() => {
     if (mode !== 'worker') return;
@@ -3002,6 +3036,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         serialSearchText={serialSearchText}
         onSerialSearchTextChange={setSerialSearchText}
         onSerialSearch={handleSerialSearch}
+        onSerialSearchClear={handleSerialSearchClear}
         serialSearchPlaceholder={isMorderDevice ? 'M番/品番検索' : '製番検索'}
         workerSearchText={workerSearchText}
         onWorkerSearchTextChange={setWorkerSearchText}

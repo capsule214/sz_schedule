@@ -83,6 +83,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     tksbmb: 0, tkscale: 1, tktasklist: [],
   });
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
+  const [displaySettingsApplyVersion, setDisplaySettingsApplyVersion] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [pendingSettingsOpen, setPendingSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -363,6 +364,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   async function saveDisplaySettings(settings, drawerTab) {
     setShowSettings(false);
     setCookie(displaySettingsCookieName(user), settings.settingNo);
+    setDisplaySettingsApplyVersion(version => version + 1);
     setDisplaySettings(settings);
     setDisplaySettingsList(prev => {
       const base = prev.length ? prev : (settings.settingsList || []);
@@ -486,6 +488,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   const gridProps = {
     serials, workers, tasks, resources, displaySettings,
+    displaySettingsApplyVersion,
     settingsReady: settingsLoaded,
     onJumpToOtherTab: handleJumpToOtherTab,
     onEnsureMasters: ensureMasters,

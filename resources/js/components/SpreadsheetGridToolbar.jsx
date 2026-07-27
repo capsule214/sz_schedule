@@ -16,6 +16,7 @@ export default function SpreadsheetGridToolbar({
   serialSearchText,
   onSerialSearchTextChange,
   onSerialSearch,
+  onSerialSearchClear,
   serialSearchPlaceholder = '製番検索',
   workerSearchText = '',
   onWorkerSearchTextChange,
@@ -136,6 +137,18 @@ export default function SpreadsheetGridToolbar({
             style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, minWidth: 140 }}
           />
           <button onClick={onSerialSearch} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>検索</button>
+          <button
+            onClick={onSerialSearchClear}
+            disabled={!serialSearchText}
+            style={{
+              padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4,
+              background: serialSearchText ? '#fff' : '#f3f4f6',
+              color: serialSearchText ? '#374151' : '#9ca3af',
+              cursor: serialSearchText ? 'pointer' : 'not-allowed', fontSize: 13,
+            }}
+          >
+            クリア
+          </button>
         </>
       )}
       <button onClick={onRefresh} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>再描画</button>
