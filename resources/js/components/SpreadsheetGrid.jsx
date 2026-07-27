@@ -99,7 +99,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (d && d >= 1) setDisplayMonths(d);
   }, [displaySettings?.duration]);
   const [deviceCount, setDeviceCount] = useState(1000);
-  const [viewMode, setViewMode] = useState('day');
+  const [dateWidth, setDateWidth] = useState(CELL_SIZE);
+  const lastDayWidthRef = useRef(CELL_SIZE);
+  const viewMode = dateWidth === 120 ? 'slot' : 'day';
   const [plans, setPlans] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
   const [serialSearchText, setSerialSearchText] = useState('');
@@ -551,7 +553,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [layoutGroups, extraLocationRow]);
 
   const totalH = totalRows * CELL_SIZE;
-  const colW = CELL_SIZE;
+  // 120px は従来の時間割（20px × 6枠）、それ未満は1日1セルで指定幅を使用する。
+  const colW = viewMode === 'slot' ? CELL_SIZE : dateWidth;
 
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
@@ -2871,6 +2874,25 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     else shift();
   }, [startDate, isDirty, onBeforeRedraw]);
 
+  const handleDateWidthChange = useCallback((width) => {
+    const normalizedWidth = Math.max(20, Math.min(120, Math.round(Number(width) / 20) * 20));
+    if (normalizedWidth < 120) lastDayWidthRef.current = normalizedWidth;
+
+    // 幅変更の前後で、画面左端にある日付が大きくずれないよう日単位の位置を維持する。
+    const scrollElement = scrollRef.current;
+    const leftDayOffset = scrollElement ? scrollElement.scrollLeft / dateWidth : 0;
+    setDateWidth(normalizedWidth);
+    requestAnimationFrame(() => {
+      if (!scrollRef.current) return;
+      scrollRef.current.scrollLeft = leftDayOffset * normalizedWidth;
+      setScrollLeft(scrollRef.current.scrollLeft);
+    });
+  }, [dateWidth]);
+
+  const handleViewModeChange = useCallback((nextMode) => {
+    handleDateWidthChange(nextMode === 'slot' ? 120 : lastDayWidthRef.current);
+  }, [handleDateWidthChange]);
+
   const dateColumns = useMemo(() => {
     const cols = [];
     const days = daysBetween(startDate, endDate);
@@ -3032,7 +3054,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         onSeedApply={handleSeedApply}
         mode={mode}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
+        dateWidth={dateWidth}
+        onDateWidthChange={handleDateWidthChange}
         serialSearchText={serialSearchText}
         onSerialSearchTextChange={setSerialSearchText}
         onSerialSearch={handleSerialSearch}

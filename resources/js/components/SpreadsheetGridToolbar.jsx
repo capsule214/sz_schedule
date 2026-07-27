@@ -13,6 +13,8 @@ export default function SpreadsheetGridToolbar({
   mode,
   viewMode,
   onViewModeChange,
+  dateWidth,
+  onDateWidthChange,
   serialSearchText,
   onSerialSearchTextChange,
   onSerialSearch,
@@ -109,6 +111,18 @@ export default function SpreadsheetGridToolbar({
       })()}
       <button onClick={() => onViewModeChange('day')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'day' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'day' ? '#eff6ff' : '#fff', color: viewMode === 'day' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>日単位</button>
       <button onClick={() => onViewModeChange('slot')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'slot' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'slot' ? '#eff6ff' : '#fff', color: viewMode === 'slot' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>時間割</button>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
+        日付幅
+        <select
+          value={dateWidth}
+          onChange={e => onDateWidthChange(Number(e.target.value))}
+          style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}
+        >
+          {[20, 40, 60, 80, 100, 120].map(width => (
+            <option key={width} value={width}>{width}px</option>
+          ))}
+        </select>
+      </label>
       {mode === 'worker' && (
         <>
           <input

@@ -23,7 +23,10 @@ export const TODAY_STR = new Date().toISOString().slice(0, 10);
 
 export function parseApiDate(s) {
   if (!s) return null;
-  return s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
+  const value = String(s);
+  if (value.includes('T')) return new Date(value);
+  if (value.includes(' ')) return new Date(value.replace(' ', 'T'));
+  return new Date(value + 'T00:00:00');
 }
 
 export function dateToStr(d) {
@@ -73,11 +76,31 @@ function toHm(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+function hmToMinutes(hm) {
+  const [hours, minutes] = String(hm).split(':').map(Number);
+  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : 0;
+}
+
+function startSlotIndex(hm) {
+  const minutes = hmToMinutes(hm);
+  const index = TIME_SLOTS.findIndex(slot => minutes < hmToMinutes(slot.end));
+  return index < 0 ? TIME_SLOTS.length - 1 : index;
+}
+
+function endSlotIndex(hm) {
+  const minutes = hmToMinutes(hm);
+  let index = 0;
+  for (let slotIndex = 0; slotIndex < TIME_SLOTS.length; slotIndex++) {
+    if (hmToMinutes(TIME_SLOTS[slotIndex].start) >= minutes) break;
+    index = slotIndex;
+  }
+  return index;
+}
+
 export function dateToCol(startDate, dateStr, viewMode, hm = '08:30') {
   const days = daysBetween(startDate, dateStr.slice(0, 10));
   if (viewMode === 'day') return days;
-  const slotIdx = TIME_SLOTS.findIndex(s => s.start === hm);
-  return days * SLOT_COUNT + Math.max(0, slotIdx);
+  return days * SLOT_COUNT + startSlotIndex(hm);
 }
 
 export function planToStartCol(plan, startDate, viewMode) {
@@ -92,9 +115,8 @@ export function planToEndCol(plan, startDate, viewMode) {
   const dateStr = dateToStr(d);
   const hm = toHm(d);
   if (viewMode === 'day') return dateToCol(startDate, dateStr, viewMode, hm);
-  const endSlot = TIME_SLOTS.findIndex(s => s.end === hm);
   const days = daysBetween(startDate, dateStr);
-  return days * SLOT_COUNT + Math.max(0, endSlot);
+  return days * SLOT_COUNT + endSlotIndex(hm);
 }
 
 export function colToDateTime(startDate, col, type, viewMode) {
