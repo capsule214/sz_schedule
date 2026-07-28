@@ -2348,10 +2348,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const targetMorderId   = mode === 'device' && isMorderDevice ? targetGroup.id : null;
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
     const targetLocationId = mode === 'place' ? targetGroup.id : null;
-    const targetTaskId     = mode === 'task' ? targetGroup.taskId : null;
-    const targetTask       = mode === 'task'
-      ? tasks.find(task => Number(task.taskId) === Number(targetTaskId))
-      : null;
 
     // 先頭プランの開始列を基準に列オフセットを算出
     const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
@@ -2375,7 +2371,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         : {
           serialId: newSerialId,
           morderId: newMorderId,
-          taskId: mode === 'task' ? targetTaskId : p.taskId,
+          taskId: p.taskId,
           workerId: newWorkerId,
           teacherId: p.teacherId,
           startDate: newStart,
@@ -2394,16 +2390,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         : [basePayload];
       for (const payload of payloads) {
         const tempId = tempIdCounterRef.current--;
-        newPlans.push({
-          ...p,
-          planId: tempId,
-          ...payload,
-          ...(targetTask ? {
-            taskName: targetTask.taskName,
-            taskBackColor: targetTask.backColor,
-            taskFontColor: targetTask.fontColor,
-          } : {}),
-        });
+        newPlans.push({ ...p, planId: tempId, ...payload });
         pendingCreatesRef.current.set(tempId, payload);
       }
     }
