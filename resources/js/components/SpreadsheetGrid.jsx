@@ -1662,18 +1662,31 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     // 選択処理を pointerdown で行う（preventDefault を外したので click も生きるが、こちらで完結させる）
     setSelectedCell(null);
-    if (e.ctrlKey || e.metaKey) {
+    const additiveSelection = e.ctrlKey || e.metaKey;
+    const isPartOfMultiSelection = selected.has(plan.planId)
+      && selected.size + selectedLocation.size > 1;
+    let capturedSelected;
+    let capturedLocationSelected;
+    if (additiveSelection) {
+      capturedSelected = new Set(selected);
+      capturedSelected.has(plan.planId)
+        ? capturedSelected.delete(plan.planId)
+        : capturedSelected.add(plan.planId);
+      capturedLocationSelected = selectedLocation;
       setSelected(prev => {
         const s = new Set(prev);
         s.has(plan.planId) ? s.delete(plan.planId) : s.add(plan.planId);
         return s;
       });
+    } else if (isPartOfMultiSelection) {
+      // 明示的な複数選択内のバーをドラッグした場合だけ、装置・場所の混在選択を維持する。
+      capturedSelected = selected;
+      capturedLocationSelected = selectedLocation;
     } else {
-      // 装置・場所の混在選択に含まれている場合は、両方の選択を保ったままドラッグする。
-      if (!selected.has(plan.planId)) {
-        setSelected(new Set([plan.planId]));
-        setSelectedLocation(new Set());
-      }
+      capturedSelected = new Set([plan.planId]);
+      capturedLocationSelected = new Set();
+      setSelected(capturedSelected);
+      setSelectedLocation(capturedLocationSelected);
     }
 
     if (isReadOnlyPlan(plan, mode)) return;
@@ -1684,12 +1697,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const startX = e.clientX;
     const startY = e.clientY;
 
-    // selectedRef を使ってポインターキャプチャ後も最新の選択状態を参照できるようにする
-    const capturedSelected = selected.has(plan.planId) ? selected : new Set([plan.planId]);
     const dragPlans = [...capturedSelected].map(id => plans.find(p => p.planId === id)).filter(p => p && !isReadOnlyPlan(p, mode));
     if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
     if (dragPlans.length === 0) return;
-    const locationDragPlans = [...selectedLocation]
+    const locationDragPlans = [...capturedLocationSelected]
       .map(id => locationOverlayPlans.find(p => p.planId === id))
       .filter(Boolean);
 
@@ -1897,27 +1908,39 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (e.button !== 0) return;
 
     setSelectedCell(null);
-    if (e.ctrlKey || e.metaKey) {
+    const additiveSelection = e.ctrlKey || e.metaKey;
+    const isPartOfMultiSelection = selectedLocation.has(plan.planId)
+      && selected.size + selectedLocation.size > 1;
+    let capturedSelectedLocation;
+    let capturedRegularSelected;
+    if (additiveSelection) {
+      capturedSelectedLocation = new Set(selectedLocation);
+      capturedSelectedLocation.has(plan.planId)
+        ? capturedSelectedLocation.delete(plan.planId)
+        : capturedSelectedLocation.add(plan.planId);
+      capturedRegularSelected = selected;
       setSelectedLocation(prev => {
         const next = new Set(prev);
         next.has(plan.planId) ? next.delete(plan.planId) : next.add(plan.planId);
         return next;
       });
+    } else if (isPartOfMultiSelection) {
+      capturedSelectedLocation = selectedLocation;
+      capturedRegularSelected = selected;
     } else {
-      if (!selectedLocation.has(plan.planId)) {
-        setSelectedLocation(new Set([plan.planId]));
-        setSelected(new Set());
-      }
+      capturedSelectedLocation = new Set([plan.planId]);
+      capturedRegularSelected = new Set();
+      setSelectedLocation(capturedSelectedLocation);
+      setSelected(capturedRegularSelected);
     }
 
     const bar = getLocationPlanBar(plan);
     if (!bar) return;
-    const capturedSelected = selectedLocation.has(plan.planId) ? selectedLocation : new Set([plan.planId]);
-    const dragPlans = [...capturedSelected]
+    const dragPlans = [...capturedSelectedLocation]
       .map(id => locationOverlayPlans.find(p => p.planId === id))
       .filter(Boolean);
     if (!dragPlans.some(p => p.planId === plan.planId)) dragPlans.push(plan);
-    const regularDragPlans = [...selected]
+    const regularDragPlans = [...capturedRegularSelected]
       .map(id => plans.find(p => p.planId === id))
       .filter(p => p && !isReadOnlyPlan(p, mode));
 
