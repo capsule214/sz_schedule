@@ -120,7 +120,7 @@ export function planToEndCol(plan, startDate, viewMode) {
 }
 
 export function colToDateTime(startDate, col, type, viewMode) {
-  if (viewMode === 'day') return addDays(startDate, col) + 'T08:00:00';
+  if (viewMode === 'day') return addDays(startDate, col) + 'T08:30:00';
   const dayIdx = Math.floor(col / SLOT_COUNT);
   const slotIdx = col % SLOT_COUNT;
   const dateStr = addDays(startDate, dayIdx);

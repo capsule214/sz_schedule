@@ -64,19 +64,21 @@ function isReadOnlyShippingTask(plan) {
   return isShippingTask(plan) && !isEditableMorderShippingTask(plan);
 }
 
-function isWorkerUnassignedPlan(plan, mode) {
-  return mode === 'worker' && !!plan && (plan.workerId == null || Number(plan.workerId) <= 0);
-}
-
 function isReadOnlyPlan(plan, mode) {
   if (Number(plan?.planId) < 0) return false;
+  // 担当者タブの社員未定予定は、特殊予定を含めてマウス移動・伸縮を許可する。
+  if (mode === 'worker' && (plan?.workerId == null || Number(plan.workerId) <= 0)) return false;
   if (isEditableMorderShippingTask(plan)) return false;
-  return isReadOnlyShippingTask(plan) || isWorkerUnassignedPlan(plan, mode);
+  return isReadOnlyShippingTask(plan);
 }
 
 function isDialogReadOnlyPlan(plan) {
   if (Number(plan?.planId) < 0) return false;
   return isReadOnlyShippingTask(plan);
+}
+
+function isPersonalPlan(plan) {
+  return Number(plan?.taskTypeId) === 3;
 }
 
 const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
@@ -500,7 +502,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       pushUnassignedGroup({
         id: `ua-serial-${serialId}`,
         unassignedKind: 'serial',
+        serialId,
+        kisyuId: serial?.kisyuId ?? uaPlans[0]?.kisyuId ?? null,
         kisyuName: serial?.kisyuName || uaPlans[0]?.kisyuName || '',
+        kisyuBackColor: serial?.kisyuBackColor ?? uaPlans[0]?.kisyuBackColor ?? null,
+        kisyuFontColor: serial?.kisyuFontColor ?? uaPlans[0]?.kisyuFontColor ?? null,
         serialNo: serial?.serialNo || uaPlans[0]?.serialNo || '',
         plans: uaPlans,
       });
@@ -1726,8 +1732,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const dx = e2.clientX - startX;
       const dy = e2.clientY - startY;
       const dc = Math.round(dx / colW);
-      // タスクタブでは担当タスク（行）を変えず、日付方向の移動・伸縮だけを許可する。
-      const dr = mode === 'task' ? 0 : Math.round(dy / CELL_SIZE);
+      // タスクタブと担当者タブの個人予定は、所属行を変えず横方向だけ移動する。
+      const verticalMoveDisabled = mode === 'task' || (mode === 'worker' && isPersonalPlan(plan));
+      const dr = verticalMoveDisabled ? 0 : Math.round(dy / CELL_SIZE);
       if (!dragRef.current.active && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
         dragRef.current.active = true;
       }
@@ -1788,7 +1795,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const sourceRow = kind === 'location'
       ? bar.groupStartRow + bar.locationRowIdx + bar.rowIdx
       : bar.groupStartRow + bar.rowIdx;
-    return getGroupAtRow(sourceRow + deltaRow)?.id ?? null;
+    const destinationGroup = getGroupAtRow(sourceRow + deltaRow);
+    return destinationGroup?.id ?? null;
   }
 
   async function commitDrag(drag) {
@@ -1806,6 +1814,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         if (destGroup) destGroupId = destGroup.id;
       }
     }
+    const destinationGroup = destGroupId !== null
+      ? layoutGroups.find(group => String(group.id) === String(destGroupId)) ?? null
+      : null;
 
     for (const dp of dragPlans) {
       if (isReadOnlyPlan(dp, mode)) continue;
@@ -1834,12 +1845,44 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       let newSerialId   = dp.serialId;
       let newMorderId   = dp.morderId;
       let newWorkerId   = dp.workerId;
-      let newLocationId = dp.resourceId;
+      let newResourceId = dp.resourceId;
+      let destinationVisualFields = {};
       if (destGroupId !== null) {
         if (mode === 'device' && isMorderDevice) newMorderId = destGroupId;
         else if (mode === 'device') newSerialId = destGroupId;
-        else if (mode === 'worker') newWorkerId = destGroupId;
-        else newLocationId = destGroupId;
+        else if (mode === 'worker' && destinationGroup?.isUnassigned) {
+          // 社員未定予定を別製番/M番行へ移動する場合は、担当者未定のまま製品だけを変更する。
+          const isUnassignedPlan = dp.workerId == null || Number(dp.workerId) <= 0;
+          if (isUnassignedPlan && !isPersonalPlan(dp)) {
+            if (destinationGroup.unassignedKind === 'serial') {
+              newSerialId = Number(destinationGroup.serialId);
+              newMorderId = -1;
+              destinationVisualFields = {
+                serialNo: destinationGroup.serialNo ?? '',
+                kisyuId: destinationGroup.kisyuId ?? null,
+                kisyuName: destinationGroup.kisyuName ?? '',
+                kisyuBackColor: destinationGroup.kisyuBackColor ?? null,
+                kisyuFontColor: destinationGroup.kisyuFontColor ?? null,
+                morderNo: '',
+                morderOrderTypeId: null,
+                morderOrderTypeName: '',
+              };
+            } else {
+              newSerialId = -1;
+              newMorderId = Number(destinationGroup.morderId);
+              destinationVisualFields = {
+                serialNo: '',
+                kisyuId: null,
+                kisyuName: destinationGroup.kisyuName ?? '',
+                morderNo: destinationGroup.morderNo ?? '',
+                morderOrderTypeId: destinationGroup.morderOrderTypeId ?? null,
+                morderOrderTypeName: destinationGroup.morderOrderTypeName ?? '',
+              };
+            }
+          }
+        }
+        else if (mode === 'worker' && !isPersonalPlan(dp)) newWorkerId = destGroupId;
+        else newResourceId = destGroupId;
       }
       const groupChanged =
         type === 'move'
@@ -1847,8 +1890,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         && (
           (mode === 'device' && isMorderDevice && Number(dp.morderId) !== Number(newMorderId))
           || (mode === 'device' && !isMorderDevice && Number(dp.serialId) !== Number(newSerialId))
-          || (mode === 'worker' && Number(dp.workerId) !== Number(newWorkerId))
-          || (mode === 'place' && Number(dp.resourceId) !== Number(newLocationId))
+          || (mode === 'worker' && (
+            Number(dp.workerId) !== Number(newWorkerId)
+            || Number(dp.serialId) !== Number(newSerialId)
+            || Number(dp.morderId) !== Number(newMorderId)
+          ))
+          || (mode === 'place' && Number(dp.resourceId) !== Number(newResourceId))
         );
       if (groupChanged) movedGroupPlanIds.push(dp.planId);
 
@@ -1861,7 +1908,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           plannedMinutes: dp.plannedMinutes ?? 0, price: dp.price ?? 0, remark: dp.remark ?? '',
         };
       const payload = mode === 'place'
-        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate, remark: dp.remark ?? '' }
+        ? { resourceId: newResourceId, serialId: newSerialId, startDate: newStartDate, endDate: newEndDate, remark: dp.remark ?? '' }
         : {
           serialId: newSerialId, morderId: newMorderId, taskId: dp.taskId, workerId: newWorkerId,
           teacherId: dp.teacherId, startDate: newStartDate, endDate: newEndDate,
@@ -1875,11 +1922,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         planId: dp.planId,
         before: beforePayload,
         after: payload,
+        beforeState: {
+          ...beforePayload,
+          serialNo: dp.serialNo,
+          kisyuId: dp.kisyuId,
+          kisyuName: dp.kisyuName,
+          kisyuBackColor: dp.kisyuBackColor,
+          kisyuFontColor: dp.kisyuFontColor,
+          morderNo: dp.morderNo,
+          morderOrderTypeId: dp.morderOrderTypeId,
+          morderOrderTypeName: dp.morderOrderTypeName,
+        },
+        afterState: { ...payload, ...destinationVisualFields },
         previousPendingHad,
         previousPending,
       });
       setPlans(prev => prev.map(p =>
-        p.planId === dp.planId ? { ...p, ...payload } : p
+        p.planId === dp.planId ? { ...p, ...payload, ...destinationVisualFields } : p
       ));
       if (dp.planId < 0 && pendingCreatesRef.current.has(dp.planId)) {
         pendingCreatesRef.current.set(dp.planId, payload);
@@ -2343,11 +2402,11 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!targetGroup) return; // グループが特定できない場合は貼り付けしない
     if (mode === 'worker' && targetGroup.isUnassigned) return;
 
-    // 貼り付け先の serialId / workerId / locationId（全プランに共通で適用）
+    // 貼り付け先の serialId / workerId / resourceId（全プランに共通で適用）
     const targetSerialId   = mode === 'device' && !isMorderDevice ? targetGroup.id : null;
     const targetMorderId   = mode === 'device' && isMorderDevice ? targetGroup.id : null;
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
-    const targetLocationId = mode === 'place' ? targetGroup.id : null;
+    const targetResourceId = mode === 'place' ? targetGroup.id : null;
 
     // 先頭プランの開始列を基準に列オフセットを算出
     const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
@@ -2364,10 +2423,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const newSerialId   = mode === 'device' && !isMorderDevice ? targetSerialId : p.serialId;
       const newMorderId   = mode === 'device' && isMorderDevice ? targetMorderId : p.morderId;
       const newWorkerId   = mode === 'worker'   ? targetWorkerId   : p.workerId;
-      const newLocationId = mode === 'place' ? targetLocationId : p.resourceId;
+      const newResourceId = mode === 'place' ? targetResourceId : p.resourceId;
 
       const basePayload = mode === 'place'
-        ? { resourceId: newLocationId, serialId: newSerialId, startDate: newStart, endDate: newEnd, remark: p.remark ?? '' }
+        ? { resourceId: newResourceId, serialId: newSerialId, startDate: newStart, endDate: newEnd, remark: p.remark ?? '' }
         : {
           serialId: newSerialId,
           morderId: newMorderId,
@@ -2545,6 +2604,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       : {
         taskName: selectedTask?.taskName ?? dialog.plan?.taskName ?? '',
+        taskTypeId: selectedTask?.taskTypeId ?? dialog.plan?.taskTypeId ?? null,
         taskBackColor: selectedTask?.backColor ?? dialog.plan?.taskBackColor ?? 1,
         taskFontColor: selectedTask?.fontColor ?? dialog.plan?.taskFontColor ?? 6,
         workerName: selectedWorker?.workerName ?? dialog.plan?.workerName ?? '',
@@ -2595,6 +2655,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           beforeState: {
             ...before,
             taskName: dialog.plan.taskName,
+            taskTypeId: dialog.plan.taskTypeId,
             taskBackColor: dialog.plan.taskBackColor,
             taskFontColor: dialog.plan.taskFontColor,
             workerName: dialog.plan.workerName,
@@ -2625,6 +2686,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           planId,
           ...createPayload,
           taskName: selectedTask?.taskName ?? '',
+          taskTypeId: selectedTask?.taskTypeId ?? null,
           taskBackColor: selectedTask?.backColor ?? 1,
           taskFontColor: selectedTask?.fontColor ?? 6,
           workerName: worker?.workerName ?? '',

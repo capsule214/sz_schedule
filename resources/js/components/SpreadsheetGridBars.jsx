@@ -109,7 +109,10 @@ export default function SpreadsheetGridBars({
       const isGroupMoveHighlighted = groupMoveHighlightIds.has(plan.planId);
       const isLocked = readOnlyPlanIds.has(plan.planId);
       const barX = x;
-      const barY = ghost && ghostDrag.type === 'move' ? y + ghostDrag.deltaRow * CELL_SIZE : y;
+      const verticalDeltaRow = mode === 'worker' && Number(plan.taskTypeId) === 3
+        ? 0
+        : ghostDrag?.deltaRow ?? 0;
+      const barY = ghost && ghostDrag.type === 'move' ? y + verticalDeltaRow * CELL_SIZE : y;
       const showStar = flgdiff && plan.updatedAt === TODAY_STR;
 
       const rowArr = rowStartXMap.get(absRow) || [];

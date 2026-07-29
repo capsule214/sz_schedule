@@ -127,6 +127,7 @@ class PlanController extends Controller
       'morderKouteiPicNo' => $morder ? $morder->koutei_pic_no : '',
       'taskId' => $plan->task_id,
       'taskName' => $task ? $task->task_name : '',
+      'taskTypeId' => $task?->task_type_id,
       'kisyuId' => $kisyu ? $kisyu->kisyu_id : null,
       'kisyuName' => $kisyu ? $kisyu->kisyu_name : '',
       'kisyuBackColor' => $kisyu ? $kisyu->back_color : null,
