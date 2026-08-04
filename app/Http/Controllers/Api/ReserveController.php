@@ -14,8 +14,8 @@ class ReserveController extends Controller
     return [
       'resourceId' => 'required|integer|min:1',
       'serialId' => 'required|integer|min:0',
-      'startDate' => 'required|date',
-      'endDate' => 'required|date|after_or_equal:startDate',
+      'startDate' => ['required', 'date_format:Y-m-d\TH:i:s', 'after_or_equal:2000-01-01T00:00:00'],
+      'endDate' => ['required', 'date_format:Y-m-d\TH:i:s', 'after_or_equal:startDate'],
       'remark' => 'nullable|string',
     ];
   }
