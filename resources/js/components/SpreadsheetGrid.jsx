@@ -115,6 +115,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const [devicePagedGroups, setDevicePagedGroups] = useState([]);
   const [deviceGroupTotal, setDeviceGroupTotal] = useState(0);
   const [deviceGroupOffset, setDeviceGroupOffset] = useState(0);
+  const [deviceSearchStartOffset, setDeviceSearchStartOffset] = useState(null);
+  const [workerSearchStartId, setWorkerSearchStartId] = useState(null);
   const deviceGroupFetchKeyRef = useRef('');
   const deviceGroupFetchSequenceRef = useRef(0);
 
@@ -202,6 +204,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const jumpTimerRef = useRef(null);
   const pendingScrollSerialIdRef = useRef(null);
   const pendingScrollWorkerIdRef = useRef(null);
+  const searchAnchorSerialIdRef = useRef(null);
+  const searchAnchorWorkerIdRef = useRef(null);
+  const releaseDeviceAnchorAfterLayoutRef = useRef(false);
+  const releaseWorkerAnchorAfterLayoutRef = useRef(false);
+  const revealingPreviousDeviceRef = useRef(false);
+  const revealingPreviousWorkerRef = useRef(false);
+  const jumpAnchorPlanIdRef = useRef(null);
+  const pendingJumpSonarPlanIdRef = useRef(null);
 
   const showShippingDate = mode === 'device' && !!displaySettings.sbdspdate;
   const showResponsible  = mode === 'device' && !!displaySettings.sbdspincharge;
@@ -409,9 +419,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       // 担当者タブは teamId → workerId 昇順固定
       w = [...w].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
+      if (workerSearchStartId != null) {
+        const startIndex = w.findIndex(wr => Number(wr.workerId) === Number(workerSearchStartId));
+        if (startIndex >= 0) w = w.slice(startIndex);
+      }
       return w.map(wr => ({ id: wr.workerId, workerName: wr.workerName, teamName: wr.teamName, teamId: wr.teamId, userNo: wr.userNo }));
     }
-  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, forcedSerialGroup, pllocation, isMorderDevice]);
+  }, [settingsReady, mode, serials, workers, tasks, resources, displaySettings, baseDeviceGroups, baseMorderGroups, forcedSerialId, forcedSerialGroup, pllocation, isMorderDevice, workerSearchStartId]);
 
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device')
@@ -424,7 +438,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
 
     if (mode === 'device' && deviceGroupTotal > 0) {
-      const baseRow = deviceGroupOffset * planMinRows;
+      const searchStartOffset = deviceSearchStartOffset ?? 0;
+      const baseRow = Math.max(0, deviceGroupOffset - searchStartOffset) * planMinRows;
       const shiftedGroups = result.groups.map(g => ({
         ...g,
         startRow: g.startRow + baseRow,
@@ -432,7 +447,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const visibleEndRow = shiftedGroups.reduce((max, g) => Math.max(max, g.startRow + g.numRows), 0);
       return {
         groups: shiftedGroups,
-        totalRows: Math.max(deviceGroupTotal * planMinRows, visibleEndRow),
+        totalRows: Math.max(Math.max(0, deviceGroupTotal - searchStartOffset) * planMinRows, visibleEndRow),
       };
     }
 
@@ -539,7 +554,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       });
     }
     return { groups: [...result.groups, ...extraGroups], totalRows: uaStartRow };
-  }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice, deviceGroupOffset, deviceGroupTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice, deviceGroupOffset, deviceGroupTotal, deviceSearchStartOffset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 矩形選択のクロージャ内から常に最新レイアウトを参照できるようにする
   layoutGroupsRef.current = layoutGroups;
@@ -1256,9 +1271,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setDevicePagedGroups([]);
     setDeviceGroupTotal(0);
     setDeviceGroupOffset(0);
+    setDeviceSearchStartOffset(null);
     setPlans(retainPendingPlans);
     setLocationOverlayPlans(retainPendingLocationPlans);
     pendingScrollSerialIdRef.current = null;
+    searchAnchorSerialIdRef.current = null;
+    releaseDeviceAnchorAfterLayoutRef.current = false;
+    revealingPreviousDeviceRef.current = false;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
       scrollRef.current.scrollLeft = 0;
@@ -1288,14 +1307,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       handleSerialSearchClear();
       return;
     }
+    releaseDeviceAnchorAfterLayoutRef.current = false;
 
     if (isMorderDevice) {
       // 読み込み済みページ内を優先検索
-      const loaded = baseMorderGroups.find(g => String(g.morderNo) === q || String(g.partsNo) === q);
+      const loadedIndex = baseMorderGroups.findIndex(g => String(g.morderNo) === q || String(g.partsNo) === q);
+      const loaded = loadedIndex >= 0 ? baseMorderGroups[loadedIndex] : null;
       if (loaded) {
+        const targetOffset = deviceGroupOffset + loadedIndex;
+        setDeviceSearchStartOffset(targetOffset);
         setForcedSerialId(null);
         setForcedSerialGroup(null);
+        searchAnchorSerialIdRef.current = loaded.id;
         pendingScrollSerialIdRef.current = loaded.id;
+        deviceGroupFetchKeyRef.current = '';
+        await fetchDeviceGroups(targetOffset);
         setSerialSearchTick(t => t + 1);
         return;
       }
@@ -1303,20 +1329,30 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const serverHit = await fetchDeviceGroups(0, q);
       const group = serverHit?.groups?.[0];
       if (!group) return;
-      await fetchDeviceGroups(Math.max(0, Number(serverHit.offset || 0) - DEVICE_GROUP_OVERSCAN / 2));
+      const targetOffset = Math.max(0, Number(serverHit.offset || 0));
+      setDeviceSearchStartOffset(targetOffset);
       setForcedSerialId(null);
       setForcedSerialGroup(null);
+      searchAnchorSerialIdRef.current = group.id;
       pendingScrollSerialIdRef.current = group.id;
+      deviceGroupFetchKeyRef.current = '';
+      await fetchDeviceGroups(targetOffset);
       setSerialSearchTick(t => t + 1);
       return;
     }
 
-    const loadedGroupHit = baseDeviceGroups.find(g => String(g.serialNo) === q)
-      || baseDeviceGroups.find(g => String(g.serialNo).includes(q));
+    let loadedGroupIndex = baseDeviceGroups.findIndex(g => String(g.serialNo) === q);
+    if (loadedGroupIndex < 0) loadedGroupIndex = baseDeviceGroups.findIndex(g => String(g.serialNo).includes(q));
+    const loadedGroupHit = loadedGroupIndex >= 0 ? baseDeviceGroups[loadedGroupIndex] : null;
     if (loadedGroupHit) {
+      const targetOffset = deviceGroupOffset + loadedGroupIndex;
+      setDeviceSearchStartOffset(targetOffset);
       setForcedSerialId(null);
       setForcedSerialGroup(null);
+      searchAnchorSerialIdRef.current = loadedGroupHit.id;
       pendingScrollSerialIdRef.current = loadedGroupHit.id;
+      deviceGroupFetchKeyRef.current = '';
+      await fetchDeviceGroups(targetOffset);
       setSerialSearchTick(t => t + 1);
       return;
     }
@@ -1324,10 +1360,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const serverHit = await fetchDeviceGroups(0, q);
     const group = serverHit?.groups?.[0];
     if (group) {
-      await fetchDeviceGroups(Math.max(0, Number(serverHit.offset || 0) - DEVICE_GROUP_OVERSCAN / 2));
+      const targetOffset = Math.max(0, Number(serverHit.offset || 0));
+      setDeviceSearchStartOffset(targetOffset);
       setForcedSerialId(null);
       setForcedSerialGroup(null);
+      searchAnchorSerialIdRef.current = group.id;
       pendingScrollSerialIdRef.current = group.id;
+      deviceGroupFetchKeyRef.current = '';
+      await fetchDeviceGroups(targetOffset);
       setSerialSearchTick(t => t + 1);
       return;
     }
@@ -1353,6 +1393,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setDevicePagedGroups([]);
       setDeviceGroupTotal(0);
       setDeviceGroupOffset(0);
+      setDeviceSearchStartOffset(null);
       setForcedSerialGroup(targetGroup);
       setForcedSerialId(targetSerialId);
       setPlans(prev => {
@@ -1372,19 +1413,24 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
       setScrollTop(0);
       setScrollLeft(0);
+      searchAnchorSerialIdRef.current = targetSerialId;
       pendingScrollSerialIdRef.current = targetSerialId;
       setSerialSearchTick(t => t + 1);
     };
 
     if (isDirty && onBeforeRedraw) onBeforeRedraw(showOnlyTargetSerial);
     else showOnlyTargetSerial();
-  }, [mode, serialSearchText, baseDeviceGroups, baseMorderGroups, isMorderDevice, fetchDeviceGroups, isDirty, onBeforeRedraw, retainPendingPlans, handleSerialSearchClear]);
+  }, [mode, serialSearchText, baseDeviceGroups, baseMorderGroups, isMorderDevice, deviceGroupOffset, fetchDeviceGroups, isDirty, onBeforeRedraw, retainPendingPlans, handleSerialSearchClear]);
 
   const handleWorkerSearch = useCallback(() => {
     if (mode !== 'worker') return;
     const q = workerSearchText.trim();
     if (!q) {
       pendingScrollWorkerIdRef.current = null;
+      searchAnchorWorkerIdRef.current = null;
+      releaseWorkerAnchorAfterLayoutRef.current = false;
+      revealingPreviousWorkerRef.current = false;
+      setWorkerSearchStartId(null);
       setWorkerSearchTick(t => t + 1);
       return;
     }
@@ -1407,6 +1453,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       return;
     }
 
+    setWorkerSearchStartId(hits[0].workerId);
+    releaseWorkerAnchorAfterLayoutRef.current = false;
+    searchAnchorWorkerIdRef.current = hits[0].workerId;
     pendingScrollWorkerIdRef.current = hits[0].workerId;
     setWorkerSearchTick(t => t + 1);
   }, [mode, workerSearchText, workers, displaySettings]);
@@ -1418,12 +1467,70 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setScrollLeft(sl);
   }, []);
 
+  const releaseSearchScrollRestriction = useCallback((direction = 0, revealPrevious = false) => {
+    jumpAnchorPlanIdRef.current = null;
+    pendingJumpSonarPlanIdRef.current = null;
+    const nearTop = (scrollRef.current?.scrollTop ?? 0) <= CELL_SIZE * 2;
+    const shouldRevealPrevious = revealPrevious || (direction < 0 && nearTop);
+
+    if (mode === 'device') {
+      if (shouldRevealPrevious && deviceSearchStartOffset != null && deviceSearchStartOffset > 0 && !revealingPreviousDeviceRef.current) {
+        // 上方向だけ直前のグループを段階的に追加し、現在の先頭製番は同じ画面位置に維持する。
+        const newStartOffset = Math.max(0, deviceSearchStartOffset - DEVICE_GROUP_OVERSCAN / 2);
+        revealingPreviousDeviceRef.current = true;
+        searchAnchorSerialIdRef.current = devicePagedGroups[0]?.id ?? searchAnchorSerialIdRef.current;
+        releaseDeviceAnchorAfterLayoutRef.current = true;
+        setDeviceSearchStartOffset(newStartOffset);
+        deviceGroupFetchKeyRef.current = '';
+        fetchDeviceGroups(newStartOffset)
+          .catch(e => console.error('fetch previous device groups error', e))
+          .finally(() => { revealingPreviousDeviceRef.current = false; });
+      } else {
+        searchAnchorSerialIdRef.current = null;
+      }
+    }
+    if (mode === 'worker') {
+      if (shouldRevealPrevious && workerSearchStartId != null && !revealingPreviousWorkerRef.current) {
+        const sygroup = displaySettings.sygroup || 0;
+        const syteamlist = displaySettings.syteamlist || [];
+        let orderedWorkers = workers || [];
+        if (sygroup > 0) orderedWorkers = orderedWorkers.filter(worker => worker.szgroupId === sygroup);
+        if (syteamlist.length > 0) orderedWorkers = orderedWorkers.filter(worker => syteamlist.includes(worker.teamId));
+        orderedWorkers = [...orderedWorkers].sort((a, b) => (a.teamId - b.teamId) || (a.workerId - b.workerId));
+        const currentIndex = orderedWorkers.findIndex(worker => Number(worker.workerId) === Number(workerSearchStartId));
+        const newStartIndex = Math.max(0, currentIndex - DEVICE_GROUP_OVERSCAN / 2);
+        if (currentIndex > 0 && orderedWorkers[newStartIndex]) {
+          revealingPreviousWorkerRef.current = true;
+          searchAnchorWorkerIdRef.current = workerSearchStartId;
+          releaseWorkerAnchorAfterLayoutRef.current = true;
+          setWorkerSearchStartId(orderedWorkers[newStartIndex].workerId);
+        } else {
+          searchAnchorWorkerIdRef.current = null;
+        }
+      } else {
+        searchAnchorWorkerIdRef.current = null;
+      }
+    }
+  }, [mode, deviceSearchStartOffset, devicePagedGroups, workerSearchStartId, displaySettings, workers, fetchDeviceGroups]);
+
   const triggerSonar = useCallback((x, y) => {
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
     sonarRafRef.current = requestAnimationFrame(() => {
       sonarRafRef.current = requestAnimationFrame(() => {
         setSonar({ x, y, key: Date.now() });
+        sonarClearTimerRef.current = setTimeout(() => setSonar(null), 2200);
+      });
+    });
+  }, []);
+
+  const triggerPlanSonar = useCallback((planId) => {
+    if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+    if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+    sonarRafRef.current = requestAnimationFrame(() => {
+      sonarRafRef.current = requestAnimationFrame(() => {
+        // 座標ではなく予定IDを保持し、装置グループ差し替え後も最新バー位置へ追従させる。
+        setSonar({ planId, key: Date.now() });
         sonarClearTimerRef.current = setTimeout(() => setSonar(null), 2200);
       });
     });
@@ -1481,7 +1588,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   useEffect(() => {
     if (!settingsReady || !active || mode !== 'device') return;
     if (forcedSerialId != null) return;
-    const visibleStart = Math.max(0, Math.floor(scrollTop / (planMinRows * CELL_SIZE)));
+    const searchStartOffset = deviceSearchStartOffset ?? 0;
+    const visibleStart = searchStartOffset + Math.max(0, Math.floor(scrollTop / (planMinRows * CELL_SIZE)));
     const visibleEnd = visibleStart + visibleDeviceGroupCount;
     const loadedStart = deviceGroupOffset;
     const loadedEnd = loadedStart + devicePagedGroups.length;
@@ -1492,12 +1600,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       && hasLeadingBuffer
       && hasTrailingBuffer) return;
 
-    const offset = Math.max(0, visibleStart - DEVICE_GROUP_OVERSCAN / 2);
+    const offset = Math.max(searchStartOffset, visibleStart - DEVICE_GROUP_OVERSCAN / 2);
     const timer = setTimeout(() => {
       fetchDeviceGroups(offset).catch(e => console.error('fetchDeviceGroups error', e));
     }, 150);
     return () => clearTimeout(timer);
-  }, [settingsReady, active, mode, isMorderDevice, displaySettings, scrollTop, planMinRows, visibleDeviceGroupCount, devicePagedGroups.length, deviceGroupOffset, forcedSerialId, fetchDeviceGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsReady, active, mode, isMorderDevice, displaySettings, scrollTop, planMinRows, visibleDeviceGroupCount, devicePagedGroups.length, deviceGroupOffset, deviceSearchStartOffset, forcedSerialId, fetchDeviceGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // スクロール停止後だけ、現在描画している日付・行の予定を取得する。
   useEffect(() => {
@@ -2272,8 +2380,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (mode === 'task') {
       setContextMenu({ x: e.clientX, y: e.clientY, items: [
         { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-        ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
         ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+        'separator',
+        ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
       ]});
       return;
     }
@@ -2293,6 +2402,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+        'separator',
       ...(!isDialogReadOnlyPlan(plan) ? [
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },
       ] : []),
@@ -2303,7 +2414,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         { label: '削除', danger: true, onClick: () => deletePlans([plan.planId]) },
       ] : []),
       ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
-      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
     ];
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }
@@ -2760,18 +2870,26 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (!jumpTarget || jumpTarget.targetMode !== mode || mode !== 'device') return;
     const plan = jumpTarget.plan;
     const targetId = isMorderDevice ? Number(plan.morderId) : Number(plan.serialId);
-    if (devicePagedGroups.some(g => Number(g.id) === targetId)) return;
     const q = isMorderDevice ? plan.morderNo : plan.serialNo;
     if (!q) return;
     const key = `${isMorderDevice ? 'm' : 's'}:${targetId}`;
     if (jumpGroupFetchKeyRef.current === key) return;
     jumpGroupFetchKeyRef.current = key;
     (async () => {
-      const hit = await fetchDeviceGroups(0, String(q));
-      if (!hit?.groups?.length) return;
-      await fetchDeviceGroups(Math.max(0, Number(hit.offset || 0) - DEVICE_GROUP_OVERSCAN / 2));
+      const loadedIndex = devicePagedGroups.findIndex(group => Number(group.id) === targetId);
+      let targetOffset;
+      if (loadedIndex >= 0) {
+        targetOffset = deviceGroupOffset + loadedIndex;
+      } else {
+        const hit = await fetchDeviceGroups(0, String(q));
+        if (!hit?.groups?.length) return;
+        targetOffset = Math.max(0, Number(hit.offset || 0));
+      }
+      setDeviceSearchStartOffset(targetOffset);
+      deviceGroupFetchKeyRef.current = '';
+      await fetchDeviceGroups(targetOffset);
     })().catch(e => console.error('jump device group fetch error', e));
-  }, [jumpTarget, mode, isMorderDevice, devicePagedGroups, fetchDeviceGroups]);
+  }, [jumpTarget, mode, isMorderDevice, devicePagedGroups, deviceGroupOffset, fetchDeviceGroups]);
 
   useEffect(() => {
     if (!jumpTarget) {
@@ -2789,6 +2907,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     // 再実行されて対象が見つかる。期限内に見つからなければエラー扱いとする。
     if (jumpTarget !== prevJumpTargetRef.current) {
       prevJumpTargetRef.current = jumpTarget;
+      // 過去の検索アンカーが残っていると、ジャンプ座標確定後に別の位置へ再スクロールされるため解除する。
+      searchAnchorSerialIdRef.current = null;
+      searchAnchorWorkerIdRef.current = null;
+      pendingScrollSerialIdRef.current = null;
+      pendingScrollWorkerIdRef.current = null;
+      releaseDeviceAnchorAfterLayoutRef.current = false;
+      releaseWorkerAnchorAfterLayoutRef.current = false;
+      if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+      if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+      setSonar(null);
+      if (mode === 'worker' && Number(plan.workerId) > 0) {
+        setWorkerSearchStartId(Number(plan.workerId));
+      }
       if (jumpTimerRef.current) clearTimeout(jumpTimerRef.current);
       jumpTimerRef.current = setTimeout(() => {
         jumpTimerRef.current = null;
@@ -2840,9 +2971,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     // 遷移先タブで対象の予定バーを選択状態にする
     setSelected(new Set([plan.planId]));
     setSelectedCell(null);
+    jumpAnchorPlanIdRef.current = plan.planId;
+    pendingJumpSonarPlanIdRef.current = plan.planId;
 
     const col = planToStartCol(plan, startDate, viewMode);
-    const endCol = planToEndCol(plan, startDate, viewMode);
     const absRow = targetGroup.startRow + targetPlanRow.rowIdx;
 
     // バーを画面中央に来るようにスクロール
@@ -2850,21 +2982,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const newScrollTop  = Math.max(0, absRow * CELL_SIZE - (containerH - TOTAL_HDR_H) / 2);
 
     // 書き込み後に実際の値を読み返す（コンテンツ末尾付近でクランプされる場合がある）
-    let actualScrollLeft = newScrollLeft;
-    let actualScrollTop  = newScrollTop;
     if (scrollRef.current) {
       scrollRef.current.scrollLeft = newScrollLeft;
       scrollRef.current.scrollTop  = newScrollTop;
-      actualScrollLeft = scrollRef.current.scrollLeft;
-      actualScrollTop  = scrollRef.current.scrollTop;
     }
-
-    // ソナー位置はクランプ後の実際のスクロール値で算出
-    const barCenterX = ((col + endCol + 1) * colW) / 2;
-    const barX = barCenterX - actualScrollLeft + leftHdrW;
-    const barY = absRow * CELL_SIZE - actualScrollTop + TOTAL_HDR_H + CELL_SIZE / 2;
-    // 高負荷時のタブ切替直後でも、実際に描画フレームへ乗ってからソナーを開始する
-    triggerSonar(barX, barY);
     onJumpHandled?.();
   }, [jumpTarget, layoutGroups, triggerSonar]);
 
@@ -2877,40 +2998,88 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     };
   }, []);
 
+  // タブ間ジャンプ後に予定取得で行高が変わっても、対象予定バーを表示領域中央に維持する。
+  // ユーザーが縦スクロールまたは別の操作を始めた時点で jumpAnchorPlanIdRef を解除する。
   useEffect(() => {
-    if (!active || mode !== 'device') return;
-    const targetSerialId = pendingScrollSerialIdRef.current;
-    if (!targetSerialId || !scrollRef.current) return;
-    const g = layoutGroups.find(x => x.id === targetSerialId);
-    if (!g) return;
-    const newTop = Math.max(0, g.startRow * CELL_SIZE - (containerH - TOTAL_HDR_H) / 2);
+    if (!active) {
+      jumpAnchorPlanIdRef.current = null;
+      pendingJumpSonarPlanIdRef.current = null;
+      return;
+    }
+    const targetPlanId = jumpAnchorPlanIdRef.current;
+    if (targetPlanId == null || !scrollRef.current) return;
+    let targetGroup = null;
+    let targetPlan = null;
+    for (const group of layoutGroups) {
+      const found = group.plans?.find(plan => String(plan.planId) === String(targetPlanId));
+      if (found) {
+        targetGroup = group;
+        targetPlan = found;
+        break;
+      }
+    }
+    if (!targetGroup || !targetPlan) return;
+    const absoluteRow = targetGroup.startRow + targetPlan.rowIdx;
+    const newTop = Math.max(0, absoluteRow * CELL_SIZE - (containerH - TOTAL_HDR_H) / 2);
     scrollRef.current.scrollTop = newTop;
     const actualTop = scrollRef.current.scrollTop;
     setScrollTop(actualTop);
 
-    const mainRows = g.locationRowIdx >= 0 ? g.locationRowIdx : g.numRows;
-    const sonarX = leftHdrW / 2;
-    // 製番は装置ヘッダの2行目に表示しているため、メイン領域下寄りに合わせる
-    const sonarY = (g.startRow + Math.max(0.6, mainRows * 0.65)) * CELL_SIZE - actualTop + TOTAL_HDR_H;
-    triggerSonar(sonarX, sonarY);
-    pendingScrollSerialIdRef.current = null;
+    if (String(pendingJumpSonarPlanIdRef.current) === String(targetPlanId)) {
+      pendingJumpSonarPlanIdRef.current = null;
+      triggerPlanSonar(targetPlanId);
+    }
+  }, [active, layoutGroups, containerH, triggerPlanSonar]);
+
+  useEffect(() => {
+    if (!active || mode !== 'device') return;
+    const targetSerialId = searchAnchorSerialIdRef.current ?? pendingScrollSerialIdRef.current;
+    if (!targetSerialId || !scrollRef.current) return;
+    const g = layoutGroups.find(x => String(x.id) === String(targetSerialId));
+    if (!g) return;
+    const revealPrevious = releaseDeviceAnchorAfterLayoutRef.current;
+    const newTop = Math.max(0, g.startRow * CELL_SIZE - (revealPrevious ? CELL_SIZE : 0));
+    scrollRef.current.scrollTop = newTop;
+    const actualTop = scrollRef.current.scrollTop;
+    setScrollTop(actualTop);
+
+    if (pendingScrollSerialIdRef.current != null) {
+      const mainRows = g.locationRowIdx >= 0 ? g.locationRowIdx : g.numRows;
+      const sonarX = leftHdrW / 2;
+      // 製番は装置ヘッダの2行目に表示しているため、メイン領域下寄りに合わせる
+      const sonarY = (g.startRow + Math.max(0.6, mainRows * 0.65)) * CELL_SIZE - actualTop + TOTAL_HDR_H;
+      triggerSonar(sonarX, sonarY);
+      pendingScrollSerialIdRef.current = null;
+    }
+    if (releaseDeviceAnchorAfterLayoutRef.current) {
+      releaseDeviceAnchorAfterLayoutRef.current = false;
+      searchAnchorSerialIdRef.current = null;
+    }
   }, [active, mode, layoutGroups, containerH, serialSearchTick, leftHdrW, triggerSonar]);
 
   useEffect(() => {
     if (!active || mode !== 'worker') return;
-    const targetWorkerId = pendingScrollWorkerIdRef.current;
+    const targetWorkerId = searchAnchorWorkerIdRef.current ?? pendingScrollWorkerIdRef.current;
     if (!targetWorkerId || !scrollRef.current) return;
     const g = layoutGroups.find(x => Number(x.id) === Number(targetWorkerId));
     if (!g) return;
-    const newTop = Math.max(0, g.startRow * CELL_SIZE - (containerH - TOTAL_HDR_H) / 2);
+    const revealPrevious = releaseWorkerAnchorAfterLayoutRef.current;
+    const newTop = Math.max(0, g.startRow * CELL_SIZE - (revealPrevious ? CELL_SIZE : 0));
     scrollRef.current.scrollTop = newTop;
     const actualTop = scrollRef.current.scrollTop;
     setScrollTop(actualTop);
 
-    const sonarX = leftHdrW / 2;
-    const sonarY = (g.startRow + Math.max(0.5, g.numRows * 0.5)) * CELL_SIZE - actualTop + TOTAL_HDR_H;
-    triggerSonar(sonarX, sonarY);
-    pendingScrollWorkerIdRef.current = null;
+    if (pendingScrollWorkerIdRef.current != null) {
+      const sonarX = leftHdrW / 2;
+      const sonarY = (g.startRow + Math.max(0.5, g.numRows * 0.5)) * CELL_SIZE - actualTop + TOTAL_HDR_H;
+      triggerSonar(sonarX, sonarY);
+      pendingScrollWorkerIdRef.current = null;
+    }
+    if (releaseWorkerAnchorAfterLayoutRef.current) {
+      releaseWorkerAnchorAfterLayoutRef.current = false;
+      revealingPreviousWorkerRef.current = false;
+      searchAnchorWorkerIdRef.current = null;
+    }
   }, [active, mode, layoutGroups, containerH, workerSearchTick, leftHdrW, triggerSonar]);
 
   async function handleSeedApply() {
@@ -3031,6 +3200,23 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     return false;
   }, [layoutGroups, totalCols, colW, scrollLeft, containerW, visRowStart, visRowEnd, startDate, viewMode, extraLocationRow]);
   const shouldShowScheduleAreaOverlay = isScheduleAreaFetching && !hasVisibleScheduleBars;
+  const sonarPosition = useMemo(() => {
+    if (!sonar) return null;
+    if (sonar.planId == null) return sonar;
+    for (const group of layoutGroups) {
+      const plan = group.plans?.find(item => String(item.planId) === String(sonar.planId));
+      if (!plan) continue;
+      const startCol = planToStartCol(plan, startDate, viewMode);
+      const endCol = planToEndCol(plan, startDate, viewMode);
+      const absoluteRow = group.startRow + plan.rowIdx;
+      return {
+        ...sonar,
+        x: ((startCol + endCol + 1) * colW) / 2 - scrollLeft + leftHdrW,
+        y: absoluteRow * CELL_SIZE - scrollTop + TOTAL_HDR_H + CELL_SIZE / 2,
+      };
+    }
+    return null;
+  }, [sonar, layoutGroups, startDate, viewMode, colW, scrollLeft, scrollTop, leftHdrW]);
 
   function handleHeaderClick(group, event) {
     event.stopPropagation();
@@ -3256,6 +3442,21 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           ref={scrollRef}
           style={{ position: 'absolute', left: leftHdrW, top: 0, right: 0, bottom: 0, overflow: 'scroll', zIndex: 1 }}
           onScroll={onScroll}
+          onWheelCapture={(e) => {
+            if (e.deltaY !== 0) releaseSearchScrollRestriction(e.deltaY);
+          }}
+          onPointerDownCapture={(e) => {
+            jumpAnchorPlanIdRef.current = null;
+            pendingJumpSonarPlanIdRef.current = null;
+            searchAnchorSerialIdRef.current = null;
+            searchAnchorWorkerIdRef.current = null;
+            const el = e.currentTarget;
+            const rect = el.getBoundingClientRect();
+            // macOS のオーバーレイスクロールバーは clientWidth に幅が現れないため、右端も判定対象にする。
+            const scrollbarWidth = Math.max(12, rect.width - el.clientWidth);
+            const onVerticalScrollbar = e.clientX >= rect.right - scrollbarWidth;
+            if (onVerticalScrollbar || e.pointerType === 'touch') releaseSearchScrollRestriction(-1, true);
+          }}
           onClick={e => {
             if (e.target === scrollRef.current) {
               setSelected(new Set());
@@ -3433,9 +3634,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         )}
 
         {/* ソナーエフェクト */}
-        {active && sonar && [0, 380, 760].map((delay, i) => (
-          <div key={`${sonar.key}-${i}`} style={{
-            position: 'absolute', left: sonar.x, top: sonar.y,
+        {active && sonarPosition && [0, 380, 760].map((delay, i) => (
+          <div key={`${sonarPosition.key}-${i}`} style={{
+            position: 'absolute', left: sonarPosition.x, top: sonarPosition.y,
             width: 72, height: 72, marginLeft: -36, marginTop: -36,
             borderRadius: '50%', border: '4px solid #ef4444',
             animation: `sonar-ring 1100ms ${delay}ms ease-out forwards`,
