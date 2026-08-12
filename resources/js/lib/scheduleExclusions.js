@@ -24,9 +24,42 @@ export function saveExcludedDays(value) {
   document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(value))}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
-export function parseScheduleDateTime(dateTime) {
+function hmToMinutes(hm) {
+  const [hours, minutes] = String(hm).split(':').map(Number);
+  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : 0;
+}
+
+/** 開始時刻を TIME_SLOTS のコマ開始に丸める（一致しない場合はその時刻を含むコマの開始） */
+export function snapToSlotStart(hm) {
+  if (TIME_SLOTS.some(slot => slot.start === hm)) return hm;
+  const minutes = hmToMinutes(hm);
+  let snapped = TIME_SLOTS[0].start;
+  for (const slot of TIME_SLOTS) {
+    if (hmToMinutes(slot.start) > minutes) break;
+    snapped = slot.start;
+  }
+  return snapped;
+}
+
+/** 終了時刻を TIME_SLOTS のコマ終了に丸める（一致しない場合はその時刻を含むコマの終了） */
+export function snapToSlotEnd(hm) {
+  if (TIME_SLOTS.some(slot => slot.end === hm)) return hm;
+  const minutes = hmToMinutes(hm);
+  const slot = TIME_SLOTS.find(s => hmToMinutes(s.end) >= minutes);
+  return (slot ?? TIME_SLOTS[TIME_SLOTS.length - 1]).end;
+}
+
+/**
+ * 予定日時文字列を日付と時刻に分解する。
+ * 時刻は type に応じて必ず TIME_SLOTS 上の妥当な値へ丸める。
+ * これにより、旧仕様で保存された不正な時刻（終了に 08:00 / 08:30 等）を
+ * コピー元に持つ予定を貼り付けても、不正値が新規データへ伝播しない。
+ */
+export function parseScheduleDateTime(dateTime, type = 'start') {
   const date = dateTime.slice(0, 10);
-  const hm = dateTime.includes('T') ? dateTime.slice(11, 16) : TIME_SLOTS[0].start;
+  const fallback = type === 'end' ? TIME_SLOTS[TIME_SLOTS.length - 1].end : TIME_SLOTS[0].start;
+  const raw = dateTime.includes('T') ? dateTime.slice(11, 16) : fallback;
+  const hm = type === 'end' ? snapToSlotEnd(raw) : snapToSlotStart(raw);
   return { date, hm };
 }
 
@@ -48,8 +81,8 @@ export function splitScheduleByExcludedDays(startDateTime, endDateTime, excluded
     return [{ startDate: startDateTime, endDate: endDateTime }];
   }
 
-  const start = parseScheduleDateTime(startDateTime);
-  const end = parseScheduleDateTime(endDateTime);
+  const start = parseScheduleDateTime(startDateTime, 'start');
+  const end = parseScheduleDateTime(endDateTime, 'end');
   if (start.date > end.date) return [];
 
   const firstHm = start.hm;
@@ -93,9 +126,9 @@ export function splitScheduleByExcludedDays(startDateTime, endDateTime, excluded
 export function splitPastedSchedulePreservingLength(sourceStartDateTime, sourceEndDateTime, targetStartDateTime, excludedDays, calendarData) {
   if (!excludedDays?.saturday && !excludedDays?.sunday && !excludedDays?.holiday) return null;
 
-  const sourceStart = parseScheduleDateTime(sourceStartDateTime);
-  const sourceEnd = parseScheduleDateTime(sourceEndDateTime);
-  const targetStart = parseScheduleDateTime(targetStartDateTime);
+  const sourceStart = parseScheduleDateTime(sourceStartDateTime, 'start');
+  const sourceEnd = parseScheduleDateTime(sourceEndDateTime, 'end');
+  const targetStart = parseScheduleDateTime(targetStartDateTime, 'start');
   if (sourceStart.date > sourceEnd.date) return [];
 
   // 元予定の暦日数をそのまま維持する。
