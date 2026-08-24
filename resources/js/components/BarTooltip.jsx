@@ -44,6 +44,7 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
         position: 'fixed', left: pos.left, top: pos.top, zIndex: 9998,
         background: '#fff', border: '1px solid #d1d5db', borderRadius: 8,
         boxShadow: '0 4px 20px rgba(0,0,0,0.18)', padding: 12, minWidth: 220, fontSize: 13,
+        userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -70,7 +71,7 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
       </table>
       <button
         onClick={onClose}
-        style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280' }}
+        style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280', userSelect: 'none' }}
       >×</button>
     </div>
   );

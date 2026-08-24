@@ -2824,49 +2824,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   useEffect(() => {
-    const handleKey = (e) => {
-      const target = e.target;
-      const tagName = target?.tagName?.toLowerCase();
-      const isFormInput = tagName === 'input'
-        || tagName === 'textarea'
-        || tagName === 'select'
-        || target?.isContentEditable;
-      if (isFormInput) return;
-
-      const clipboardKey = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x');
-      if (clipboardKey && mode !== 'task') {
-        const action = e.key === 'x' ? 'cut' : 'copy';
-        const selectedLocationPlans = [...selectedLocation]
-          .map(id => locationOverlayPlans.find(p => p.planId === id))
-          .filter(Boolean);
-        if (selectedLocationPlans.length) {
-          e.preventDefault();
-          setScheduleClipboard(selectedLocationPlans, 'location', action);
-          return;
-        }
-        const sel = [...selected]
-          .map(id => plans.find(p => p.planId === id))
-          .filter(p => p && !isReadOnlyPlan(p, mode));
-        if (sel.length) {
-          e.preventDefault();
-          setScheduleClipboard(sel, 'plan', action);
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        if (copied.length && mode !== 'task') {
-          e.preventDefault();
-          const col = Math.floor(scrollLeft / colW);
-          const row = selectedCell?.row ?? Math.floor(scrollTop / CELL_SIZE);
-          if (copiedKind === 'location') pasteLocationPlans(col, row);
-          else pastePlans(col, row);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [selected, selectedLocation, selectedCell, plans, locationOverlayPlans, copied, copiedKind, clipboardAction, mode, scrollLeft, scrollTop, colW]);
-
-  useEffect(() => {
     if (!jumpTarget || jumpTarget.targetMode !== mode || mode !== 'device') return;
     const plan = jumpTarget.plan;
     const targetId = isMorderDevice ? Number(plan.morderId) : Number(plan.serialId);
