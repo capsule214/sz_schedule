@@ -8,6 +8,7 @@ use App\Models\KdSerial;
 use App\Models\KmTask;
 use App\Models\KsSystemLog;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -15,6 +16,29 @@ use Tests\TestCase;
 class KsSystemLogTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_plan_response_returns_updated_date_in_japan_timezone(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-24 15:30:00', 'UTC'));
+
+        try {
+            $user = $this->loginUser();
+            [$serial, $task] = $this->createSerialAndTask();
+
+            $this->actingAs($user)
+                ->postJson('/api/plan', [
+                    'serialId' => $serial->serial_id,
+                    'taskId' => $task->task_id,
+                    'startDate' => '2026-08-25T08:30:00',
+                    'endDate' => '2026-08-25T10:30:00',
+                    'remark' => '',
+                ])
+                ->assertCreated()
+                ->assertJsonPath('updatedAt', '2026-08-25');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 
     private function loginUser(): User
     {

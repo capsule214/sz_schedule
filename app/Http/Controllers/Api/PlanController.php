@@ -144,7 +144,8 @@ class PlanController extends Controller
       'price' => $plan->price ?? 0,
       'remark' => $plan->remark ?? '',
       'isSyoyoTask' => $isSyoyoTask,
-      'updatedAt' => $plan->updated_at ? substr($plan->updated_at, 0, 10) : null,
+      // DBの更新日時はUTCで管理しているため、画面上の「当日」判定用には日本時間の日付を返す。
+      'updatedAt' => $plan->updated_at?->copy()->setTimezone('Asia/Tokyo')->format('Y-m-d'),
       'updatedAtVersion' => $plan->updated_at?->format('Y-m-d H:i:s.u'),
     ];
   }

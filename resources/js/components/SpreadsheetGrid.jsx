@@ -48,6 +48,29 @@ const ROW_FLAG_BADGES = [
   { key: 'flggoso',   label: '後送',       color: '#f59e0b' },
 ];
 const SHIPPING_TASK_ID = 1;
+const DATE_WIDTH_STORAGE_PREFIX = 'sz_schedule_date_width_';
+
+function normalizeDateWidth(value, fallback = CELL_SIZE) {
+  const width = Number(value);
+  if (!Number.isFinite(width)) return fallback;
+  return Math.max(20, Math.min(120, Math.round(width / 20) * 20));
+}
+
+function loadTabDateWidth(mode, suffix = '') {
+  try {
+    return normalizeDateWidth(sessionStorage.getItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}${suffix}`));
+  } catch {
+    return CELL_SIZE;
+  }
+}
+
+function saveTabDateWidth(mode, width, suffix = '') {
+  try {
+    sessionStorage.setItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}${suffix}`, String(width));
+  } catch {
+    // sessionStorageを利用できない環境では、現在のコンポーネントstateだけで保持する。
+  }
+}
 
 function isShippingTask(plan) {
   return Number(plan?.taskId) === SHIPPING_TASK_ID;
@@ -101,8 +124,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     if (d && d >= 1) setDisplayMonths(d);
   }, [displaySettings?.duration]);
   const [deviceCount, setDeviceCount] = useState(1000);
-  const [dateWidth, setDateWidth] = useState(CELL_SIZE);
-  const lastDayWidthRef = useRef(CELL_SIZE);
+  const [dateWidth, setDateWidth] = useState(() => loadTabDateWidth(mode));
+  const lastDayWidthRef = useRef(loadTabDateWidth(mode, '_day'));
   const viewMode = dateWidth === 120 ? 'slot' : 'day';
   const [plans, setPlans] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
@@ -3073,8 +3096,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, [startDate, isDirty, onBeforeRedraw]);
 
   const handleDateWidthChange = useCallback((width) => {
-    const normalizedWidth = Math.max(20, Math.min(120, Math.round(Number(width) / 20) * 20));
-    if (normalizedWidth < 120) lastDayWidthRef.current = normalizedWidth;
+    const normalizedWidth = normalizeDateWidth(width);
+    if (normalizedWidth < 120) {
+      lastDayWidthRef.current = normalizedWidth;
+      saveTabDateWidth(mode, normalizedWidth, '_day');
+    }
+    saveTabDateWidth(mode, normalizedWidth);
 
     // 幅変更の前後で、画面左端にある日付が大きくずれないよう日単位の位置を維持する。
     const scrollElement = scrollRef.current;
@@ -3085,7 +3112,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       scrollRef.current.scrollLeft = leftDayOffset * normalizedWidth;
       setScrollLeft(scrollRef.current.scrollLeft);
     });
-  }, [dateWidth]);
+  }, [dateWidth, mode]);
 
   const handleViewModeChange = useCallback((nextMode) => {
     handleDateWidthChange(nextMode === 'slot' ? 120 : lastDayWidthRef.current);

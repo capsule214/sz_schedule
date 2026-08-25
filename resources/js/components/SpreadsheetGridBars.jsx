@@ -113,7 +113,8 @@ export default function SpreadsheetGridBars({
         ? 0
         : ghostDrag?.deltaRow ?? 0;
       const barY = ghost && ghostDrag.type === 'move' ? y + verticalDeltaRow * CELL_SIZE : y;
-      const showStar = flgdiff && plan.updatedAt === TODAY_STR;
+      // 保存済みの当日更新に加え、保存前のローカル編集も当日変更として表示する。
+      const showStar = flgdiff && (plan.updatedAt === TODAY_STR || isEdited);
 
       const rowArr = rowStartXMap.get(absRow) || [];
       const myIdx = rowArr.findIndex(r => r.planId === plan.planId);

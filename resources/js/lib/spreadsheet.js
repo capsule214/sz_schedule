@@ -19,7 +19,8 @@ export const TIME_SLOTS = [
 export const SLOT_COUNT = TIME_SLOTS.length;
 export const SLOT_LABELS = TIME_SLOTS.map(s => s.label);
 
-export const TODAY_STR = new Date().toISOString().slice(0, 10);
+// 画面上の「当日」はブラウザのローカル日付を使う。UTC日付では日本時間の0時～9時に前日になる。
+export const TODAY_STR = dateToStr(new Date());
 
 export function parseApiDate(s) {
   if (!s) return null;
