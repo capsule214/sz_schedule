@@ -3554,6 +3554,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     ghostDrag={locationGhostDrag}
                     onBarPointerDown={handleLocationBarPointerDown}
                     onBarRightClick={handleLocationBarRightClick}
+                    flgdiff={!!displaySettings.flgdiff}
                   />
                   {/* 矩形選択オーバーレイ */}
                   {rectSelect && (

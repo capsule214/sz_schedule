@@ -7,6 +7,7 @@ use App\Models\KdReserve;
 use App\Models\KdSerial;
 use App\Models\KmResource;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -14,6 +15,26 @@ use Tests\TestCase;
 class ReserveDateValidationApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_reserve_response_returns_updated_date_in_japan_timezone(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-25 15:30:00', 'UTC'));
+
+        try {
+            [$user, $resource, $serial] = $this->createFixtures();
+
+            $this->actingAs($user)->postJson('/api/reserve', [
+                'resourceId' => $resource->resource_id,
+                'serialId' => $serial->serial_id,
+                'startDate' => '2026-08-26T08:30:00',
+                'endDate' => '2026-08-26T10:30:00',
+                'remark' => '',
+            ])->assertCreated()
+                ->assertJsonPath('updatedAt', '2026-08-26');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 
     public function test_reserve_store_accepts_schedule_datetime_format(): void
     {

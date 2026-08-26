@@ -50,6 +50,7 @@ class ReserveController extends Controller
       'startDate' => $reserve->start_date,
       'endDate' => $reserve->end_date,
       'remark' => $reserve->remark ?? '',
+      'updatedAt' => $reserve->updated_at?->copy()->setTimezone('Asia/Tokyo')->format('Y-m-d'),
       'updatedAtVersion' => $reserve->updated_at?->format('Y-m-d H:i:s.u'),
     ];
   }

@@ -1,4 +1,4 @@
-import { CELL_SIZE, HANDLE_W } from '../lib/spreadsheet';
+import { CELL_SIZE, HANDLE_W, TODAY_STR } from '../lib/spreadsheet';
 
 export default function SpreadsheetGridLocationOverlayBars({
   extraLocationRow,
@@ -19,6 +19,7 @@ export default function SpreadsheetGridLocationOverlayBars({
   ghostDrag,
   onBarPointerDown,
   onBarRightClick,
+  flgdiff = false,
 }) {
   if (!extraLocationRow) return [];
   const bars = [];
@@ -52,6 +53,8 @@ export default function SpreadsheetGridLocationOverlayBars({
       if (x >= totalCols * colW) continue;
       const w = Math.min(Math.max(colW, (drawEndCol - drawStartCol + 1) * colW), totalCols * colW - x);
       const y = (absRow + (ghost && ghostDrag.type === 'move' ? ghostDrag.deltaRow : 0)) * CELL_SIZE;
+      const isEdited = editedPlanIds.has(plan.planId);
+      const showStar = flgdiff && (plan.updatedAt === TODAY_STR || isEdited);
 
       if (x + w < scrollLeft || x > scrollLeft + containerW) continue;
 
@@ -66,8 +69,8 @@ export default function SpreadsheetGridLocationOverlayBars({
           style={{
             position: 'absolute', left: x, top: y, width: w, height: CELL_SIZE,
             background: '#93c5fd', border: '1px solid #3b82f6',
-            outline: editedPlanIds.has(plan.planId) ? '2px dashed #2563eb' : 'none',
-            outlineOffset: editedPlanIds.has(plan.planId) ? '-2px' : 0,
+            outline: isEdited ? '2px dashed #2563eb' : 'none',
+            outlineOffset: isEdited ? '-2px' : 0,
             boxShadow: selected.has(plan.planId) ? '0 0 0 2px #ef4444' : 'none',
             opacity: ghost ? 0.5 : 1,
             boxSizing: 'border-box', zIndex: ghost ? 10 : selected.has(plan.planId) ? 4 : 2,
@@ -85,6 +88,15 @@ export default function SpreadsheetGridLocationOverlayBars({
             style={{ position: 'absolute', right: 0, top: 0, width: HANDLE_W, height: '100%', cursor: 'ew-resize', zIndex: 3 }}
             onPointerDown={e => { e.stopPropagation(); onBarPointerDown?.(e, plan, 'resize-right'); }}
           />
+          {showStar && (
+            <div style={{
+              position: 'absolute', right: 2, top: 1,
+              width: 10, height: 10,
+              fontSize: 10, lineHeight: '10px',
+              pointerEvents: 'none', zIndex: 6,
+              userSelect: 'none',
+            }}>⭐</div>
+          )}
         </div>
       );
       bars.push(
