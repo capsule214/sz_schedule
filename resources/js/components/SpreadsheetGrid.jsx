@@ -333,7 +333,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     : mode === 'worker' ? 2
     : mode === 'device' ? (hasRowFlags ? 4 : MIN_ROWS)
     : MIN_ROWS;
-  const extraLocationRow = mode === 'device' && !!displaySettings.sbdspplplan;
+  // 場所予定は製番に紐づくため、M番・直送DPR表示では設定フラグに関係なく表示しない。
+  const extraLocationRow = mode === 'device' && !isMorderDevice && !!displaySettings.sbdspplplan;
   const visibleDeviceGroupCount = Math.max(1, Math.ceil(Math.max(0, containerH - TOTAL_HDR_H) / (planMinRows * CELL_SIZE)));
   const deviceGroupWindowSize = visibleDeviceGroupCount + DEVICE_GROUP_OVERSCAN;
 

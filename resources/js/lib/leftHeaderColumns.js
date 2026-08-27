@@ -15,6 +15,11 @@ const COLUMN_KEYS = {
   worker: ['team', 'name'],
   task: ['process', 'task'],
   place: ['floor', 'place'],
+  dpr: ['main', 'sub1', 'sub2', 'staff'],
+};
+
+const DEFAULT_WIDTHS = {
+  dpr: { main: 160, sub1: 90, sub2: 80, staff: 110 },
 };
 
 // 全 mode・全列の幅を 1 つの cookie に JSON でまとめて保存する
@@ -51,7 +56,7 @@ export function loadLeftColWidths(mode) {
   const widths = {};
   for (const key of keys) {
     const n = Number(modeWidths[key]);
-    widths[key] = Number.isFinite(n) ? clampLeftColW(n) : MIN_LEFT_COL_W;
+    widths[key] = Number.isFinite(n) ? clampLeftColW(n) : (DEFAULT_WIDTHS[mode]?.[key] ?? MIN_LEFT_COL_W);
   }
   return widths;
 }
@@ -77,5 +82,6 @@ export function visibleLeftColumns(mode, opts = {}) {
   if (mode === 'worker') return ['team', 'name'];
   if (mode === 'task') return ['process', 'task'];
   if (mode === 'place') return ['floor', 'place'];
+  if (mode === 'dpr') return ['main', 'sub1', 'sub2', 'staff'];
   return ['device'];
 }

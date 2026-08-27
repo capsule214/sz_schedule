@@ -145,6 +145,7 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
           : groupKey === 'worker' ? plan.workerId
           : groupKey === 'task-assignment' ? `task:${plan.taskId}:${plan.workerId == null || Number(plan.workerId) <= 0 ? 'unassigned' : 'assigned'}`
           : groupKey === 'task'   ? plan.taskId
+          : groupKey === 'dpr'    ? plan.dprNo
           : plan.resourceId;
     const grp = groupMap[gid];
     if (!grp) continue;

@@ -5,6 +5,16 @@ import TaskSettingsTab from './dspsetting/TaskSettingsTab';
 import WorkerSettingsTab from './dspsetting/WorkerSettingsTab';
 import DprSettingsTab from './dspsetting/DprSettingsTab';
 import { useSettingsForm } from '../lib/settingsForm';
+import { isIPadOS } from '../lib/platform';
+
+function getVisualViewport() {
+  if (typeof window === 'undefined') return { height: 0, offsetTop: 0 };
+  const viewport = window.visualViewport;
+  return {
+    height: Math.round(viewport?.height ?? window.innerHeight),
+    offsetTop: Math.round(viewport?.offsetTop ?? 0),
+  };
+}
 
 export default function DisplaySettingsDrawer({
   open, onClose, activeTab,
@@ -14,8 +24,10 @@ export default function DisplaySettingsDrawer({
 }) {
   // location タブはドロワーにないので device にフォールバック
   const [tab, setTab] = useState(() =>
-    activeTab === 'worker' ? 'worker' : activeTab === 'task' ? 'task' : 'device',
+    ['worker', 'task', 'dpr'].includes(activeTab) ? activeTab : 'device',
   );
+  const ipadOS = useMemo(() => isIPadOS(), []);
+  const [visualViewport, setVisualViewport] = useState(getVisualViewport);
 
   // 設定フォーム（30 個の useState を 1 行に集約）
   const { form, setField, applySettings } = useSettingsForm(settings);
@@ -46,7 +58,7 @@ export default function DisplaySettingsDrawer({
   // ドロワーが開いたら現在のグリッドタブに合わせ、設定を最新値にリセット
   useEffect(() => {
     if (!open) return;
-    setTab(activeTab === 'worker' ? 'worker' : activeTab === 'task' ? 'task' : 'device');
+    setTab(['worker', 'task', 'dpr'].includes(activeTab) ? activeTab : 'device');
     applySettings(settings);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -62,6 +74,22 @@ export default function DisplaySettingsDrawer({
           : ['tasks'];
     onEnsureMasters?.(requirements)?.catch(() => {});
   }, [open, tab, onEnsureMasters]);
+
+  // Safariのツールバーやソフトウェアキーボードを除いた実表示領域へ追従する。
+  useEffect(() => {
+    if (!ipadOS) return undefined;
+    const update = () => setVisualViewport(getVisualViewport());
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', update);
+    viewport?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    update();
+    return () => {
+      viewport?.removeEventListener('resize', update);
+      viewport?.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [ipadOS]);
 
   // 保存
   function handleSave() {
@@ -89,8 +117,9 @@ export default function DisplaySettingsDrawer({
 
       {/* ドロワー本体 */}
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: 700,
+        position: 'fixed', top: ipadOS ? visualViewport.offsetTop : 0, right: 0, bottom: ipadOS ? 'auto' : 0,
+        width: 700, maxWidth: '100vw', height: ipadOS ? visualViewport.height : undefined,
+        boxSizing: 'border-box',
         transform: open ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
         background: '#fff',
@@ -129,15 +158,15 @@ export default function DisplaySettingsDrawer({
         </div>
 
         {/* コンテンツ */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 20px 0' }}>
-          {tab === 'device' && <DeviceSettingsTab form={form} setField={setField} kisyus={kisyus} />}
-          {tab === 'worker' && <WorkerSettingsTab form={form} setField={setField} teams={teams} tasks={tasks} />}
-          {tab === 'task'   && <TaskSettingsTab   form={form} setField={setField} tasks={tasks} />}
-          {tab === 'dpr'    && <DprSettingsTab    form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
+        <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: ipadOS ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', padding: '16px 20px 0' }}>
+          {tab === 'device' && <DeviceSettingsTab scrollable={ipadOS} form={form} setField={setField} kisyus={kisyus} />}
+          {tab === 'worker' && <WorkerSettingsTab scrollable={ipadOS} form={form} setField={setField} teams={teams} tasks={tasks} />}
+          {tab === 'task'   && <TaskSettingsTab   scrollable={ipadOS} form={form} setField={setField} tasks={tasks} />}
+          {tab === 'dpr'    && <DprSettingsTab    scrollable={ipadOS} form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
         </div>
 
         {/* フッター */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', borderTop: '1px solid #e5e7eb', flexShrink: 0, marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', paddingBottom: ipadOS ? 'calc(12px + env(safe-area-inset-bottom))' : 12, borderTop: '1px solid #e5e7eb', flexShrink: 0, marginTop: ipadOS ? 0 : 16, background: '#fff' }}>
           <button onClick={onClose} style={{ padding: '7px 20px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 }}>キャンセル</button>
           <button onClick={handleSave} style={{ padding: '7px 20px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>適用</button>
         </div>

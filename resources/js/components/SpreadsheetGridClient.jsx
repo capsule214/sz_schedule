@@ -10,6 +10,7 @@ import GridTabBar from './GridTabBar';
 import GridTabPane from './GridTabPane';
 import AlertToast from './AlertToast';
 import UnsavedChangesDialog from './UnsavedChangesDialog';
+import DprGrid from './dpr/DprGrid';
 
 function getCookie(name) {
   const value = `; ${document.cookie}`;
@@ -23,7 +24,7 @@ function setCookie(name, value, days = 365) {
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
 }
 
-const GRID_TABS = ['device', 'worker', 'place', 'task'];
+const GRID_TABS = ['device', 'worker', 'place', 'task', 'dpr'];
 
 function displaySettingsCookieName(user) {
   return `active_display_setting_no_${encodeURIComponent(user?.email || 'default')}`;
@@ -112,6 +113,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     worker: { canUndo: false, canRedo: false },
     place: { canUndo: false, canRedo: false },
     task: { canUndo: false, canRedo: false },
+    dpr: { canUndo: false, canRedo: false },
   });
 
   const locationRangeRef = useRef(null);
@@ -124,6 +126,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     worker: ['workers'],
     task: ['tasks'],
     place: ['resources'],
+    dpr: [],
   }), []);
 
   const hasMastersForMode = useCallback((mode) => (
@@ -170,7 +173,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       ...Object.fromEntries(entries.map(([key]) => [key, true])),
     }));
     return dataByKey;
-  }, [loadedMasters, resources, serials, tasks, workers, kisyus, teams]);
+  }, [loadedMasters, resources, serials, tasks, workers, kisyus, teams, dprMachines, dprSalesLocations, dprPublicationYears]);
 
   const ensureMastersForMode = useCallback((mode) => (
     ensureMasters(masterRequirements[mode] || [])
@@ -290,6 +293,19 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     }
   }
 
+  function handleDprGenerated(inserted) {
+    setDprMachines([]);
+    setDprSalesLocations([]);
+    setDprPublicationYears([]);
+    setLoadedMasters(prev => ({
+      ...prev,
+      dprMachines: false,
+      dprSalesLocations: false,
+      dprPublicationYears: false,
+    }));
+    showAlert(`m_dprサンプルデータを${inserted.toLocaleString()}件生成しました`);
+  }
+
   function handleTabChange(nextTab) {
     if (isDirty) {
       setPendingTab(nextTab);
@@ -378,6 +394,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     if (drawerTab === 'device') setTab('device');
     else if (drawerTab === 'worker') setTab('worker');
     else if (drawerTab === 'task') setTab('task');
+    else if (drawerTab === 'dpr') setTab('dpr');
     try {
       await apiJson('/display-settings', {
         method: 'PUT',
@@ -580,6 +597,16 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             jumpTarget={tab === 'task' ? jumpTarget : null}
             onRangeChange={r => { taskRangeRef.current = r; }}
             onDirtyChange={setIsDirty}
+          />
+        </GridTabPane>
+
+        <GridTabPane active={tab === 'dpr'}>
+          <DprGrid
+            active={tab === 'dpr'}
+            displaySettings={displaySettings}
+            displaySettingsApplyVersion={displaySettingsApplyVersion}
+            onGenerated={handleDprGenerated}
+            onError={showAlert}
           />
         </GridTabPane>
 

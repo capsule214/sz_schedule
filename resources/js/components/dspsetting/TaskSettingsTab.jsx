@@ -1,8 +1,9 @@
 import CommonOptions from './CommonOptions';
+import AdaptiveMultiSelect from './AdaptiveMultiSelect';
 
-export default function TaskSettingsTab({ form, setField, tasks }) {
+export default function TaskSettingsTab({ form, setField, tasks, scrollable = false }) {
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', flexDirection: 'column', overflow: scrollable ? 'visible' : 'hidden' }}>
       {/* 製品表示 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
         <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
@@ -25,22 +26,20 @@ export default function TaskSettingsTab({ form, setField, tasks }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
         {/* タスクリスト */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>表示タスクリスト</div>
-          <select
-            multiple
-            value={form.tktasklist.map(String)}
-            onChange={e => setField('tktasklist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+          <AdaptiveMultiSelect
+            ariaLabel="表示タスクリスト"
+            options={tasks.map(t => ({
+              value: t.taskId,
+              label: `${t.taskTypeName || '(未設定)'} | ${t.processName || '(未設定)'} | ${t.taskName}`,
+            }))}
+            values={form.tktasklist}
+            onChange={values => setField('tktasklist', values)}
             style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-          >
-            {tasks.map(t => (
-              <option key={t.taskId} value={t.taskId}>
-                {t.taskTypeName || '(未設定)'} | {t.processName || '(未設定)'} | {t.taskName}
-              </option>
-            ))}
-          </select>
+          />
           <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は何も表示しません</p>
         </div>
 

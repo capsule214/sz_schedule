@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import CommonOptions from './CommonOptions';
+import AdaptiveMultiSelect from './AdaptiveMultiSelect';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
-export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
+export default function WorkerSettingsTab({ form, setField, teams, tasks, scrollable = false }) {
   // チームリストの絞り込みテキストはタブローカルな UI 状態
   const [teamFilter, setTeamFilter] = useState('');
 
@@ -20,7 +21,7 @@ export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
   }, [teams, form.sygroup, teamFilter]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
+    <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', flexDirection: 'column', overflow: scrollable ? 'visible' : 'hidden', gap: 0 }}>
       {/* 製造部署 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginBottom: 8 }}>
         <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製造部署</span>
@@ -47,7 +48,7 @@ export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
         {/* チームリスト */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>チームリスト</div>
@@ -61,16 +62,13 @@ export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
             onClick={() => setField('syteamlist', teamList.map(t => t.teamId))}
             style={{ ...BTN, width: '100%' }}
           >全選択</button>
-          <select
-            multiple
-            value={form.syteamlist.map(String)}
-            onChange={e => setField('syteamlist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+          <AdaptiveMultiSelect
+            ariaLabel="チームリスト"
+            options={teamList.map(t => ({ value: t.teamId, label: t.teamName }))}
+            values={form.syteamlist}
+            onChange={values => setField('syteamlist', values)}
             style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-          >
-            {teamList.map(t => (
-              <option key={t.teamId} value={t.teamId}>{t.teamName}</option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* 表示タスクリスト */}
@@ -80,16 +78,13 @@ export default function WorkerSettingsTab({ form, setField, teams, tasks }) {
             onClick={() => setField('sytasklist', tasks.map(t => t.taskId))}
             style={{ ...BTN, width: '100%' }}
           >全選択</button>
-          <select
-            multiple
-            value={form.sytasklist.map(String)}
-            onChange={e => setField('sytasklist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+          <AdaptiveMultiSelect
+            ariaLabel="表示タスクリスト"
+            options={tasks.map(t => ({ value: t.taskId, label: t.taskName }))}
+            values={form.sytasklist}
+            onChange={values => setField('sytasklist', values)}
             style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-          >
-            {tasks.map(t => (
-              <option key={t.taskId} value={t.taskId}>{t.taskName}</option>
-            ))}
-          </select>
+          />
           <p style={{ fontSize: 12, color: '#6b7280', margin: 0, flexShrink: 0 }}>未選択の場合は全タスクを表示します</p>
         </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiJson } from '../../lib/api';
+import AdaptiveMultiSelect from './AdaptiveMultiSelect';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
@@ -76,7 +77,7 @@ function TagSection({ label, values, onAdd, onRemove, placeholder }) {
   );
 }
 
-export default function DprSettingsTab({ form, setField, machines = [], salesLocations = [], publicationYears = [] }) {
+export default function DprSettingsTab({ form, setField, machines = [], salesLocations = [], publicationYears = [], scrollable = false }) {
   // チェックボックスで絞り込んだ後の選択肢（初期値はプロップから）
   const [filteredMachines,   setFilteredMachines]   = useState([]);
   const [filteredLocations,  setFilteredLocations]  = useState([]);
@@ -145,7 +146,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
   function tagRemove(key, val) { setField(key, form[key].filter(x => x !== val)); }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
+    <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', flexDirection: 'column', overflow: scrollable ? 'visible' : 'hidden', gap: 0 }}>
 
       {/* ─── 上部：チェックボックスで絞り込み条件を全選択 ─── */}
       <div style={{
@@ -208,7 +209,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
       </div>
 
       {/* ─── 下部：2:1:1 の3カラム ─── */}
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
 
         {/* 左 flex:2 → 内部を横3分割（機種 / 営業拠点 / 発行年） */}
         <div style={{ flex: 2, display: 'flex', gap: 8, overflow: 'hidden', minHeight: 0, minWidth: 0 }}>
@@ -220,16 +221,13 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
               onClick={() => setField('dprmodellist', [...filteredMachines])}
               style={{ ...BTN, width: '100%' }}
             >全選択</button>
-            <select
-              multiple
-              value={form.dprmodellist}
-              onChange={e => setField('dprmodellist', [...e.target.selectedOptions].map(o => o.value))}
+            <AdaptiveMultiSelect
+              ariaLabel="DPR機種選択"
+              options={filteredMachines.map(value => ({ value, label: value }))}
+              values={form.dprmodellist}
+              onChange={values => setField('dprmodellist', values)}
               style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-            >
-              {filteredMachines.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* 営業拠点選択 */}
@@ -239,16 +237,13 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
               onClick={() => setField('dprsaleslocationlist', [...filteredLocations])}
               style={{ ...BTN, width: '100%' }}
             >全選択</button>
-            <select
-              multiple
-              value={form.dprsaleslocationlist}
-              onChange={e => setField('dprsaleslocationlist', [...e.target.selectedOptions].map(o => o.value))}
+            <AdaptiveMultiSelect
+              ariaLabel="DPR営業拠点選択"
+              options={filteredLocations.map(value => ({ value, label: value }))}
+              values={form.dprsaleslocationlist}
+              onChange={values => setField('dprsaleslocationlist', values)}
               style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-            >
-              {filteredLocations.map(l => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* 発行年選択 */}
@@ -258,16 +253,13 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
               onClick={() => setField('dprpublicationyearlist', [...filteredYears])}
               style={{ ...BTN, width: '100%' }}
             >全選択</button>
-            <select
-              multiple
-              value={form.dprpublicationyearlist}
-              onChange={e => setField('dprpublicationyearlist', [...e.target.selectedOptions].map(o => o.value))}
+            <AdaptiveMultiSelect
+              ariaLabel="DPR発行年選択"
+              options={filteredYears.map(value => ({ value, label: value }))}
+              values={form.dprpublicationyearlist}
+              onChange={values => setField('dprpublicationyearlist', values)}
               style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-            >
-              {filteredYears.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            />
           </div>
         </div>
 
@@ -286,16 +278,13 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
               onClick={() => setField('dprszgrouplist', [1, 2, 3])}
               style={{ ...BTN, width: '100%' }}
             >全選択</button>
-            <select
-              multiple
-              value={form.dprszgrouplist.map(String)}
-              onChange={e => setField('dprszgrouplist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+            <AdaptiveMultiSelect
+              ariaLabel="DPR装置グループ絞込"
+              options={[1, 2, 3].map(value => ({ value, label: `${value}部` }))}
+              values={form.dprszgrouplist}
+              onChange={values => setField('dprszgrouplist', values)}
               style={{ flex: 1, width: '100%', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-            >
-              <option value="1">1部</option>
-              <option value="2">2部</option>
-              <option value="3">3部</option>
-            </select>
+            />
           </div>
         </div>
 

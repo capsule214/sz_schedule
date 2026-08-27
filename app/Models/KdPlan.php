@@ -20,6 +20,8 @@ class KdPlan extends Model
   protected $fillable = [
     'serial_id',
     'morder_id',
+    'dpr_no',
+    'user_no',
     'task_id',
     'worker_id',
     'educator_worker_id',
@@ -44,6 +46,11 @@ class KdPlan extends Model
   public function kd_morder()
   {
     return $this->belongsTo(KdMorder::class, 'morder_id', 'morder_id');
+  }
+
+  public function m_dpr()
+  {
+    return $this->belongsTo(Mdpr::class, 'dpr_no', 'dprno');
   }
 
   public function km_worker()

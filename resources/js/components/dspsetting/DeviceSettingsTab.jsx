@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import CommonOptions from './CommonOptions';
+import AdaptiveMultiSelect from './AdaptiveMultiSelect';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
   borderRadius: 4, cursor: 'pointer', background: '#f9fafb', flexShrink: 0,
 };
 
-export default function DeviceSettingsTab({ form, setField, kisyus }) {
+export default function DeviceSettingsTab({ form, setField, kisyus, scrollable = false }) {
   // 工程担当コード入力欄はタブローカルな UI 状態
   const [sbinchargeInput, setSbinchargeInput] = useState('');
   const showModelFilters = Number(form.sbsbmb) === 0; // 製番表示のときのみ機種フィルタを表示
@@ -37,7 +38,7 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
   }, [kisyus, form.sbequiptype, form.sbstatuslist]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 0 }}>
+    <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', flexDirection: 'column', overflow: scrollable ? 'visible' : 'hidden', gap: 0 }}>
       {/* 製品表示 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
         <span style={{ fontSize: 13, color: '#374151', flexShrink: 0 }}>製品表示</span>
@@ -85,7 +86,7 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
         {showModelFilters && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
@@ -109,16 +110,13 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
               onClick={() => setField('sbmodellist', kisyuList.map(k => k.kisyuId))}
               style={{ ...BTN, width: '100%' }}
             >全選択</button>
-            <select
-              multiple
-              value={form.sbmodellist.map(String)}
-              onChange={e => setField('sbmodellist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+            <AdaptiveMultiSelect
+              ariaLabel="機種選択"
+              options={kisyuList.map(k => ({ value: k.kisyuId, label: k.kisyuName }))}
+              values={form.sbmodellist}
+              onChange={values => setField('sbmodellist', values)}
               style={{ flex: 1, width: '100%', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
-            >
-              {kisyuList.map(k => (
-                <option key={k.kisyuId} value={k.kisyuId}>{k.kisyuName}</option>
-              ))}
-            </select>
+            />
           </div>
         )}
 
@@ -172,17 +170,14 @@ export default function DeviceSettingsTab({ form, setField, kisyus }) {
             onClick={() => setField('sbszgrouplist', [1, 2, 3])}
             style={{ ...BTN, width: '100%' }}
           >全選択</button>
-          <select
-            multiple
-            value={form.sbszgrouplist.map(String)}
-            onChange={e => setField('sbszgrouplist', [...e.target.selectedOptions].map(o => Number(o.value)))}
+          <AdaptiveMultiSelect
+            ariaLabel="装置グループ絞込"
+            options={[1, 2, 3].map(value => ({ value, label: `${value}部` }))}
+            values={form.sbszgrouplist}
+            onChange={values => setField('sbszgrouplist', values)}
             style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, padding: '2px 0' }}
             size={3}
-          >
-            <option value="1">1部</option>
-            <option value="2">2部</option>
-            <option value="3">3部</option>
-          </select>
+          />
         </div>
 
         {/* 表示オプション */}

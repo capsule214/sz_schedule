@@ -8,6 +8,109 @@ use Illuminate\Support\Facades\DB;
 
 class DprController extends Controller
 {
+  /** 選択機種に属するDPR Noグループと、表示期間内の予定をカーソルページングで返す。 */
+  public function groups(Request $request)
+  {
+    $data = $request->validate([
+      'machines' => 'required|array|min:1|max:500',
+      'machines.*' => 'required|string|max:255',
+      'from' => 'required|date',
+      'to' => 'required|date|after_or_equal:from',
+      'after_dpr_no' => 'nullable|string|max:255',
+      'limit' => 'nullable|integer|min:1|max:500',
+    ]);
+    $limit = (int) ($data['limit'] ?? 200);
+
+    // OFFSETは100万件規模で遅くなるため、(machine, dprno)索引を使うカーソル方式にする。
+    $dprNoQuery = DB::table('m_dpr')
+      ->whereIn('machine', $data['machines'])
+      ->whereNotNull('dprno')
+      ->where('dprno', '<>', '');
+    if (! empty($data['after_dpr_no'])) {
+      $dprNoQuery->where('dprno', '>', $data['after_dpr_no']);
+    }
+    $dprNos = $dprNoQuery
+      ->select('dprno')
+      ->distinct()
+      ->orderBy('dprno')
+      ->limit($limit + 1)
+      ->pluck('dprno');
+
+    $hasMore = $dprNos->count() > $limit;
+    $pageDprNos = $dprNos->take($limit)->values();
+    if ($pageDprNos->isEmpty()) {
+      return response()->json(['groups' => [], 'plans' => [], 'hasMore' => false, 'nextCursor' => null]);
+    }
+
+    // 同一DPR Noに複数機種・複数行が存在するため、該当するマスタ行をDPR No単位に集約する。
+    $masterRows = DB::table('m_dpr')
+      ->whereIn('dprno', $pageDprNos)
+      ->orderBy('dprno')
+      ->orderBy('machine')
+      ->get();
+
+    $joinValues = static function ($rows, string $column): string {
+      return $rows->pluck($column)
+        ->filter(fn ($value) => $value !== null && $value !== '')
+        ->map(fn ($value) => (string) $value)
+        ->unique()
+        ->implode(' / ');
+    };
+    $rowsByDprNo = $masterRows->groupBy('dprno');
+    $groups = $pageDprNos->map(function ($dprNo) use ($rowsByDprNo, $joinValues) {
+      $rows = $rowsByDprNo->get($dprNo, collect());
+      $first = $rows->first();
+      return [
+        'id' => $dprNo,
+        'dprNo' => $dprNo,
+        'machine' => $joinValues($rows, 'machine'),
+        'deliveryType' => $joinValues($rows, 'deliverytype'),
+        'qty' => $joinValues($rows, 'qty'),
+        'leaderUserNo' => $joinValues($rows, 'dprleader_sytx'),
+        'classification' => $joinValues($rows, 'classification'),
+        'status' => (string) ($first->status ?? ''),
+        'mechanismUserNo' => $joinValues($rows, 'mechanism_sytx'),
+        'customerName' => $joinValues($rows, 'customer_name'),
+        'electricityUserNo' => $joinValues($rows, 'electricity_sytx'),
+        'subject' => $joinValues($rows, 'subject'),
+        'softUserNo' => $joinValues($rows, 'soft_sytx'),
+      ];
+    });
+
+    $plans = DB::table('kd_plan')
+      ->leftJoin('km_task', 'km_task.task_id', '=', 'kd_plan.task_id')
+      ->where('kd_plan.deleted', 0)
+      ->whereIn('kd_plan.dpr_no', $pageDprNos)
+      ->where('kd_plan.start_date', '<=', $data['to'])
+      ->where('kd_plan.end_date', '>=', $data['from'])
+      ->orderBy('kd_plan.start_date')
+      ->get([
+        'kd_plan.plan_id', 'kd_plan.dpr_no', 'kd_plan.task_id', 'kd_plan.user_no',
+        'kd_plan.start_date', 'kd_plan.end_date', 'kd_plan.remark', 'kd_plan.updated_at',
+        'km_task.task_name', 'km_task.back_color', 'km_task.font_color',
+      ])
+      ->map(fn ($plan) => [
+        'planId' => $plan->plan_id,
+        'dprNo' => $plan->dpr_no,
+        'taskId' => $plan->task_id,
+        'taskName' => $plan->task_name ?? '',
+        'taskBackColor' => $plan->back_color ?? 1,
+        'taskFontColor' => $plan->font_color ?? 6,
+        'userNo' => $plan->user_no,
+        'startDate' => $plan->start_date,
+        'endDate' => $plan->end_date,
+        'remark' => $plan->remark ?? '',
+        'updatedAt' => $plan->updated_at,
+      ]);
+
+    return response()->json([
+      'groups' => $groups,
+      'plans' => $plans,
+      'hasMore' => $hasMore,
+      'nextCursor' => $hasMore ? $pageDprNos->last() : null,
+    ]);
+  }
+
   /** m_dpr.machine の重複排除済み昇順リストを返す */
   public function machines()
   {

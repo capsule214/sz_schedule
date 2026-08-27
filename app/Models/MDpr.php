@@ -11,4 +11,9 @@ class Mdpr extends Model
   public $timestamps  = false;
   protected $primaryKey = null; // 主キーなし
 
+  public function kd_plans()
+  {
+    return $this->hasMany(KdPlan::class, 'dpr_no', 'dprno');
+  }
+
 }
