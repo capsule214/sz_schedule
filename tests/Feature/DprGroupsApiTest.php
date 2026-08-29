@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DmKisyu;
 use App\Models\KdPlan;
 use App\Models\KmTask;
 use App\Models\User;
@@ -86,6 +87,36 @@ class DprGroupsApiTest extends TestCase
         $this->actingAs($user)->postJson('/api/dpr/groups', [
             'machines' => [], 'from' => '2026-08-01', 'to' => '2026-08-31',
         ])->assertUnprocessable()->assertJsonValidationErrors('machines');
+    }
+
+    public function test_it_returns_all_non_deleted_serials_related_by_dpr_machine_ids(): void
+    {
+        $user = User::create([
+            'name' => 'DPR serial user',
+            'email' => 'dpr-serials@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        $machineA = DmKisyu::create(['kisyu_name' => '機種A']);
+        $machineB = DmKisyu::create(['kisyu_name' => '機種B']);
+        $otherMachine = DmKisyu::create(['kisyu_name' => '機種C']);
+        DB::table('m_dpr')->insert([
+            $this->dprRow('CH26000001', '機種A', '設計中'),
+            $this->dprRow('CH26000001', '機種B', '設計中'),
+            $this->dprRow('OS26000002', '機種C', '設計中'),
+        ]);
+        DB::table('kd_serial')->insert([
+            ['serial_no' => 'SN-00002', 'order_no' => 'YG00002', 'kisyu_id' => $machineB->kisyu_id, 'deleted' => 0],
+            ['serial_no' => 'SN-00001', 'order_no' => 'YG00001', 'kisyu_id' => $machineA->kisyu_id, 'deleted' => 0],
+            ['serial_no' => 'SN-DELETED', 'order_no' => 'YG00001', 'kisyu_id' => $machineA->kisyu_id, 'deleted' => 1],
+            ['serial_no' => 'SN-OTHER', 'order_no' => 'YG00003', 'kisyu_id' => $otherMachine->kisyu_id, 'deleted' => 0],
+        ]);
+
+        $this->actingAs($user)->postJson('/api/dpr/related-serials', [
+            'dprNo' => 'CH26000001',
+        ])->assertOk()->assertExactJson([
+            ['serialNo' => 'SN-00001', 'receiptNo' => 'YG00001'],
+            ['serialNo' => 'SN-00002', 'receiptNo' => 'YG00002'],
+        ]);
     }
 
     private function dprRow(string $dprNo, string $machine, string $status): array

@@ -74,5 +74,6 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/dpr/locations', [DprController::class, 'salesLocations']);
   Route::get('/dpr/years', [DprController::class, 'publicationYears']);
   Route::get('/dpr/filter-options', [DprController::class, 'filterOptions']);
+  Route::post('/dpr/related-serials', [DprController::class, 'relatedSerials']);
   Route::post('/dpr/groups', [DprController::class, 'groups']);
 });

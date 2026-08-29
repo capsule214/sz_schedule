@@ -8,6 +8,7 @@ import SpreadsheetGridCanvas from '../SpreadsheetGridCanvas';
 import SpreadsheetGridHeaders from '../SpreadsheetGridHeaders';
 import SpreadsheetGridStatusBar from '../SpreadsheetGridStatusBar';
 import DprBars from './DprBars';
+import DprHeaderTooltip from './DprHeaderTooltip';
 import DprLeftHeader, { DPR_LEFT_COLUMN_KEYS, DprLeftHeaderCorner } from './DprLeftHeader';
 import DprToolbar from './DprToolbar';
 import { clampLeftColW, loadLeftColWidths, saveLeftColWidth } from '../../lib/leftHeaderColumns';
@@ -63,6 +64,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [colWidths, setColWidths] = useState(() => loadLeftColWidths('dpr'));
+  const [headerDetail, setHeaderDetail] = useState(null);
   const viewportRef = useRef(null);
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -128,6 +130,21 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     try { sessionStorage.setItem(DATE_WIDTH_STORAGE_KEY, String(normalized)); } catch { /* stateで保持 */ }
   }, []);
 
+  const openHeaderTooltip = useCallback((group, event) => {
+    const anchorRect = event.currentTarget.getBoundingClientRect();
+    setHeaderDetail({ group, anchorRect, x: event.clientX, y: event.clientY });
+  }, []);
+
+  useEffect(() => {
+    if (!headerDetail) return undefined;
+    const closeOnOutsidePointer = event => {
+      if (event.target.closest?.('[data-header-tooltip="1"]') || event.target.closest?.('[data-row-header="1"]')) return;
+      setHeaderDetail(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [headerDetail]);
+
   const loadPage = useCallback(async (reset = false) => {
     const selectedMachines = JSON.parse(machineKey);
     const categoryFilters = JSON.parse(categoryFilterKey);
@@ -163,6 +180,11 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     if (!active) return;
     requestIdRef.current += 1;
     cursorRef.current = null;
+    // 表示条件変更前のscrollTopが残ると、件数が少ない結果では全グループが
+    // 仮想表示範囲外と判定される。DOMと描画用stateを同時に先頭へ戻す。
+    if (viewportRef.current) viewportRef.current.scrollTop = 0;
+    setScroll(previous => previous.top === 0 ? previous : { ...previous, top: 0 });
+    setHeaderDetail(null);
     setGroups([]);
     setPlans([]);
     setHasMore(false);
@@ -242,7 +264,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
           </div>
         </div>
         <div style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
-          <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} />
+          <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} onGroupClick={openHeaderTooltip} />
         </div>
         <div
           ref={viewportRef}
@@ -278,6 +300,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
           </div>
         </div>
         {loading && <div style={{ position: 'absolute', right: 18, bottom: 18, padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.92)', boxShadow: '0 1px 5px rgba(0,0,0,0.2)', fontSize: 12, color: '#6b7280' }}>読み込み中...</div>}
+        <DprHeaderTooltip detail={headerDetail} onClose={() => setHeaderDetail(null)} />
       </div>
       <SpreadsheetGridStatusBar
         groupCount={groups.length}

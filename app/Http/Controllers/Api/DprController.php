@@ -40,6 +40,33 @@ class DprController extends Controller
     }
   }
 
+  /** DPR Noの機種名から機種マスタを介して、関連する製番を返す。 */
+  public function relatedSerials(Request $request)
+  {
+    $data = $request->validate([
+      'dprNo' => 'required|string|max:255',
+    ]);
+
+    $serials = DB::table('m_dpr')
+      ->join('dm_kisyu', 'dm_kisyu.kisyu_name', '=', 'm_dpr.machine')
+      ->join('kd_serial', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
+      ->where('m_dpr.dprno', $data['dprNo'])
+      ->where('dm_kisyu.deleted', 0)
+      ->where('kd_serial.deleted', 0)
+      ->where('kd_serial.serial_no', '<>', '')
+      ->select('kd_serial.serial_no', 'kd_serial.order_no')
+      ->distinct()
+      ->orderBy('kd_serial.serial_no')
+      ->orderBy('kd_serial.order_no')
+      ->get()
+      ->map(fn ($serial) => [
+        'serialNo' => $serial->serial_no,
+        'receiptNo' => $serial->order_no,
+      ]);
+
+    return response()->json($serials);
+  }
+
   /** 選択機種に属するDPR Noグループと、表示期間内の予定をカーソルページングで返す。 */
   public function groups(Request $request)
   {

@@ -22,7 +22,7 @@ export function dprStatusColor(status) {
   return '#fff';
 }
 
-function deliveryTypeLabel(value) {
+export function deliveryTypeLabel(value) {
   return String(value || '').split(' / ').map(item => DELIVERY_TYPE_NAMES[item] || item).join(' / ');
 }
 
@@ -81,7 +81,7 @@ export function DprLeftHeaderCorner({ colWidths, onStartResize }) {
   );
 }
 
-export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight, colWidths, leftWidth }) {
+export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight, colWidths, leftWidth, onGroupClick }) {
   return layoutGroups.flatMap(group => {
     const top = group.startRow * CELL_SIZE - scrollTop;
     const height = group.numRows * CELL_SIZE;
@@ -93,7 +93,12 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
       [{ value: group.subject, span: 3 }, group.softUserNo],
     ];
     return (
-      <div key={group.dprNo} style={{ position: 'absolute', left: 0, top, width: leftWidth, height, background: dprStatusColor(group.status), borderBottom: '1px solid #9ca3af', boxSizing: 'border-box' }}>
+      <div
+        key={group.dprNo}
+        data-row-header="1"
+        onClick={event => onGroupClick?.(group, event)}
+        style={{ position: 'absolute', left: 0, top, width: leftWidth, height, background: dprStatusColor(group.status), borderBottom: '1px solid #9ca3af', boxSizing: 'border-box', cursor: 'pointer' }}
+      >
         <GridRows rows={rows} colWidths={colWidths} background="transparent" showHorizontalLines={false} />
       </div>
     );
