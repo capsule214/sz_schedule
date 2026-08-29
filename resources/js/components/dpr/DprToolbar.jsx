@@ -13,6 +13,10 @@ export default function DprToolbar({
   startDate,
   onStartDateChange,
   onShiftMonth,
+  dprSearchText,
+  onDprSearchTextChange,
+  onDprSearch,
+  onDprSearchClear,
   dateWidth,
   onDateWidthChange,
   onGenerate,
@@ -59,6 +63,29 @@ export default function DprToolbar({
           {label}
         </button>
       ))}
+
+      <input
+        type="text"
+        value={dprSearchText}
+        onChange={event => onDprSearchTextChange(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter') onDprSearch(); }}
+        placeholder="DPR No検索"
+        style={{ ...CONTROL_STYLE, minWidth: 145 }}
+      />
+      <button type="button" onClick={onDprSearch} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>検索</button>
+      <button
+        type="button"
+        onClick={onDprSearchClear}
+        disabled={!dprSearchText}
+        style={{
+          ...CONTROL_STYLE,
+          background: dprSearchText ? '#fff' : '#f3f4f6',
+          color: dprSearchText ? '#374151' : '#9ca3af',
+          cursor: dprSearchText ? 'pointer' : 'not-allowed',
+        }}
+      >
+        クリア
+      </button>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
         日付幅

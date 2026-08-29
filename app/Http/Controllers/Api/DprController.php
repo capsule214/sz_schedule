@@ -40,6 +40,122 @@ class DprController extends Controller
     }
   }
 
+  private function dprGroup(string $dprNo): ?array
+  {
+    $rows = DB::table('m_dpr')
+      ->where('dprno', $dprNo)
+      ->orderBy('machine')
+      ->get();
+    if ($rows->isEmpty()) {
+      return null;
+    }
+
+    $joinValues = static fn (string $column): string => $rows->pluck($column)
+      ->filter(fn ($value) => $value !== null && $value !== '')
+      ->map(fn ($value) => (string) $value)
+      ->unique()
+      ->implode(' / ');
+    $first = $rows->first();
+
+    return [
+      'id' => $dprNo,
+      'dprNo' => $dprNo,
+      'machine' => $joinValues('machine'),
+      'deliveryType' => $joinValues('deliverytype'),
+      'qty' => $joinValues('qty'),
+      'leaderUserNo' => $joinValues('dprleader_sytx'),
+      'classification' => $joinValues('classification'),
+      'status' => (string) ($first->status ?? ''),
+      'mechanismUserNo' => $joinValues('mechanism_sytx'),
+      'customerName' => $joinValues('customer_name'),
+      'electricityUserNo' => $joinValues('electricity_sytx'),
+      'subject' => $joinValues('subject'),
+      'softUserNo' => $joinValues('soft_sytx'),
+    ];
+  }
+
+  private function plansForDpr(string $dprNo, string $from, string $to)
+  {
+    return DB::table('kd_plan')
+      ->leftJoin('km_task', 'km_task.task_id', '=', 'kd_plan.task_id')
+      ->where('kd_plan.deleted', 0)
+      ->where('kd_plan.dpr_no', $dprNo)
+      ->where('kd_plan.start_date', '<=', $to)
+      ->where('kd_plan.end_date', '>=', $from)
+      ->orderBy('kd_plan.start_date')
+      ->get([
+        'kd_plan.plan_id', 'kd_plan.dpr_no', 'kd_plan.task_id', 'kd_plan.user_no',
+        'kd_plan.start_date', 'kd_plan.end_date', 'kd_plan.remark', 'kd_plan.updated_at',
+        'km_task.task_name', 'km_task.back_color', 'km_task.font_color',
+      ])
+      ->map(fn ($plan) => [
+        'planId' => $plan->plan_id,
+        'dprNo' => $plan->dpr_no,
+        'taskId' => $plan->task_id,
+        'taskName' => $plan->task_name ?? '',
+        'taskBackColor' => $plan->back_color ?? 1,
+        'taskFontColor' => $plan->font_color ?? 6,
+        'userNo' => $plan->user_no,
+        'startDate' => $plan->start_date,
+        'endDate' => $plan->end_date,
+        'remark' => $plan->remark ?? '',
+        'updatedAt' => $plan->updated_at,
+      ]);
+  }
+
+  /** DPR Noを完全一致検索し、表示設定の対象内かどうかと単独表示用データを返す。 */
+  public function search(Request $request)
+  {
+    $data = $request->validate([
+      'dprNo' => 'required|string|max:255',
+      'machines' => 'nullable|array|max:500',
+      'machines.*' => 'required|string|max:255',
+      'from' => 'required|date',
+      'to' => 'required|date|after_or_equal:from',
+      'formtype' => 'nullable|array',
+      'formtype.*' => 'integer|in:1,2,3',
+      'deliverytype' => 'nullable|array',
+      'deliverytype.*' => 'integer|in:1,2',
+      'classification' => 'nullable|array',
+      'classification.*' => 'string|max:50',
+      'status' => 'nullable|array',
+      'status.*' => 'string|max:100',
+      'leader_user_nos' => 'nullable|array|max:500',
+      'leader_user_nos.*' => 'required|string|max:32',
+      'sales_locations' => 'nullable|array',
+      'sales_locations.*' => ['string', 'regex:/^[A-Za-z]{2}$/'],
+      'publication_years' => 'nullable|array',
+      'publication_years.*' => ['string', 'regex:/^\d{2}$/'],
+    ]);
+    $dprNo = trim($data['dprNo']);
+    $group = $this->dprGroup($dprNo);
+    if ($group === null) {
+      return response()->json(['found' => false]);
+    }
+
+    $filtered = DB::table('m_dpr')
+      ->where('dprno', $dprNo)
+      ->whereIn('machine', $data['machines'] ?? []);
+    $this->applyCategoryFilters($filtered, $data);
+    if (! empty($data['leader_user_nos'])) {
+      $filtered->whereIn('dprleader_sytx', $data['leader_user_nos']);
+    }
+    if (! empty($data['sales_locations'])) {
+      $filtered->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
+    }
+    if (! empty($data['publication_years'])) {
+      $filtered->whereIn(DB::raw($this->dprPublishExpression()), $data['publication_years']);
+    }
+
+    return response()->json([
+      'found' => true,
+      'dprNo' => $dprNo,
+      'inDisplaySettings' => $filtered->exists(),
+      'group' => $group,
+      'plans' => $this->plansForDpr($dprNo, $data['from'], $data['to']),
+    ]);
+  }
+
   /** DPR Noの機種名から機種マスタを介して、関連する製番を返す。 */
   public function relatedSerials(Request $request)
   {
@@ -76,6 +192,7 @@ class DprController extends Controller
       'from' => 'required|date',
       'to' => 'required|date|after_or_equal:from',
       'after_dpr_no' => 'nullable|string|max:255',
+      'at_or_after_dpr_no' => 'nullable|string|max:255',
       'limit' => 'nullable|integer|min:1|max:500',
       'formtype' => 'nullable|array',
       'formtype.*' => 'integer|in:1,2,3',
@@ -85,6 +202,8 @@ class DprController extends Controller
       'classification.*' => 'string|max:50',
       'status' => 'nullable|array',
       'status.*' => 'string|max:100',
+      'leader_user_nos' => 'nullable|array|max:500',
+      'leader_user_nos.*' => 'required|string|max:32',
       'sales_locations' => 'nullable|array',
       'sales_locations.*' => ['string', 'regex:/^[A-Za-z]{2}$/'],
       'publication_years' => 'nullable|array',
@@ -98,6 +217,9 @@ class DprController extends Controller
       ->whereNotNull('dprno')
       ->where('dprno', '<>', '');
     $this->applyCategoryFilters($dprNoQuery, $data);
+    if (! empty($data['leader_user_nos'])) {
+      $dprNoQuery->whereIn('dprleader_sytx', $data['leader_user_nos']);
+    }
     if (! empty($data['sales_locations'])) {
       $dprNoQuery->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
     }
@@ -106,6 +228,8 @@ class DprController extends Controller
     }
     if (! empty($data['after_dpr_no'])) {
       $dprNoQuery->where('dprno', '>', $data['after_dpr_no']);
+    } elseif (! empty($data['at_or_after_dpr_no'])) {
+      $dprNoQuery->where('dprno', '>=', $data['at_or_after_dpr_no']);
     }
     $dprNos = $dprNoQuery
       ->select('dprno')

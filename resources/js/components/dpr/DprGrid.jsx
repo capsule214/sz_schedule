@@ -61,10 +61,12 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  const [dprSearchText, setDprSearchText] = useState('');
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [colWidths, setColWidths] = useState(() => loadLeftColWidths('dpr'));
   const [headerDetail, setHeaderDetail] = useState(null);
+  const [sonar, setSonar] = useState(null);
   const viewportRef = useRef(null);
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -72,6 +74,9 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
   const errorRef = useRef(onError);
   const colWidthsRef = useRef(colWidths);
   const colResizeRef = useRef(null);
+  const pendingSonarDprNoRef = useRef(null);
+  const sonarClearTimerRef = useRef(null);
+  const sonarRafRef = useRef(null);
   errorRef.current = onError;
   colWidthsRef.current = colWidths;
 
@@ -82,6 +87,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     deliverytype: displaySettings?.dprdeliverytypelist || [],
     classification: displaySettings?.dprclassificationlist || [],
     status: displaySettings?.dprstatuslist || [],
+    leader_user_nos: displaySettings?.dprinchargelist || [],
     sales_locations: displaySettings?.dprsaleslocationlist || [],
     publication_years: displaySettings?.dprpublicationyearlist || [],
   });
@@ -124,6 +130,11 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     if (colResizeRef.current) document.body.style.cursor = '';
   }, [handleColResizeMove, handleColResizeUp]);
 
+  useEffect(() => () => {
+    if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+    if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+  }, []);
+
   const changeDateWidth = useCallback((width) => {
     const normalized = normalizeDateWidth(width);
     setDateWidth(normalized);
@@ -145,7 +156,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
   }, [headerDetail]);
 
-  const loadPage = useCallback(async (reset = false) => {
+  const loadPage = useCallback(async (reset = false, atOrAfterDprNo = null) => {
     const selectedMachines = JSON.parse(machineKey);
     const categoryFilters = JSON.parse(categoryFilterKey);
     if (!active || selectedMachines.length === 0 || (!reset && (loadingRef.current || !hasMore))) return;
@@ -158,7 +169,9 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
         body: JSON.stringify({
           machines: selectedMachines, from: startDate, to: endDate, limit: PAGE_SIZE,
           ...categoryFilters,
-          ...(reset || !cursorRef.current ? {} : { after_dpr_no: cursorRef.current }),
+          ...(atOrAfterDprNo
+            ? { at_or_after_dpr_no: atOrAfterDprNo }
+            : reset || !cursorRef.current ? {} : { after_dpr_no: cursorRef.current }),
         }),
       });
       if (requestId !== requestIdRef.current) return;
@@ -185,6 +198,11 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
     if (viewportRef.current) viewportRef.current.scrollTop = 0;
     setScroll(previous => previous.top === 0 ? previous : { ...previous, top: 0 });
     setHeaderDetail(null);
+    pendingSonarDprNoRef.current = null;
+    if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+    if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+    setSonar(null);
+    setDprSearchText('');
     setGroups([]);
     setPlans([]);
     setHasMore(false);
@@ -230,6 +248,108 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
   const visColStart = Math.max(0, Math.floor(scroll.left / colW));
   const visColEnd = Math.min(totalCols - 1, Math.ceil((scroll.left + viewport.width) / colW));
 
+  const triggerSonar = useCallback((x, y) => {
+    if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+    if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+    sonarRafRef.current = requestAnimationFrame(() => {
+      sonarRafRef.current = requestAnimationFrame(() => {
+        setSonar({ x, y, key: Date.now() });
+        sonarClearTimerRef.current = setTimeout(() => setSonar(null), 2200);
+      });
+    });
+  }, []);
+
+  const scrollToDpr = useCallback((dprNo) => {
+    const target = layoutGroups.find(group => String(group.dprNo) === String(dprNo));
+    if (!target || !viewportRef.current) return false;
+    const top = Math.max(0, target.startRow * CELL_SIZE);
+    viewportRef.current.scrollTop = top;
+    const actualTop = viewportRef.current.scrollTop;
+    setScroll(previous => ({ ...previous, top: actualTop }));
+    triggerSonar(
+      leftWidth / 2,
+      TOTAL_HDR_H + (target.startRow + target.numRows / 2) * CELL_SIZE - actualTop,
+    );
+    return true;
+  }, [layoutGroups, leftWidth, triggerSonar]);
+
+  useEffect(() => {
+    const dprNo = pendingSonarDprNoRef.current;
+    if (!dprNo || !viewportRef.current) return;
+    const target = layoutGroups.find(group => String(group.dprNo) === String(dprNo));
+    if (!target) return;
+    const top = Math.max(0, target.startRow * CELL_SIZE);
+    viewportRef.current.scrollTop = top;
+    const actualTop = viewportRef.current.scrollTop;
+    setScroll(previous => ({ ...previous, top: actualTop }));
+    triggerSonar(
+      leftWidth / 2,
+      TOTAL_HDR_H + (target.startRow + target.numRows / 2) * CELL_SIZE - actualTop,
+    );
+    pendingSonarDprNoRef.current = null;
+  }, [layoutGroups, leftWidth, triggerSonar]);
+
+  const handleDprSearch = useCallback(async () => {
+    const dprNo = dprSearchText.trim().toUpperCase();
+    if (!dprNo) {
+      setReloadTick(value => value + 1);
+      return;
+    }
+    setDprSearchText(dprNo);
+    if (scrollToDpr(dprNo)) return;
+
+    setLoading(true);
+    try {
+      const categoryFilters = JSON.parse(categoryFilterKey);
+      const result = await apiJson('/dpr/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          dprNo, machines: JSON.parse(machineKey), from: startDate, to: endDate,
+          ...categoryFilters,
+        }),
+      });
+      if (!result?.group) {
+        errorRef.current?.('該当するDPR Noがありません');
+        return;
+      }
+
+      if (result.inDisplaySettings) {
+        pendingSonarDprNoRef.current = result.dprNo;
+        await loadPage(true, result.dprNo);
+        return;
+      }
+
+      // 表示設定外のDPR Noは、検索APIが返した1グループだけを表示する。
+      requestIdRef.current += 1;
+      pendingSonarDprNoRef.current = result.dprNo;
+      loadingRef.current = false;
+      cursorRef.current = null;
+      setGroups([result.group]);
+      setPlans(result.plans || []);
+      setHasMore(false);
+      setHeaderDetail(null);
+      if (viewportRef.current) {
+        viewportRef.current.scrollTop = 0;
+        viewportRef.current.scrollLeft = 0;
+      }
+      setScroll({ left: 0, top: 0 });
+    } catch {
+      errorRef.current?.('DPR Noの検索に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [dprSearchText, scrollToDpr, categoryFilterKey, machineKey, startDate, endDate, loadPage]);
+
+  const handleDprSearchClear = useCallback(() => {
+    if (!dprSearchText) return;
+    setDprSearchText('');
+    pendingSonarDprNoRef.current = null;
+    if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
+    if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
+    setSonar(null);
+    setReloadTick(value => value + 1);
+  }, [dprSearchText]);
+
   const handleGenerated = useCallback((count) => {
     setReloadTick(value => value + 1);
     onGenerated?.(count);
@@ -253,6 +373,8 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
       <DprToolbar
         startDate={startDate} onStartDateChange={setStartDate}
         onShiftMonth={months => setStartDate(current => shiftMonth(current, months))}
+        dprSearchText={dprSearchText} onDprSearchTextChange={setDprSearchText}
+        onDprSearch={handleDprSearch} onDprSearchClear={handleDprSearchClear}
         dateWidth={dateWidth} onDateWidthChange={changeDateWidth}
         onGenerate={generateDpr} generating={generating}
       />
@@ -301,6 +423,18 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
         </div>
         {loading && <div style={{ position: 'absolute', right: 18, bottom: 18, padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.92)', boxShadow: '0 1px 5px rgba(0,0,0,0.2)', fontSize: 12, color: '#6b7280' }}>読み込み中...</div>}
         <DprHeaderTooltip detail={headerDetail} onClose={() => setHeaderDetail(null)} />
+        {active && sonar && [0, 380, 760].map((delay, index) => (
+          <div
+            key={`${sonar.key}-${index}`}
+            style={{
+              position: 'absolute', left: sonar.x, top: sonar.y,
+              width: 72, height: 72, marginLeft: -36, marginTop: -36,
+              borderRadius: '50%', border: '4px solid #ef4444',
+              animation: `sonar-ring 1100ms ${delay}ms ease-out forwards`,
+              zIndex: 100, pointerEvents: 'none', transformOrigin: 'center',
+            }}
+          />
+        ))}
       </div>
       <SpreadsheetGridStatusBar
         groupCount={groups.length}

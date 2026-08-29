@@ -74,6 +74,30 @@ class DprGroupsApiTest extends TestCase
             ->assertJsonCount(1, 'groups')
             ->assertJsonPath('groups.0.dprNo', 'CH26000002')
             ->assertJsonPath('hasMore', false);
+
+        $this->actingAs($user)->postJson('/api/dpr/groups', [
+            'machines' => ['機種A'],
+            'sales_locations' => ['CH'],
+            'publication_years' => ['26'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+            'at_or_after_dpr_no' => 'CH26000002',
+            'limit' => 10,
+        ])->assertOk()->assertJsonPath('groups.0.dprNo', 'CH26000002');
+
+        $this->actingAs($user)->postJson('/api/dpr/groups', [
+            'machines' => ['機種A'],
+            'leader_user_nos' => ['00001'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+        ])->assertOk()->assertJsonCount(4, 'groups');
+
+        $this->actingAs($user)->postJson('/api/dpr/groups', [
+            'machines' => ['機種A'],
+            'leader_user_nos' => ['99999'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+        ])->assertOk()->assertJsonCount(0, 'groups');
     }
 
     public function test_machine_selection_is_required(): void
@@ -117,6 +141,56 @@ class DprGroupsApiTest extends TestCase
             ['serialNo' => 'SN-00001', 'receiptNo' => 'YG00001'],
             ['serialNo' => 'SN-00002', 'receiptNo' => 'YG00002'],
         ]);
+    }
+
+    public function test_dpr_search_reports_display_scope_and_returns_one_group_with_overlapping_plans(): void
+    {
+        $user = User::create([
+            'name' => 'DPR search user',
+            'email' => 'dpr-search@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        DB::table('m_dpr')->insert($this->dprRow('CH26000999-00', '機種019', '設計中'));
+        $task = KmTask::create(['task_name' => '検索対象タスク']);
+        $plan = KdPlan::create([
+            'serial_id' => -1,
+            'morder_id' => -1,
+            'dpr_no' => 'CH26000999-00',
+            'task_id' => $task->task_id,
+            'deleted' => 0,
+            'start_date' => '2026-08-15 08:30:00',
+            'end_date' => '2026-08-16 10:30:00',
+        ]);
+
+        $payload = [
+            'dprNo' => 'CH26000999-00',
+            'machines' => ['機種001'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+        ];
+        $this->actingAs($user)->postJson('/api/dpr/search', $payload)
+            ->assertOk()
+            ->assertJsonPath('inDisplaySettings', false)
+            ->assertJsonPath('group.dprNo', 'CH26000999-00')
+            ->assertJsonPath('group.machine', '機種019')
+            ->assertJsonPath('plans.0.planId', $plan->plan_id);
+
+        $this->actingAs($user)->postJson('/api/dpr/search', [
+            ...$payload,
+            'machines' => ['機種019'],
+            'leader_user_nos' => ['00001'],
+        ])->assertOk()->assertJsonPath('inDisplaySettings', true);
+
+        $this->actingAs($user)->postJson('/api/dpr/search', [
+            ...$payload,
+            'machines' => ['機種019'],
+            'leader_user_nos' => ['99999'],
+        ])->assertOk()->assertJsonPath('inDisplaySettings', false);
+
+        $this->actingAs($user)->postJson('/api/dpr/search', [
+            ...$payload,
+            'dprNo' => 'NOT-FOUND',
+        ])->assertOk()->assertExactJson(['found' => false]);
     }
 
     private function dprRow(string $dprNo, string $machine, string $status): array
