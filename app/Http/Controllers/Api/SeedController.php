@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 
 class SeedController extends Controller
 {
+  private const DPR_TASK_IDS = [20001, 20002, 20003, 20004];
   /** 2025・2026年 日本の国民の祝日（振替休日含む） date_type=3 に設定 */
   private const NATIONAL_HOLIDAYS = [
     // 2025年
@@ -78,6 +79,21 @@ class SeedController extends Controller
   ];
 
   private int $lcgSeed = 42;
+
+  private function ensureDprTasks(): void
+  {
+    foreach ([
+      [20001, 'DPRメカ設計', 1],
+      [20002, 'DPRエレキ設計', 2],
+      [20003, 'DPRソフト設計', 3],
+      [20004, 'DPR他', 4],
+    ] as [$taskId, $taskName, $backColor]) {
+      DB::table('km_task')->updateOrInsert(
+        ['task_id' => $taskId],
+        ['task_name' => $taskName, 'task_type_id' => 2, 'back_color' => $backColor, 'font_color' => 6, 'sort_no' => $taskId]
+      );
+    }
+  }
 
   /** 本番環境ではダミーデータ生成 API を無効化する */
   private function ensureSeedingAllowed(): void
@@ -377,6 +393,7 @@ class SeedController extends Controller
       ]);
       $taskIds[] = $t->task_id;
     }
+    $this->ensureDprTasks();
 
     $koujunDetails = $this->seedKoujunDetails($taskIds);
     $qualificationData = $this->seedQualificationData($kisyuIds, $taskIds, $workerIds);
@@ -561,6 +578,7 @@ class SeedController extends Controller
       'sort_no' => 101,
     ]);
     $taskIds[] = $workTask->task_id;
+    $this->ensureDprTasks();
     $koujunDetails = $this->seedKoujunDetails($taskIds);
     $qualificationData = $this->seedQualificationData($kisyuIds, $taskIds, $workerIds);
 
@@ -645,7 +663,7 @@ class SeedController extends Controller
 
     $serialIds = KdSerial::pluck('serial_id')->all();
     $morderIds = KdMorder::where('deleted', 0)->pluck('morder_id')->all();
-    $taskIds = KmTask::pluck('task_id')->all();
+    $taskIds = KmTask::whereNotIn('task_id', self::DPR_TASK_IDS)->pluck('task_id')->all();
     $workerIds = KmWorker::pluck('worker_id')->all();
     $locationIds = KmResource::pluck('resource_id')->all();
 

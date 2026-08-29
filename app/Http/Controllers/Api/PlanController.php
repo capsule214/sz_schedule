@@ -9,6 +9,7 @@ use App\Models\KdSerial;
 use App\Models\KmQualification;
 use App\Models\KmSkillmap;
 use App\Models\KsSystemLog;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -36,19 +37,32 @@ class PlanController extends Controller
       'plannedMinutes' => 'nullable|integer|min:0',
       'price' => 'nullable|integer|min:0',
       'remark' => 'nullable|string',
+      'dprNo' => 'nullable|string|max:255',
+      'userNo' => ['nullable', 'string', 'regex:/^\d{1,5}$/'],
     ];
   }
 
   private function planPayload(array $data): array
   {
+    $isDprPlan = ! empty($data['dprNo']);
+    if ($isDprPlan && ! in_array((int) $data['taskId'], [20001, 20002, 20003, 20004], true)) {
+      throw ValidationException::withMessages([
+        'taskId' => ['DPR予定のタスクを選択してください'],
+      ]);
+    }
+
     return [
-      'serial_id' => $data['serialId'],
-      'morder_id' => $data['morderId'] ?? -1,
+      'serial_id' => $isDprPlan ? -1 : $data['serialId'],
+      'morder_id' => $isDprPlan ? -1 : ($data['morderId'] ?? -1),
+      'dpr_no' => $isDprPlan ? $data['dprNo'] : null,
+      'user_no' => $isDprPlan && ! empty($data['userNo'])
+        ? str_pad($data['userNo'], 5, '0', STR_PAD_LEFT)
+        : null,
       'task_id' => $data['taskId'],
-      'worker_id' => $data['workerId'] ?? null,
-      'educator_worker_id' => $data['teacherId'] ?? null,
-      'start_date' => $data['startDate'],
-      'end_date' => $data['endDate'],
+      'worker_id' => $isDprPlan ? null : ($data['workerId'] ?? null),
+      'educator_worker_id' => $isDprPlan ? null : ($data['teacherId'] ?? null),
+      'start_date' => $isDprPlan ? Carbon::parse($data['startDate'])->toDateString().' 08:30:00' : $data['startDate'],
+      'end_date' => $isDprPlan ? Carbon::parse($data['endDate'])->toDateString().' 21:25:00' : $data['endDate'],
       'planned_minutes' => $data['plannedMinutes'] ?? 0,
       'price' => $data['price'] ?? 0,
       'remark' => $data['remark'] ?? '',
@@ -118,6 +132,8 @@ class PlanController extends Controller
       'planId' => $plan->plan_id,
       'serialId' => $plan->serial_id,
       'morderId' => $plan->morder_id,
+      'dprNo' => $plan->dpr_no,
+      'userNo' => $plan->user_no,
       'morderNo' => $morder ? $morder->morder_no : '',
       'morderOrderTypeId' => $morder ? $morder->order_type_id : null,
       'morderOrderTypeName' => $morder ? ($morderOrderTypeNames[$morder->order_type_id] ?? (string) $morder->order_type_id) : '',

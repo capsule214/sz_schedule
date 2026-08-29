@@ -102,6 +102,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const workerGridRef   = useRef(null);
   const locationGridRef = useRef(null);
   const taskGridRef     = useRef(null);
+  const dprGridRef      = useRef(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const savingPromiseRef = useRef(null);
@@ -210,7 +211,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   function handleSave() {
     if (savingPromiseRef.current) return savingPromiseRef.current;
-    const targetGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
+    const targetGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : tab === 'dpr' ? dprGridRef : taskGridRef;
     const promise = (async () => {
       setIsSaving(true);
       try {
@@ -226,13 +227,13 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   async function handleCancel() {
     if (savingPromiseRef.current) return false;
-    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
+    const activeGridRef = tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : tab === 'dpr' ? dprGridRef : taskGridRef;
     await activeGridRef.current?.cancelChanges();
     return true;
   }
 
   function activeGridRef() {
-    return tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : taskGridRef;
+    return tab === 'device' ? deviceGridRef : tab === 'worker' ? workerGridRef : tab === 'place' ? locationGridRef : tab === 'dpr' ? dprGridRef : taskGridRef;
   }
 
   function handleUndo() {
@@ -602,11 +603,14 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
         <GridTabPane active={tab === 'dpr'}>
           <DprGrid
+            ref={dprGridRef}
             active={tab === 'dpr'}
             displaySettings={displaySettings}
             displaySettingsApplyVersion={displaySettingsApplyVersion}
             onGenerated={handleDprGenerated}
             onError={showAlert}
+            onDirtyChange={setIsDirty}
+            onHistoryChange={(mode, state) => setHistoryState(prev => ({ ...prev, [mode]: state }))}
           />
         </GridTabPane>
 

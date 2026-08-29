@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -100,6 +101,7 @@ class DprController extends Controller
         'endDate' => $plan->end_date,
         'remark' => $plan->remark ?? '',
         'updatedAt' => $plan->updated_at,
+        'updatedAtVersion' => $plan->updated_at ? Carbon::parse($plan->updated_at)->format('Y-m-d H:i:s.u') : null,
       ]);
   }
 
@@ -303,6 +305,7 @@ class DprController extends Controller
         'endDate' => $plan->end_date,
         'remark' => $plan->remark ?? '',
         'updatedAt' => $plan->updated_at,
+        'updatedAtVersion' => $plan->updated_at ? Carbon::parse($plan->updated_at)->format('Y-m-d H:i:s.u') : null,
       ]);
 
     return response()->json([
