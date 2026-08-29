@@ -21,15 +21,21 @@ class DprSeedApiTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson('/api/seed/dpr', [
-            'count' => 5,
+            'count' => 11,
             'seed' => 123,
         ]);
 
         $response->assertOk()
             ->assertJsonPath('ok', true)
-            ->assertJsonPath('inserted', 5);
+            ->assertJsonPath('inserted', 11);
 
-        $this->assertSame(5, Mdpr::query()->count());
-        $this->assertNotNull(Mdpr::query()->value('dprno'));
+        $this->assertSame(11, Mdpr::query()->count());
+        Mdpr::query()->pluck('dprno')->each(function ($dprNo): void {
+            $this->assertMatchesRegularExpression('/^(OS|CH|KR|TH|SG)(26|25|24|23|22|21|20|19|09|08|07)\d{4}-00$/', $dprNo);
+        });
+        $this->assertSame(
+            ['07', '08', '09', '19', '20', '21', '22', '23', '24', '25', '26'],
+            Mdpr::query()->pluck('dprno')->map(fn ($dprNo) => substr($dprNo, 2, 2))->sort()->values()->all(),
+        );
     }
 }

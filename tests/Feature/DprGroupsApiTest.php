@@ -25,6 +25,8 @@ class DprGroupsApiTest extends TestCase
             $this->dprRow('CH26000001', '機種A', '設計中'),
             $this->dprRow('CH26000001', '機種B', '設計中'),
             $this->dprRow('CH26000002', '機種A', '設計完了'),
+            $this->dprRow('OS26000004', '機種A', '設計中'),
+            $this->dprRow('CH25000005', '機種A', '設計中'),
             $this->dprRow('CH26000003', '対象外機種', '中止'),
         ]);
         $task = KmTask::create(['task_name' => 'DPR設計', 'back_color' => 2, 'font_color' => 6]);
@@ -42,6 +44,8 @@ class DprGroupsApiTest extends TestCase
         $response = $this->actingAs($user)->postJson('/api/dpr/groups', [
             // 候補抽出は機種Aだけだが、同じDPR Noに属する機種Bも左ヘッダ情報へ集約される。
             'machines' => ['機種A'],
+            'sales_locations' => ['CH'],
+            'publication_years' => ['26'],
             'from' => '2026-08-01',
             'to' => '2026-08-31',
             'limit' => 1,
@@ -56,6 +60,19 @@ class DprGroupsApiTest extends TestCase
             ->assertJsonPath('hasMore', true)
             ->assertJsonPath('nextCursor', 'CH26000001');
         $response->assertJsonCount(1, 'plans');
+
+        $this->actingAs($user)->postJson('/api/dpr/groups', [
+            'machines' => ['機種A'],
+            'sales_locations' => ['CH'],
+            'publication_years' => ['26'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+            'after_dpr_no' => 'CH26000001',
+            'limit' => 10,
+        ])->assertOk()
+            ->assertJsonCount(1, 'groups')
+            ->assertJsonPath('groups.0.dprNo', 'CH26000002')
+            ->assertJsonPath('hasMore', false);
     }
 
     public function test_machine_selection_is_required(): void

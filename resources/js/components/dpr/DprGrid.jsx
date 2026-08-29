@@ -75,6 +75,14 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
 
   const machines = displaySettings?.dprmodellist || [];
   const machineKey = JSON.stringify([...machines].sort());
+  const categoryFilterKey = JSON.stringify({
+    formtype: displaySettings?.dprformtypelist || [],
+    deliverytype: displaySettings?.dprdeliverytypelist || [],
+    classification: displaySettings?.dprclassificationlist || [],
+    status: displaySettings?.dprstatuslist || [],
+    sales_locations: displaySettings?.dprsaleslocationlist || [],
+    publication_years: displaySettings?.dprpublicationyearlist || [],
+  });
   const displayMonths = Math.max(1, Number(displaySettings?.dprduration ?? 4));
   const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
   const viewMode = dateWidth === 120 ? 'slot' : 'day';
@@ -122,6 +130,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
 
   const loadPage = useCallback(async (reset = false) => {
     const selectedMachines = JSON.parse(machineKey);
+    const categoryFilters = JSON.parse(categoryFilterKey);
     if (!active || selectedMachines.length === 0 || (!reset && (loadingRef.current || !hasMore))) return;
     const requestId = reset ? ++requestIdRef.current : requestIdRef.current;
     loadingRef.current = true;
@@ -131,6 +140,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
         method: 'POST',
         body: JSON.stringify({
           machines: selectedMachines, from: startDate, to: endDate, limit: PAGE_SIZE,
+          ...categoryFilters,
           ...(reset || !cursorRef.current ? {} : { after_dpr_no: cursorRef.current }),
         }),
       });
@@ -147,7 +157,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
         setLoading(false);
       }
     }
-  }, [active, machineKey, startDate, endDate, hasMore]);
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, hasMore]);
 
   useEffect(() => {
     if (!active) return;
@@ -162,7 +172,7 @@ export default function DprGrid({ active = false, displaySettings, displaySettin
       return;
     }
     loadPage(true);
-  }, [active, machineKey, startDate, endDate, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!active) return;

@@ -718,8 +718,8 @@ class SeedController extends Controller
 
     $this->resetTables([Mdpr::class]);
 
-    $countries = ['CH', 'KR', 'NA', 'OS', 'PH', 'SD', 'SG', 'SW'];
-    $years = ['24', '25', '26'];
+    $salesLocations = ['OS', 'CH', 'KR', 'TH', 'SG'];
+    $years = ['26', '25', '24', '23', '22', '21', '20', '19', '09', '08', '07'];
     $classifications = ['A', 'B', 'AtoB'];
     $formtypes = [1, 2, 3];
     $deliverytypes = [1, 2];
@@ -731,15 +731,15 @@ class SeedController extends Controller
     $subjects = ['特別仕様品対応', '機能改善版', 'カスタム仕様', 'オプション追加対応', '海外向け仕様',
       '試作品対応', '量産移行対応', '不具合改修版', '新機能追加', 'コスト削減版'];
 
-    // 国ごとの連番カウンタ
-    $counters = array_fill_keys($countries, 1);
-
     $rows = [];
     for ($i = 0; $i < $count; $i++) {
-      $country = $countries[$this->lcgRange(0, count($countries) - 1)];
-      $year = $years[$this->lcgRange(0, count($years) - 1)];
-      $seq = str_pad($counters[$country]++, 6, '0', STR_PAD_LEFT);
-      $dprno = $country.$year.$seq;
+      $salesLocation = $salesLocations[$this->lcgRange(0, count($salesLocations) - 1)];
+      // 通常生成時は全発行年を必ず含め、以降はランダムに選ぶ。
+      $year = $i < count($years)
+        ? $years[$i]
+        : $years[$this->lcgRange(0, count($years) - 1)];
+      $number = str_pad($this->lcgRange(0, 9999), 4, '0', STR_PAD_LEFT);
+      $dprno = $salesLocation.$year.$number.'-00';
 
       $issueYear = 2024 + intval($year) - 24;
       $issueMonth = $this->lcgRange(1, 12);

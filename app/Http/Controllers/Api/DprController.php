@@ -8,6 +8,38 @@ use Illuminate\Support\Facades\DB;
 
 class DprController extends Controller
 {
+  private function dprSalesExpression(): string
+  {
+    return DB::connection()->getDriverName() === 'sqlite'
+      ? 'substr(dprno, 1, 2)'
+      : 'LEFT(dprno, 2)';
+  }
+
+  private function dprPublishExpression(): string
+  {
+    return match (DB::connection()->getDriverName()) {
+      'pgsql' => 'SUBSTRING(dprno FROM 3 FOR 2)',
+      'sqlite' => 'substr(dprno, 3, 2)',
+      default => 'SUBSTRING(dprno, 3, 2)',
+    };
+  }
+
+  private function applyCategoryFilters($query, array $data): void
+  {
+    if (! empty($data['formtype'])) {
+      $query->whereIn('formtype', array_map('intval', $data['formtype']));
+    }
+    if (! empty($data['deliverytype'])) {
+      $query->whereIn('deliverytype', array_map('intval', $data['deliverytype']));
+    }
+    if (! empty($data['classification'])) {
+      $query->whereIn('classification', $data['classification']);
+    }
+    if (! empty($data['status'])) {
+      $query->whereIn('status', $data['status']);
+    }
+  }
+
   /** 選択機種に属するDPR Noグループと、表示期間内の予定をカーソルページングで返す。 */
   public function groups(Request $request)
   {
@@ -18,6 +50,18 @@ class DprController extends Controller
       'to' => 'required|date|after_or_equal:from',
       'after_dpr_no' => 'nullable|string|max:255',
       'limit' => 'nullable|integer|min:1|max:500',
+      'formtype' => 'nullable|array',
+      'formtype.*' => 'integer|in:1,2,3',
+      'deliverytype' => 'nullable|array',
+      'deliverytype.*' => 'integer|in:1,2',
+      'classification' => 'nullable|array',
+      'classification.*' => 'string|max:50',
+      'status' => 'nullable|array',
+      'status.*' => 'string|max:100',
+      'sales_locations' => 'nullable|array',
+      'sales_locations.*' => ['string', 'regex:/^[A-Za-z]{2}$/'],
+      'publication_years' => 'nullable|array',
+      'publication_years.*' => ['string', 'regex:/^\d{2}$/'],
     ]);
     $limit = (int) ($data['limit'] ?? 200);
 
@@ -26,6 +70,13 @@ class DprController extends Controller
       ->whereIn('machine', $data['machines'])
       ->whereNotNull('dprno')
       ->where('dprno', '<>', '');
+    $this->applyCategoryFilters($dprNoQuery, $data);
+    if (! empty($data['sales_locations'])) {
+      $dprNoQuery->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
+    }
+    if (! empty($data['publication_years'])) {
+      $dprNoQuery->whereIn(DB::raw($this->dprPublishExpression()), $data['publication_years']);
+    }
     if (! empty($data['after_dpr_no'])) {
       $dprNoQuery->where('dprno', '>', $data['after_dpr_no']);
     }
@@ -116,7 +167,9 @@ class DprController extends Controller
   {
     $machines = DB::table('m_dpr')
       ->select('machine')
-      ->distinct()
+      ->whereNotNull('machine')
+      ->where('machine', '<>', '')
+      ->groupBy('machine')
       ->orderBy('machine')
       ->pluck('machine')
       ->values()
@@ -128,16 +181,15 @@ class DprController extends Controller
   /** m_dpr.dprno 先頭のアルファベット部分（営業拠点コード）を重複排除して返す */
   public function salesLocations()
   {
+    $expression = $this->dprSalesExpression();
     $locations = DB::table('m_dpr')
       ->whereNotNull('dprno')
-      ->pluck('dprno')
-      ->map(function ($dprno) {
-        preg_match('/^([A-Za-z]+)/', $dprno, $m);
-        return isset($m[1]) ? strtoupper($m[1]) : null;
-      })
+      ->where('dprno', '<>', '')
+      ->selectRaw("{$expression} as dprsales")
+      ->groupByRaw($expression)
+      ->orderBy('dprsales')
+      ->pluck('dprsales')
       ->filter()
-      ->unique()
-      ->sort()
       ->values()
       ->all();
 
@@ -147,16 +199,15 @@ class DprController extends Controller
   /** m_dpr.dprno のアルファベット直後の2桁（発行年）を重複排除して返す */
   public function publicationYears()
   {
+    $expression = $this->dprPublishExpression();
     $years = DB::table('m_dpr')
       ->whereNotNull('dprno')
-      ->pluck('dprno')
-      ->map(function ($dprno) {
-        preg_match('/^[A-Za-z]+(\d{2})/', $dprno, $m);
-        return isset($m[1]) ? $m[1] : null;
-      })
+      ->where('dprno', '<>', '')
+      ->selectRaw("{$expression} as dprpublish")
+      ->groupByRaw($expression)
+      ->orderByDesc('dprpublish')
+      ->pluck('dprpublish')
       ->filter()
-      ->unique()
-      ->sortDesc()
       ->values()
       ->all();
 
@@ -170,39 +221,35 @@ class DprController extends Controller
    */
   public function filterOptions(Request $request)
   {
-    $query = DB::table('m_dpr')->whereNotNull('dprno');
+    $data = $request->validate([
+      'formtype' => 'nullable|array',
+      'formtype.*' => 'integer|in:1,2,3',
+      'deliverytype' => 'nullable|array',
+      'deliverytype.*' => 'integer|in:1,2',
+      'classification' => 'nullable|array',
+      'classification.*' => 'string|max:50',
+      'status' => 'nullable|array',
+      'status.*' => 'string|max:100',
+    ]);
+    $baseQuery = DB::table('m_dpr')->whereNotNull('dprno')->where('dprno', '<>', '');
+    $this->applyCategoryFilters($baseQuery, $data);
 
-    if ($v = array_filter((array) $request->input('formtype', []))) {
-      $query->whereIn('formtype', array_map('intval', $v));
-    }
-    if ($v = array_filter((array) $request->input('deliverytype', []))) {
-      $query->whereIn('deliverytype', array_map('intval', $v));
-    }
-    if ($v = array_filter((array) $request->input('classification', []))) {
-      $query->whereIn('classification', $v);
-    }
-    if ($v = array_filter((array) $request->input('status', []))) {
-      $query->whereIn('status', $v);
-    }
+    $salesExpression = $this->dprSalesExpression();
+    $publishExpression = $this->dprPublishExpression();
 
-    $rows = $query->get(['machine', 'dprno']);
-
-    $machines = $rows->pluck('machine')
-      ->filter()->unique()->sort()->values()->all();
-
-    $locations = $rows->pluck('dprno')
-      ->map(function ($d) {
-        preg_match('/^([A-Za-z]+)/', $d, $m);
-        return isset($m[1]) ? strtoupper($m[1]) : null;
-      })
-      ->filter()->unique()->sort()->values()->all();
-
-    $years = $rows->pluck('dprno')
-      ->map(function ($d) {
-        preg_match('/^[A-Za-z]+(\d{2})/', $d, $m);
-        return isset($m[1]) ? $m[1] : null;
-      })
-      ->filter()->unique()->sortDesc()->values()->all();
+    // 100万件をPHPへ転送せず、指定列・計算列をDB上でグループ化する。
+    $machines = (clone $baseQuery)
+      ->whereNotNull('machine')->where('machine', '<>', '')
+      ->select('machine')->groupBy('machine')->orderBy('machine')
+      ->pluck('machine')->values()->all();
+    $locations = (clone $baseQuery)
+      ->selectRaw("{$salesExpression} as dprsales")
+      ->groupByRaw($salesExpression)->orderBy('dprsales')
+      ->pluck('dprsales')->filter()->values()->all();
+    $years = (clone $baseQuery)
+      ->selectRaw("{$publishExpression} as dprpublish")
+      ->groupByRaw($publishExpression)->orderByDesc('dprpublish')
+      ->pluck('dprpublish')->filter()->values()->all();
 
     return response()->json(compact('machines', 'locations', 'years'));
   }
