@@ -15,6 +15,8 @@ import DprScheduleDialog from './DprScheduleDialog';
 import DprLeftHeader, { DPR_LEFT_COLUMN_KEYS, DprLeftHeaderCorner } from './DprLeftHeader';
 import DprToolbar from './DprToolbar';
 import { clampLeftColW, loadLeftColWidths, saveLeftColWidth } from '../../lib/leftHeaderColumns';
+import { isIPadOS } from '../../lib/platform';
+import { attachForwardedVerticalTouchScroll } from '../../lib/forwardTouchScroll';
 
 const DATE_WIDTH_STORAGE_KEY = 'sz_schedule_date_width_dpr';
 const PAGE_SIZE = 200;
@@ -61,6 +63,7 @@ function buildDateColumns(startDate, endDate, calendarData) {
 }
 
 const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, displaySettingsApplyVersion = 0, onGenerated, onError, onDirtyChange, onHistoryChange }, ref) {
+  const ipadOS = useMemo(() => isIPadOS(), []);
   const [startDate, setStartDate] = useState(() => dateToStr(new Date()));
   const [dateWidth, setDateWidth] = useState(loadDateWidth);
   const [generating, setGenerating] = useState(false);
@@ -81,6 +84,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
   const viewportRef = useRef(null);
+  const leftHeaderRef = useRef(null);
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
@@ -100,6 +104,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   errorRef.current = onError;
   colWidthsRef.current = colWidths;
   plansRef.current = plans;
+
+  useEffect(() => {
+    if (!active || !ipadOS) return undefined;
+    return attachForwardedVerticalTouchScroll(leftHeaderRef.current, () => viewportRef.current);
+  }, [active, ipadOS]);
 
   const notifyHistoryChange = useCallback(() => {
     onHistoryChange?.('dpr', {
@@ -331,6 +340,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const openCellContextMenu = useCallback((event) => {
     event.preventDefault();
+    if (ipadOS) return;
     const cell = pointerCell(event);
     if (!cell) return;
     setSelectedCell({ col: cell.col, row: cell.row });
@@ -352,11 +362,25 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         }),
       }],
     });
-  }, [pointerCell, startDate, viewMode]);
+  }, [ipadOS, pointerCell, startDate, viewMode]);
 
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
     event.stopPropagation();
+    if (ipadOS) {
+      const anchorRect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX;
+      const y = event.clientY;
+      setContextMenu({
+        x,
+        y,
+        items: [{
+          label: '詳細',
+          onClick: () => setHeaderDetail({ group, anchorRect, x, y }),
+        }],
+      });
+      return;
+    }
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -373,7 +397,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         }),
       }],
     });
-  }, []);
+  }, [ipadOS]);
 
   const saveDialogPlan = useCallback((data) => {
     const dialog = scheduleDialog;
@@ -694,7 +718,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
             <SpreadsheetGridHeaders viewMode={viewMode} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
           </div>
         </div>
-        <div style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
+        <div ref={leftHeaderRef} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
           <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} onGroupClick={openHeaderTooltip} />
         </div>
         <div
@@ -737,6 +761,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               totalCols={totalCols} scrollLeft={scroll.left} viewportWidth={viewport.width}
               visRowStart={visRowStart} visRowEnd={visRowEnd}
               onBarRightClick={handleBarRightClick}
+              interactionReadOnly={ipadOS}
             />
           </div>
         </div>

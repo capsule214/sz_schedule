@@ -40,6 +40,7 @@ export default function SpreadsheetGridBars({
   planToEndCol,
   onBarPointerDown,
   onBarRightClick,
+  interactionReadOnly = false,
   flgdiff = false,
   flgsyoyo = false,
   useKisyuColor = false,
@@ -137,15 +138,15 @@ export default function SpreadsheetGridBars({
             animation: isEdited ? 'unsaved-plan-outline-blink 1s steps(1, end) infinite' : 'none',
             boxShadow: isGroupMoveHighlighted ? '0 0 0 4px #dc2626' : isSel ? '0 0 0 2px #ef4444' : 'none',
             boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel || isEdited ? 4 : ghost ? 10 : 2,
-            opacity: ghost ? 0.5 : 1, cursor: isLocked ? 'default' : 'grab', overflow: 'hidden', userSelect: 'none',
+            opacity: ghost ? 0.5 : 1, cursor: isLocked || interactionReadOnly ? 'pointer' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
-          onPointerDown={e => { if (e.button === 0) onBarPointerDown(e, plan, 'move'); }}
-          onClick={e => e.stopPropagation()}
+          onPointerDown={e => { if (!interactionReadOnly && e.button === 0) onBarPointerDown(e, plan, 'move'); }}
+          onClick={e => { e.stopPropagation(); if (interactionReadOnly) onBarRightClick(e, plan); }}
           onContextMenu={e => onBarRightClick(e, plan)}
         >
-          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked ? 'default' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!isLocked) onBarPointerDown(e, plan, 'resize-left'); }} />
+          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked || interactionReadOnly ? 'inherit' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!interactionReadOnly && !isLocked) onBarPointerDown(e, plan, 'resize-left'); }} />
           <div style={{ flex: 1 }} />
-          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked ? 'default' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!isLocked) onBarPointerDown(e, plan, 'resize-right'); }} />
+          <div style={{ width: HANDLE_W, height: '100%', cursor: isLocked || interactionReadOnly ? 'inherit' : 'ew-resize', flexShrink: 0, zIndex: 3 }} onPointerDown={e => { e.stopPropagation(); if (!interactionReadOnly && !isLocked) onBarPointerDown(e, plan, 'resize-right'); }} />
           {showStar && (
             <div style={{
               position: 'absolute', right: 2, top: 1,

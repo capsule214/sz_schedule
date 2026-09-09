@@ -1,7 +1,7 @@
 import { getColor } from '../../lib/colors';
 import { CELL_SIZE, planToEndCol, planToStartCol } from '../../lib/spreadsheet';
 
-export default function DprBars({ layoutGroups, startDate, viewMode, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarRightClick }) {
+export default function DprBars({ layoutGroups, startDate, viewMode, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarRightClick, interactionReadOnly = false }) {
   const contentRight = totalCols * colW;
   const bars = [];
   for (const group of layoutGroups) {
@@ -19,6 +19,11 @@ export default function DprBars({ layoutGroups, startDate, viewMode, colW, total
           data-dpr-plan-bar="1"
           title={label}
           onContextMenu={event => onBarRightClick?.(event, plan, group)}
+          onClick={event => {
+            if (!interactionReadOnly) return;
+            event.stopPropagation();
+            onBarRightClick?.(event, plan, group);
+          }}
           style={{
             position: 'absolute', left, top: row * CELL_SIZE, width, height: CELL_SIZE,
             boxSizing: 'border-box', border: '1px solid rgba(0,0,0,0.15)',

@@ -17,6 +17,8 @@ import UpdateConflictDialog from './UpdateConflictDialog';
 import { loadTaskMaster } from '../lib/taskMaster';
 import { loadLeftColWidths, saveLeftColWidth, visibleLeftColumns, clampLeftColW } from '../lib/leftHeaderColumns';
 import { loadExcludedDays, splitPastedSchedulePreservingLength } from '../lib/scheduleExclusions';
+import { isIPadOS } from '../lib/platform';
+import { attachForwardedVerticalTouchScroll } from '../lib/forwardTouchScroll';
 import {
   CELL_SIZE,
   HDR_H,
@@ -110,6 +112,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   onJumpToOtherTab, onEnsureMasters, jumpTarget, onJumpHandled, onJumpError,
   onRangeChange, onDirtyChange, onHistoryChange, onBeforeRedraw,
 }, ref) {
+  const ipadOS = useMemo(() => isIPadOS(), []);
   const DEVICE_GROUP_OVERSCAN = 40;
   const today = new Date();
   const [startDate, setStartDate] = useState(() => dateToStr(today));
@@ -291,6 +294,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     el.scrollTop += e.deltaY;
     el.scrollLeft += e.deltaX;
   }, []);
+
+  const leftHeaderRef = useRef(null);
+  useEffect(() => {
+    if (!active || !ipadOS) return undefined;
+    return attachForwardedVerticalTouchScroll(leftHeaderRef.current, () => scrollRef.current);
+  }, [active, ipadOS]);
 
   // 日付・曜日ヘッダーでは縦ホイール操作を横スクロールとして扱う
   useEffect(() => {
@@ -1797,6 +1806,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function handleBarPointerDown(e, plan, type) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (ipadOS) return;
 
     // 選択処理を pointerdown で行う（preventDefault を外したので click も生きるが、こちらで完結させる）
     setSelectedCell(null);
@@ -2097,6 +2107,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   function handleLocationBarPointerDown(e, plan, type) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (ipadOS) return;
 
     setSelectedCell(null);
     const additiveSelection = e.ctrlKey || e.metaKey;
@@ -2295,6 +2306,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   function handleCellRightClick(e, col, row) {
     e.preventDefault();
+    if (ipadOS) return;
     const g = getGroupAtRow(row);
     if (mode === 'task') {
       return;
@@ -2399,15 +2411,22 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         }}
       : null;
 
+    const viewingItems = [
+      { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+      ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
+    ];
+
+    // iPadOSでは予定を閲覧専用にし、タップで開くメニューにも変更操作を含めない。
+    if (ipadOS) {
+      setContextMenu({ x: e.clientX, y: e.clientY, items: viewingItems });
+      return;
+    }
+
     // タスクタブではコピー・切り取り・貼り付けを行わない。
     // 日付変更は予定バーのドラッグ・伸縮で行う。
     if (mode === 'task') {
-      setContextMenu({ x: e.clientX, y: e.clientY, items: [
-        { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-        ...(serialPlanItem ? ['separator', serialPlanItem] : []),
-        'separator',
-        ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
-      ]});
+      setContextMenu({ x: e.clientX, y: e.clientY, items: viewingItems });
       return;
     }
 
@@ -2455,6 +2474,12 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const locationPlans = ids
       .map(id => locationOverlayPlans.find(p => p.planId === id))
       .filter(Boolean);
+    if (ipadOS) {
+      setContextMenu({ x: e.clientX, y: e.clientY, items: [
+        { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
+      ] });
+      return;
+    }
     const items = locationPlans.length > 1 ? [
       { label: `${locationPlans.length}件コピー`, onClick: () => setScheduleClipboard(locationPlans, 'location', 'copy') },
       { label: `${locationPlans.length}件切り取り`, onClick: () => setScheduleClipboard(locationPlans, 'location', 'cut') },
@@ -3401,7 +3426,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             </div>
 
             {/* 左固定列（行）*/}
-            <div onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, width: leftHdrW, height: containerH - TOTAL_HDR_H, overflow: 'hidden', zIndex: 10, background: '#f9fafb', borderRight: '1px solid #d1d5db' }}>
+            <div ref={leftHeaderRef} onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, width: leftHdrW, height: containerH - TOTAL_HDR_H, overflow: 'hidden', zIndex: 10, background: '#f9fafb', borderRight: '1px solid #d1d5db' }}>
               <div style={{ position: 'relative', height: totalH }}>
                 <SpreadsheetGridLeftHeader
                   layoutGroups={layoutGroups}
@@ -3532,6 +3557,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     planToEndCol={planToEndCol}
                     onBarPointerDown={handleBarPointerDown}
                     onBarRightClick={handleBarRightClick}
+                    interactionReadOnly={ipadOS}
                     flgdiff={!!displaySettings.flgdiff}
                     flgsyoyo={!!displaySettings.flgsyoyo}
                     useKisyuColor={useKisyuColor}
@@ -3555,6 +3581,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     ghostDrag={locationGhostDrag}
                     onBarPointerDown={handleLocationBarPointerDown}
                     onBarRightClick={handleLocationBarRightClick}
+                    interactionReadOnly={ipadOS}
                     flgdiff={!!displaySettings.flgdiff}
                   />
                   {/* 矩形選択オーバーレイ */}

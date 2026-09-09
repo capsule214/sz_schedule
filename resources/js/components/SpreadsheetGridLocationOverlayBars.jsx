@@ -19,6 +19,7 @@ export default function SpreadsheetGridLocationOverlayBars({
   ghostDrag,
   onBarPointerDown,
   onBarRightClick,
+  interactionReadOnly = false,
   flgdiff = false,
 }) {
   if (!extraLocationRow) return [];
@@ -74,19 +75,19 @@ export default function SpreadsheetGridLocationOverlayBars({
             boxShadow: selected.has(plan.planId) ? '0 0 0 2px #ef4444' : 'none',
             opacity: ghost ? 0.5 : 1,
             boxSizing: 'border-box', zIndex: ghost ? 10 : selected.has(plan.planId) ? 4 : 2,
-            cursor: 'grab', userSelect: 'none', overflow: 'hidden',
+            cursor: interactionReadOnly ? 'pointer' : 'grab', userSelect: 'none', overflow: 'hidden',
           }}
-          onPointerDown={e => { if (e.button === 0) onBarPointerDown?.(e, plan, 'move'); }}
-          onClick={e => e.stopPropagation()}
+          onPointerDown={e => { if (!interactionReadOnly && e.button === 0) onBarPointerDown?.(e, plan, 'move'); }}
+          onClick={e => { e.stopPropagation(); if (interactionReadOnly) onBarRightClick?.(e, plan); }}
           onContextMenu={e => onBarRightClick?.(e, plan)}
         >
           <div
-            style={{ position: 'absolute', left: 0, top: 0, width: HANDLE_W, height: '100%', cursor: 'ew-resize', zIndex: 3 }}
-            onPointerDown={e => { e.stopPropagation(); onBarPointerDown?.(e, plan, 'resize-left'); }}
+            style={{ position: 'absolute', left: 0, top: 0, width: HANDLE_W, height: '100%', cursor: interactionReadOnly ? 'inherit' : 'ew-resize', zIndex: 3 }}
+            onPointerDown={e => { e.stopPropagation(); if (!interactionReadOnly) onBarPointerDown?.(e, plan, 'resize-left'); }}
           />
           <div
-            style={{ position: 'absolute', right: 0, top: 0, width: HANDLE_W, height: '100%', cursor: 'ew-resize', zIndex: 3 }}
-            onPointerDown={e => { e.stopPropagation(); onBarPointerDown?.(e, plan, 'resize-right'); }}
+            style={{ position: 'absolute', right: 0, top: 0, width: HANDLE_W, height: '100%', cursor: interactionReadOnly ? 'inherit' : 'ew-resize', zIndex: 3 }}
+            onPointerDown={e => { e.stopPropagation(); if (!interactionReadOnly) onBarPointerDown?.(e, plan, 'resize-right'); }}
           />
           {showStar && (
             <div style={{
