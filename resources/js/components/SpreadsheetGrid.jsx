@@ -2403,9 +2403,14 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       label: jumpLabels[t],
       onClick: () => onJumpToOtherTab && onJumpToOtherTab(plan, t),
     }));
-    const serialPlanItem = (mode === 'worker' || mode === 'task') && plan.serialId
+    const relatedPlanEndpoint = Number(plan.morderId) > 0
+      ? `/morder/${plan.morderId}/plans`
+      : Number(plan.serialId) > 0
+        ? `/plan/by-serial/${plan.serialId}`
+        : null;
+    const relatedPlanItem = (mode === 'worker' || mode === 'task') && relatedPlanEndpoint
       ? { label: '前後予定を表示', onClick: () => {
-          apiArray(`/plan/by-serial/${plan.serialId}`)
+          apiArray(relatedPlanEndpoint)
             .then(data => setSerialOverlay({ triggerPlan: plan, serialPlans: data || [] }))
             .catch(() => {});
         }}
@@ -2413,7 +2418,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
     const viewingItems = [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+      ...(relatedPlanItem ? ['separator', relatedPlanItem] : []),
       ...(jumpItems.length > 0 ? ['separator', ...jumpItems] : []),
     ];
 
@@ -2445,7 +2450,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }},
     ] : [
       { label: '詳細', onClick: () => setTooltip({ plan, x: e.clientX, y: e.clientY }) },
-      ...(serialPlanItem ? ['separator', serialPlanItem] : []),
+      ...(relatedPlanItem ? ['separator', relatedPlanItem] : []),
         'separator',
       ...(!isDialogReadOnlyPlan(plan) ? [
         { label: '編集', onClick: () => openScheduleDialog({ plan }) },

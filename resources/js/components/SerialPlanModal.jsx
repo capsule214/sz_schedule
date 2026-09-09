@@ -16,15 +16,18 @@ export default function SerialPlanModal({ plan, onClose }) {
   const panelRef     = useRef(null);
   const timelineRef  = useRef(null);
 
-  /* ── 製番IDで予定を直接取得 ── */
+  /* ── 製番IDまたはM番IDで予定を直接取得 ── */
   useEffect(() => {
     let cancelled = false;
-    apiArray(`/plan/by-serial/${plan.serialId}`)
+    const endpoint = Number(plan.morderId) > 0
+      ? `/morder/${plan.morderId}/plans`
+      : `/plan/by-serial/${plan.serialId}`;
+    apiArray(endpoint)
       .then(data => { if (!cancelled) setPlans(data || []); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [plan.serialId]);
+  }, [plan.morderId, plan.serialId]);
 
   /* ── 日付レンジ ── */
   const sorted = [...plans].sort((a, b) => a.startDate.localeCompare(b.startDate));

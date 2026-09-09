@@ -110,6 +110,53 @@ class MorderPlanApiTest extends TestCase
             ->assertJsonPath('0.morderOrderTypeName', '加工オーダー');
     }
 
+    public function test_plans_can_be_fetched_by_morder_for_previous_and_next_schedule_display(): void
+    {
+        $user = User::create([
+            'name' => 'morder-related-plans-user',
+            'email' => 'morder-related-plans-user',
+            'password' => Hash::make('12345'),
+        ]);
+        $task = KmTask::create(['task_name' => '直送作業']);
+        $targetMorder = KdMorder::create([
+            'order_type_id' => 11,
+            'morder_no' => 'DPR-DIRECT-001',
+        ]);
+        $otherMorder = KdMorder::create([
+            'order_type_id' => 21,
+            'morder_no' => 'M-OTHER-001',
+        ]);
+
+        foreach ([
+            [$targetMorder->morder_id, '2026-08-20', 0],
+            [$targetMorder->morder_id, '2026-08-01', 0],
+            [$targetMorder->morder_id, '2026-08-10', 1],
+            [$otherMorder->morder_id, '2026-08-05', 0],
+        ] as [$morderId, $date, $deleted]) {
+            KdPlan::create([
+                'serial_id' => -1,
+                'morder_id' => $morderId,
+                'task_id' => $task->task_id,
+                'deleted' => $deleted,
+                'start_date' => $date,
+                'end_date' => $date,
+            ]);
+        }
+
+        $plans = $this->actingAs($user)
+            ->getJson('/api/morder/'.$targetMorder->morder_id.'/plans')
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->json();
+
+        $this->assertSame(['2026-08-01', '2026-08-20'], array_column($plans, 'startDate'));
+        $this->assertSame(
+            [$targetMorder->morder_id, $targetMorder->morder_id],
+            array_column($plans, 'morderId'),
+        );
+        $this->assertSame(['直送DPR', '直送DPR'], array_column($plans, 'morderOrderTypeName'));
+    }
+
     public function test_seed_master_creates_morders_and_seed_plans_can_create_morder_plans(): void
     {
         $user = User::create([
