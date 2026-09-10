@@ -212,10 +212,10 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
       <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
 
         {/* 左 flex:2 → 内部を横3分割（機種 / 営業拠点 / 発行年） */}
-        <div style={{ flex: 2, display: 'flex', gap: 8, overflow: 'hidden', minHeight: 0, minWidth: 0 }}>
+        <div style={{ flex: 2, display: 'flex', gap: 8, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
 
           {/* 機種選択（装置タブと同じ multi-select） */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>機種選択</div>
             <button
               onClick={() => setField('dprmodellist', [...filteredMachines])}
@@ -231,7 +231,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
           </div>
 
           {/* 営業拠点選択 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>営業拠点選択</div>
             <button
               onClick={() => setField('dprsaleslocationlist', [...filteredLocations])}
@@ -247,7 +247,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
           </div>
 
           {/* 発行年選択 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>発行年選択</div>
             <button
               onClick={() => setField('dprpublicationyearlist', [...filteredYears])}
@@ -264,7 +264,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
         </div>
 
         {/* 中 flex:1 → DPR担当絞込 + 製造グループ絞込 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
           <TagSection
             label="DPR担当絞込"
             values={form.dprinchargelist}

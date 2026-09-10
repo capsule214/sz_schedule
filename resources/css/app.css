@@ -6,6 +6,36 @@
 @source '../**/*.js';
 @source '../**/*.jsx';
 
+:root {
+  --web-viewport-width: 100vw;
+  --web-viewport-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --web-viewport-height: 100dvh;
+  }
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: var(--web-viewport-width);
+  height: var(--web-viewport-height);
+  max-width: var(--web-viewport-width);
+  max-height: var(--web-viewport-height);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
 @keyframes sonar-ring {
   0%   { transform: scale(0.25); opacity: 0.9; }
   100% { transform: scale(3.2);  opacity: 0;   }

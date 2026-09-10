@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
 import AlertToast from './components/AlertToast';
 import { initCsrf, apiJson, resetUnauthorizedState } from './lib/api';
+import { observeViewportMetrics } from './lib/viewportMetrics';
 import '../css/app.css';
 
 function App() {
@@ -12,6 +13,8 @@ function App() {
   const [checked, setChecked] = useState(false);  // 認証確認済みフラグ
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
+
+  useEffect(() => observeViewportMetrics(), []);
 
   function showToast(message) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);

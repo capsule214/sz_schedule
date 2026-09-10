@@ -88,7 +88,7 @@ export default function DeviceSettingsTab({ form, setField, kisyus, scrollable =
 
       <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
         {showModelFilters && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               {[['試作機', 0], ['量産機', 1], ['生産終了機', 2]].map(([label, val]) => (
                 <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>

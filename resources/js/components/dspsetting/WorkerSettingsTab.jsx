@@ -50,7 +50,7 @@ export default function WorkerSettingsTab({ form, setField, teams, tasks, scroll
 
       <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
         {/* チームリスト */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0 }}>チームリスト</div>
           <input
             placeholder="チーム名で絞り込み"

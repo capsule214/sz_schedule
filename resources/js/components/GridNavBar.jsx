@@ -7,33 +7,33 @@ export default function GridNavBar({
   onLogout,
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '8px 12px', flexShrink: 0 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>生産スケジュール</div>
-      <div style={{ flex: 1 }} />
+    <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box', background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '8px 12px', flexShrink: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', flexShrink: 0 }}>生産スケジュール</div>
+      <div style={{ flex: '1 0 12px' }} />
       <button
         onClick={onSeedMaster}
         disabled={seeding}
-        style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: seeding ? '#f3f4f6' : '#fff', cursor: seeding ? 'default' : 'pointer', fontSize: 13, marginRight: 6 }}
+        style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: seeding ? '#f3f4f6' : '#fff', cursor: seeding ? 'default' : 'pointer', fontSize: 13, marginRight: 6, flexShrink: 0 }}
       >
         初期データ生成
       </button>
       <button
         onClick={onSeedPlans}
         disabled={seeding}
-        style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: seeding ? '#f3f4f6' : '#fff', cursor: seeding ? 'default' : 'pointer', fontSize: 13, marginRight: 8 }}
+        style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: seeding ? '#f3f4f6' : '#fff', cursor: seeding ? 'default' : 'pointer', fontSize: 13, marginRight: 8, flexShrink: 0 }}
       >
         予定データ生成
       </button>
       <button
         onClick={onOpenSettings}
-        style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}
+        style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
         表示設定
       </button>
       <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 8px' }} />
-      <span style={{ fontSize: 13, color: '#6b7280' }}>{userName}</span>
-      <button onClick={onLogout} style={{ marginLeft: 8, padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 }}>ログアウト</button>
+      <span style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{userName}</span>
+      <button onClick={onLogout} style={{ marginLeft: 8, padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>ログアウト</button>
     </div>
   );
 }

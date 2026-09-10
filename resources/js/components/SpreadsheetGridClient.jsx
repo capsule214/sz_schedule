@@ -498,7 +498,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
 
   if (!settingsLoaded) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 16, color: '#6b7280' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'var(--web-viewport-width, 100vw)', height: 'var(--web-viewport-height, 100dvh)', fontSize: 16, color: '#6b7280' }}>
         読み込み中...
       </div>
     );
@@ -518,7 +518,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const activeHistory = historyState[tab] || { canUndo: false, canRedo: false };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: 'var(--web-viewport-width, 100vw)', height: 'var(--web-viewport-height, 100dvh)', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       <GridNavBar
         onOpenSettings={handleOpenSettings}
         onSeedMaster={handleSeedMaster}
@@ -541,7 +541,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       />
 
       {/* グリッド — 全タブを常時マウントし visibility で切り替え。スクロール位置を保持する */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {/* アクティブタブのマスター未ロード中はオーバーレイで「読み込み中」を表示 */}
         {!hasMastersForMode(tab) && (
           <div style={{

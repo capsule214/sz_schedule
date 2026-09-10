@@ -28,6 +28,7 @@ export default function DisplaySettingsDrawer({
   );
   const ipadOS = useMemo(() => isIPadOS(), []);
   const [visualViewport, setVisualViewport] = useState(getVisualViewport);
+  const scrollable = ipadOS || visualViewport.height < 820;
 
   // 設定フォーム（30 個の useState を 1 行に集約）
   const { form, setField, applySettings } = useSettingsForm(settings);
@@ -76,8 +77,8 @@ export default function DisplaySettingsDrawer({
   }, [open, tab, onEnsureMasters]);
 
   // Safariのツールバーやソフトウェアキーボードを除いた実表示領域へ追従する。
+  // iPad以外も、ウィンドウの高さが不足した場合はスクロールレイアウトへ切り替える。
   useEffect(() => {
-    if (!ipadOS) return undefined;
     const update = () => setVisualViewport(getVisualViewport());
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', update);
@@ -89,7 +90,7 @@ export default function DisplaySettingsDrawer({
       viewport?.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
-  }, [ipadOS]);
+  }, []);
 
   // 保存
   function handleSave() {
@@ -118,7 +119,8 @@ export default function DisplaySettingsDrawer({
       {/* ドロワー本体 */}
       <div style={{
         position: 'fixed', top: ipadOS ? visualViewport.offsetTop : 0, right: 0, bottom: ipadOS ? 'auto' : 0,
-        width: 700, maxWidth: '100vw', height: ipadOS ? visualViewport.height : undefined,
+        width: 700, maxWidth: 'var(--web-viewport-width, 100vw)', height: ipadOS ? visualViewport.height : 'var(--web-viewport-height, 100dvh)',
+        maxHeight: 'var(--web-viewport-height, 100dvh)',
         boxSizing: 'border-box',
         transform: open ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
@@ -158,11 +160,11 @@ export default function DisplaySettingsDrawer({
         </div>
 
         {/* コンテンツ */}
-        <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: ipadOS ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', padding: '16px 20px 0' }}>
-          {tab === 'device' && <DeviceSettingsTab scrollable={ipadOS} form={form} setField={setField} kisyus={kisyus} />}
-          {tab === 'worker' && <WorkerSettingsTab scrollable={ipadOS} form={form} setField={setField} teams={teams} tasks={tasks} />}
-          {tab === 'task'   && <TaskSettingsTab   scrollable={ipadOS} form={form} setField={setField} tasks={tasks} />}
-          {tab === 'dpr'    && <DprSettingsTab    scrollable={ipadOS} form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
+        <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: scrollable ? 'auto' : 'hidden', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', padding: '16px 20px', boxSizing: 'border-box' }}>
+          {tab === 'device' && <DeviceSettingsTab scrollable={scrollable} form={form} setField={setField} kisyus={kisyus} />}
+          {tab === 'worker' && <WorkerSettingsTab scrollable={scrollable} form={form} setField={setField} teams={teams} tasks={tasks} />}
+          {tab === 'task'   && <TaskSettingsTab   scrollable={scrollable} form={form} setField={setField} tasks={tasks} />}
+          {tab === 'dpr'    && <DprSettingsTab    scrollable={scrollable} form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
         </div>
 
         {/* フッター */}

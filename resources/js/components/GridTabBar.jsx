@@ -11,7 +11,7 @@ export default function GridTabBar({
   isSaving = false,
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '2px solid #e5e7eb', padding: '0 12px', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box', background: '#fff', borderBottom: '2px solid #e5e7eb', padding: '0 12px', flexShrink: 0 }}>
       {[['device', '装置'], ['worker', '担当者'], ['task', 'タスク'], ['place', '場所'], ['dpr', 'DPR']].map(([key, label]) => (
         <button
           key={key}
@@ -21,12 +21,13 @@ export default function GridTabBar({
             fontWeight: tab === key ? 700 : 400, fontSize: 14,
             borderBottom: tab === key ? '2px solid #2563eb' : '2px solid transparent',
             marginBottom: -2, color: tab === key ? '#2563eb' : '#374151',
+            flexShrink: 0,
           }}
         >
           {label}
         </button>
       ))}
-      <div style={{ flex: 1 }} />
+      <div style={{ flex: '1 0 12px' }} />
       {isDirty && (
         <>
           <button disabled={isSaving} onClick={onSave} style={{ padding: '6px 14px', border: 'none', borderRadius: 6, background: isSaving ? '#93c5fd' : '#2563eb', color: '#fff', cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600 }}>保存</button>

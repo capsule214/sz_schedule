@@ -37,7 +37,7 @@ export default function AdaptiveMultiSelect({
       style={{
         ...style,
         flex: style?.flex ? 'none' : style?.flex,
-        height: style?.flex ? 'min(320px, 42vh)' : style?.height,
+        height: style?.flex ? 'min(320px, calc(var(--web-viewport-height, 100vh) * 0.42))' : style?.height,
         minHeight: style?.flex ? 132 : style?.minHeight,
         overflowY: 'auto',
         padding: 0,

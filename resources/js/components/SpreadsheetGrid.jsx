@@ -3319,7 +3319,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       <SpreadsheetGridToolbar
         startDate={startDate}
         onStartDateChange={(date) => {
