@@ -232,6 +232,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const pendingScrollWorkerIdRef = useRef(null);
   const searchAnchorSerialIdRef = useRef(null);
   const searchAnchorWorkerIdRef = useRef(null);
+  const touchScrollGestureRef = useRef(null);
   const releaseDeviceAnchorAfterLayoutRef = useRef(false);
   const releaseWorkerAnchorAfterLayoutRef = useRef(false);
   const revealingPreviousDeviceRef = useRef(false);
@@ -296,10 +297,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }, []);
 
   const leftHeaderRef = useRef(null);
-  useEffect(() => {
-    if (!active || !ipadOS) return undefined;
-    return attachForwardedVerticalTouchScroll(leftHeaderRef.current, () => scrollRef.current);
-  }, [active, ipadOS]);
 
   // 日付・曜日ヘッダーでは縦ホイール操作を横スクロールとして扱う
   useEffect(() => {
@@ -1545,6 +1542,19 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
     }
   }, [mode, deviceSearchStartOffset, devicePagedGroups, workerSearchStartId, displaySettings, workers, fetchDeviceGroups]);
+
+  useEffect(() => {
+    if (!active || !ipadOS) return undefined;
+    return attachForwardedVerticalTouchScroll(
+      leftHeaderRef.current,
+      () => scrollRef.current,
+      { onPullDown: () => {
+        if ((scrollRef.current?.scrollTop ?? 0) > CELL_SIZE * 2) return false;
+        releaseSearchScrollRestriction(-1, true);
+        return true;
+      } },
+    );
+  }, [active, ipadOS, releaseSearchScrollRestriction]);
 
   const triggerSonar = useCallback((x, y) => {
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
@@ -3470,8 +3480,30 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
             // macOS のオーバーレイスクロールバーは clientWidth に幅が現れないため、右端も判定対象にする。
             const scrollbarWidth = Math.max(12, rect.width - el.clientWidth);
             const onVerticalScrollbar = e.clientX >= rect.right - scrollbarWidth;
-            if (onVerticalScrollbar || e.pointerType === 'touch') releaseSearchScrollRestriction(-1, true);
+            if (onVerticalScrollbar) releaseSearchScrollRestriction(-1, true);
           }}
+          onTouchStartCapture={(e) => {
+            if (e.touches.length !== 1) {
+              touchScrollGestureRef.current = null;
+              return;
+            }
+            touchScrollGestureRef.current = {
+              startY: e.touches[0].clientY,
+              revealHandled: false,
+            };
+          }}
+          onTouchMoveCapture={(e) => {
+            const gesture = touchScrollGestureRef.current;
+            if (!gesture || gesture.revealHandled || e.touches.length !== 1) return;
+            // 指を下へ動かした場合だけ、ジャンプ位置より前の製番を読み込む。
+            if (e.touches[0].clientY - gesture.startY > 8
+              && (scrollRef.current?.scrollTop ?? 0) <= CELL_SIZE * 2) {
+              gesture.revealHandled = true;
+              releaseSearchScrollRestriction(-1, true);
+            }
+          }}
+          onTouchEndCapture={() => { touchScrollGestureRef.current = null; }}
+          onTouchCancelCapture={() => { touchScrollGestureRef.current = null; }}
           onClick={e => {
             if (e.target === scrollRef.current) {
               setSelected(new Set());

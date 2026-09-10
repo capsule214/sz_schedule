@@ -2,7 +2,7 @@
  * スクロール領域の外に固定表示したヘッダー上の縦スワイプを、
  * 実際のスクロール要素へ転送する。移動後に発生する click も抑止する。
  */
-export function attachForwardedVerticalTouchScroll(source, getScrollTarget) {
+export function attachForwardedVerticalTouchScroll(source, getScrollTarget, options = {}) {
   if (!source) return () => {};
 
   let gesture = null;
@@ -19,6 +19,7 @@ export function attachForwardedVerticalTouchScroll(source, getScrollTarget) {
       startY: event.touches[0].clientY,
       startScrollTop: target.scrollTop,
       moved: false,
+      pullDownHandled: false,
     };
   };
 
@@ -29,6 +30,10 @@ export function attachForwardedVerticalTouchScroll(source, getScrollTarget) {
     const deltaY = gesture.startY - event.touches[0].clientY;
     if (Math.abs(deltaY) > 3) gesture.moved = true;
     if (!gesture.moved) return;
+    if (deltaY < -8 && !gesture.pullDownHandled) {
+      const handled = options.onPullDown?.();
+      if (handled !== false) gesture.pullDownHandled = true;
+    }
     event.preventDefault();
     target.scrollTop = gesture.startScrollTop + deltaY;
   };
