@@ -11,14 +11,22 @@ export function getViewportMetrics() {
       displayHeight: 0,
       viewportWidth: 0,
       viewportHeight: 0,
+      visualWidth: 0,
+      visualHeight: 0,
+      scale: 1,
       pageWidth: 0,
       pageHeight: 0,
     };
   }
 
   const visualViewport = window.visualViewport;
-  const viewportWidth = positiveNumber(visualViewport?.width, positiveNumber(window.innerWidth, 1));
-  const viewportHeight = positiveNumber(visualViewport?.height, positiveNumber(window.innerHeight, 1));
+  const visualWidth = positiveNumber(visualViewport?.width, positiveNumber(window.innerWidth, 1));
+  const visualHeight = positiveNumber(visualViewport?.height, positiveNumber(window.innerHeight, 1));
+  const scale = positiveNumber(visualViewport?.scale, 1);
+  // visualViewportはピンチ拡大率に反比例して縮む。CSSレイアウトへは
+  // 拡大前の寸法を適用し、拡大のたびに画面自体が再縮小することを防ぐ。
+  const viewportWidth = visualWidth * scale;
+  const viewportHeight = visualHeight * scale;
   const root = document.documentElement;
   const body = document.body;
 
@@ -28,6 +36,9 @@ export function getViewportMetrics() {
     // 小数ピクセルを切り上げると1pxだけ表示領域外へ出るため、内側へ丸める。
     viewportWidth: Math.floor(viewportWidth),
     viewportHeight: Math.floor(viewportHeight),
+    visualWidth: Math.floor(visualWidth),
+    visualHeight: Math.floor(visualHeight),
+    scale,
     pageWidth: Math.round(Math.max(viewportWidth, root?.scrollWidth ?? 0, body?.scrollWidth ?? 0)),
     pageHeight: Math.round(Math.max(viewportHeight, root?.scrollHeight ?? 0, body?.scrollHeight ?? 0)),
   };
@@ -49,6 +60,9 @@ export function applyViewportMetrics() {
   root.dataset.deviceDisplayHeight = String(metrics.displayHeight);
   root.dataset.webViewportWidth = String(metrics.viewportWidth);
   root.dataset.webViewportHeight = String(metrics.viewportHeight);
+  root.dataset.webVisualWidth = String(metrics.visualWidth);
+  root.dataset.webVisualHeight = String(metrics.visualHeight);
+  root.dataset.webViewportScale = String(metrics.scale);
   root.dataset.webPageWidth = String(metrics.pageWidth);
   root.dataset.webPageHeight = String(metrics.pageHeight);
   return metrics;

@@ -10,8 +10,9 @@ import { isIPadOS } from '../lib/platform';
 function getVisualViewport() {
   if (typeof window === 'undefined') return { height: 0, offsetTop: 0 };
   const viewport = window.visualViewport;
+  const scale = Number(viewport?.scale) > 0 ? Number(viewport.scale) : 1;
   return {
-    height: Math.round(viewport?.height ?? window.innerHeight),
+    height: Math.floor((viewport?.height ?? window.innerHeight) * scale),
     offsetTop: Math.round(viewport?.offsetTop ?? 0),
   };
 }
