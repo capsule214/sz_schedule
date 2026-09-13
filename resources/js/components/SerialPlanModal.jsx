@@ -54,12 +54,12 @@ export default function SerialPlanModal({ plan, onClose }) {
   if (!loading && rangeStart && sorted.length > 0) {
     const rowXArr = sorted.map(p => ({
       planId: p.planId,
-      startX: planToStartCol(p, rangeStart, 'day') * colW,
+      startX: planToStartCol(p, rangeStart, 20) * colW,
     })).sort((a, b) => a.startX - b.startX);
 
     for (const p of sorted) {
-      const startCol = planToStartCol(p, rangeStart, 'day');
-      const endCol   = planToEndCol(p, rangeStart, 'day');
+      const startCol = planToStartCol(p, rangeStart, 20);
+      const endCol   = planToEndCol(p, rangeStart, 20);
       const x = startCol * colW;
       const w = Math.max(colW, (endCol - startCol + 1) * colW);
       const bg = getColor(p.taskBackColor);

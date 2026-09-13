@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { CELL_SIZE, SLOT_COUNT } from '../lib/spreadsheet';
+import { CELL_SIZE, SLOT_COUNT, isSlotDateWidth } from '../lib/spreadsheet';
 
 /**
  * 背景セル・グリッド線・グループ区切り線を Canvas 1枚で描画する。
@@ -17,7 +17,7 @@ export default function SpreadsheetGridCanvas({
   visRowEnd,
   colW,
   dateColumns,
-  viewMode,
+  dateWidth,
   mode,
   layoutGroups,
   locationRowAbsSet,
@@ -44,7 +44,7 @@ export default function SpreadsheetGridCanvas({
     // 列ごとの背景色を事前計算（休日・土日・平日）
     const colBg = new Array(visColEnd - visColStart + 1);
     for (let col = visColStart; col <= visColEnd; col++) {
-      const dayIdx = viewMode === 'day' ? col : Math.floor(col / SLOT_COUNT);
+      const dayIdx = isSlotDateWidth(dateWidth) ? Math.floor(col / SLOT_COUNT) : col;
       const dc = dateColumns[dayIdx];
       colBg[col - visColStart] =
         dc && (dc.type === 'holiday' || dc.type === 'sunday' || dc.type === 'saturday')
@@ -86,7 +86,7 @@ export default function SpreadsheetGridCanvas({
 
     // 日単位は週の境目（土曜と日曜の間）、時間割は各日の境目へ黒い実線を描く。
     const solidBoundaries = [];
-    if (viewMode === 'day') {
+    if (!isSlotDateWidth(dateWidth)) {
       for (let dayIdx = 1; dayIdx < dateColumns.length; dayIdx++) {
         if (dateColumns[dayIdx - 1]?.dow === 6 && dateColumns[dayIdx]?.dow === 0) {
           solidBoundaries.push(dayIdx);
@@ -125,7 +125,7 @@ export default function SpreadsheetGridCanvas({
     width, height,
     scrollLeft, scrollTop,
     visColStart, visColEnd, visRowStart, visRowEnd,
-    colW, dateColumns, viewMode,
+    colW, dateColumns, dateWidth,
     mode,
     layoutGroups, locationRowAbsSet,
   ]);

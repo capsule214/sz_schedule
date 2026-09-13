@@ -52,6 +52,10 @@ class DisplaySettingsApiTest extends TestCase
         $this->assertFalse(Schema::hasColumn('display_settings', 'value'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'is_active'));
         $this->assertTrue(Schema::hasColumn('display_settings', 'sbmodellist'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'plscale'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'sbscale'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'syscale'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'tkscale'));
     }
 
     public function test_active_display_setting_api_does_not_exist(): void

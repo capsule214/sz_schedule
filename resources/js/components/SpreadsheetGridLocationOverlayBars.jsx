@@ -4,7 +4,7 @@ export default function SpreadsheetGridLocationOverlayBars({
   extraLocationRow,
   layoutGroups,
   startDate,
-  viewMode,
+  dateWidth,
   planToStartCol,
   planToEndCol,
   visRowStart,
@@ -28,8 +28,8 @@ export default function SpreadsheetGridLocationOverlayBars({
   for (const g of layoutGroups) {
     if (g.locationRowIdx < 0 || !g.locationPlans?.length) continue;
     for (const plan of g.locationPlans) {
-      const startCol = planToStartCol(plan, startDate, viewMode);
-      const endCol = planToEndCol(plan, startDate, viewMode);
+      const startCol = planToStartCol(plan, startDate, dateWidth);
+      const endCol = planToEndCol(plan, startDate, dateWidth);
       let drawStartCol = startCol;
       let drawEndCol = endCol;
       const isDragging = dragRef?.current?.dragPlans?.some(p => p.planId === plan.planId);

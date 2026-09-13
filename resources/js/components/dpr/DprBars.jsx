@@ -1,13 +1,13 @@
 import { getColor } from '../../lib/colors';
 import { CELL_SIZE, planToEndCol, planToStartCol } from '../../lib/spreadsheet';
 
-export default function DprBars({ layoutGroups, startDate, viewMode, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarRightClick, interactionReadOnly = false }) {
+export default function DprBars({ layoutGroups, startDate, dateWidth, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarRightClick, interactionReadOnly = false }) {
   const contentRight = totalCols * colW;
   const bars = [];
   for (const group of layoutGroups) {
     for (const plan of group.plans || []) {
-      const startCol = planToStartCol(plan, startDate, viewMode);
-      const endCol = planToEndCol(plan, startDate, viewMode);
+      const startCol = planToStartCol(plan, startDate, dateWidth);
+      const endCol = planToEndCol(plan, startDate, dateWidth);
       const row = group.startRow + plan.rowIdx;
       const left = startCol * colW;
       const width = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - left);

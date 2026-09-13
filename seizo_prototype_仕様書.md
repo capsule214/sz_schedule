@@ -244,7 +244,7 @@ TIME_SLOTS = [
 SLOT_COUNT = 6
 
 // 主要関数
-layoutPlans(plans, groupKey, groups, viewMode, startDate, minRows, resourcePlans=null)
+layoutPlans(plans, groupKey, groups, dateWidth, startDate, minRows, resourcePlans=null)
 // groupKey: 'device'→serialId, 'worker'→workerId, 'task'→taskId, 'resource'→resourceId
 // 戻り値: { groups: [...], totalRows }
 // 各グループ: { ...g, startRow, numRows, plans[]{rowIdx}, resourceRowIdx, resourceNumRows, resourcePlans[] }
@@ -441,7 +441,7 @@ const leftHdrW = mode === 'device'   ? DEV_HDR_W + deviceExtraW
 **SpreadsheetGridToolbar:**
 - 開始日付入力
 - 月送りボタン（◀◀ -2M / ◀ -1M / ▶ +1M / ▶▶ +2M）
-- 日単位 / 時間割 切り替えボタン
+- 日付幅選択（120pxは時間割、それ以外は日単位として `dateWidth` から判定）
 - 製番検索（`device` モードのみ）
 
 ---

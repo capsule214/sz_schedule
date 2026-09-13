@@ -17,7 +17,8 @@ export const TIME_SLOTS = [
   { label: '残業2', start: '19:25', end: '21:25' },
 ];
 export const SLOT_COUNT = TIME_SLOTS.length;
-export const SLOT_LABELS = TIME_SLOTS.map(s => s.label);
+export const DEFAULT_NEW_SCHEDULE_END_HM = TIME_SLOTS[TIME_SLOTS.length - 1].end;
+export const isSlotDateWidth = dateWidth => Number(dateWidth) === 120;
 
 // 画面上の「当日」はブラウザのローカル日付を使う。UTC日付では日本時間の0時～9時に前日になる。
 export const TODAY_STR = dateToStr(new Date());
@@ -68,8 +69,8 @@ export function getMonthWeekInfo(dateStr) {
   };
 }
 
-export function colToDateStr(startDate, col, viewMode) {
-  if (viewMode === 'day') return addDays(startDate, col);
+export function colToDateStr(startDate, col, dateWidth) {
+  if (!isSlotDateWidth(dateWidth)) return addDays(startDate, col);
   return addDays(startDate, Math.floor(col / SLOT_COUNT));
 }
 
@@ -98,30 +99,30 @@ function endSlotIndex(hm) {
   return index;
 }
 
-export function dateToCol(startDate, dateStr, viewMode, hm = '08:30') {
+export function dateToCol(startDate, dateStr, dateWidth, hm = '08:30') {
   const days = daysBetween(startDate, dateStr.slice(0, 10));
-  if (viewMode === 'day') return days;
+  if (!isSlotDateWidth(dateWidth)) return days;
   return days * SLOT_COUNT + startSlotIndex(hm);
 }
 
-export function planToStartCol(plan, startDate, viewMode) {
+export function planToStartCol(plan, startDate, dateWidth) {
   const d = parseApiDate(plan.startDate);
   if (!d) return 0;
-  return dateToCol(startDate, dateToStr(d), viewMode, toHm(d));
+  return dateToCol(startDate, dateToStr(d), dateWidth, toHm(d));
 }
 
-export function planToEndCol(plan, startDate, viewMode) {
+export function planToEndCol(plan, startDate, dateWidth) {
   const d = parseApiDate(plan.endDate);
   if (!d) return 0;
   const dateStr = dateToStr(d);
   const hm = toHm(d);
-  if (viewMode === 'day') return dateToCol(startDate, dateStr, viewMode, hm);
+  if (!isSlotDateWidth(dateWidth)) return dateToCol(startDate, dateStr, dateWidth, hm);
   const days = daysBetween(startDate, dateStr);
   return days * SLOT_COUNT + endSlotIndex(hm);
 }
 
-export function colToDateTime(startDate, col, type, viewMode) {
-  if (viewMode === 'day') {
+export function colToDateTime(startDate, col, type, dateWidth) {
+  if (!isSlotDateWidth(dateWidth)) {
     const hm = type === 'start' ? TIME_SLOTS[0].start : TIME_SLOTS[0].end;
     return `${addDays(startDate, col)}T${hm}:00`;
   }
@@ -132,7 +133,7 @@ export function colToDateTime(startDate, col, type, viewMode) {
   return `${dateStr}T${TIME_SLOTS[slotIdx].end}:00`;
 }
 
-export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRows = MIN_ROWS, locationPlans = null) {
+export function layoutPlans(plans, groupKey, groups, dateWidth, startDate, minRows = MIN_ROWS, locationPlans = null) {
   const groupMap = {};
   for (const g of groups) {
     groupMap[g.id] = { ...g, rows: Array.from({ length: minRows }, () => null), plans: [] };
@@ -150,8 +151,8 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
     const grp = groupMap[gid];
     if (!grp) continue;
 
-    const startCol = planToStartCol(plan, startDate, viewMode);
-    const endCol = planToEndCol(plan, startDate, viewMode);
+    const startCol = planToStartCol(plan, startDate, dateWidth);
+    const endCol = planToEndCol(plan, startDate, dateWidth);
 
     let rowIdx = -1;
     for (let r = 0; r < grp.rows.length; r++) {
@@ -177,8 +178,8 @@ export function layoutPlans(plans, groupKey, groups, viewMode, startDate, minRow
     for (const plan of sortedLoc) {
       const loc = locLayoutMap[plan.serialId];
       if (!loc) continue;
-      const startCol = planToStartCol(plan, startDate, viewMode);
-      const endCol = planToEndCol(plan, startDate, viewMode);
+      const startCol = planToStartCol(plan, startDate, dateWidth);
+      const endCol = planToEndCol(plan, startDate, dateWidth);
       let rowIdx = -1;
       for (let r = 0; r < loc.rows.length; r++) {
         if (loc.rows[r] === null || loc.rows[r] <= startCol) { rowIdx = r; break; }

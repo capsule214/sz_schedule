@@ -6,7 +6,7 @@ import { apiArray, apiJson } from '../lib/api';
 import { loadKisyuMaster } from '../lib/kisyuMaster';
 import { loadTeamMaster } from '../lib/teamMaster';
 import { loadTaskMaster } from '../lib/taskMaster';
-import { TIME_SLOTS } from '../lib/spreadsheet';
+import { DEFAULT_NEW_SCHEDULE_END_HM, TIME_SLOTS } from '../lib/spreadsheet';
 import { loadExcludedDays, saveExcludedDays, splitScheduleByExcludedDays } from '../lib/scheduleExclusions';
 
 function toDateStr(dateStr, hm) {
@@ -50,7 +50,7 @@ export default function SerialScheduleDialog({ plan, gridMode, initialData, onSa
   const [startDate, setStartDate] = useState(sd.date || new Date().toISOString().slice(0, 10));
   const [startHm, setStartHm] = useState(TIME_SLOTS.some(s => s.start === sd.hm) ? sd.hm : TIME_SLOTS[0].start);
   const [endDate, setEndDate] = useState(ed.date || new Date().toISOString().slice(0, 10));
-  const [endHm, setEndHm] = useState(TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : TIME_SLOTS[TIME_SLOTS.length - 1].end);
+  const [endHm, setEndHm] = useState(plan && TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : DEFAULT_NEW_SCHEDULE_END_HM);
   const [kisyuList, setKisyuList] = useState([]);
   const [serials, setSerials] = useState([]);
   const [tasks, setTasks] = useState([]);

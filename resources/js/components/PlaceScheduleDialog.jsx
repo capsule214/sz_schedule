@@ -3,7 +3,7 @@ import DatePicker from './DatePicker';
 import useCalendarData from '../lib/useCalendarData';
 import { apiArray } from '../lib/api';
 import { loadKisyuMaster } from '../lib/kisyuMaster';
-import { TIME_SLOTS } from '../lib/spreadsheet';
+import { DEFAULT_NEW_SCHEDULE_END_HM, TIME_SLOTS } from '../lib/spreadsheet';
 
 function toDateStr(dateStr, hm) {
   return `${dateStr.slice(0, 10)}T${hm}:00`;
@@ -38,7 +38,7 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
   const [startDate, setStartDate] = useState(sd.date || new Date().toISOString().slice(0, 10));
   const [startHm, setStartHm] = useState(TIME_SLOTS.some(s => s.start === sd.hm) ? sd.hm : TIME_SLOTS[0].start);
   const [endDate, setEndDate] = useState(ed.date || new Date().toISOString().slice(0, 10));
-  const [endHm, setEndHm] = useState(TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : TIME_SLOTS[TIME_SLOTS.length - 1].end);
+  const [endHm, setEndHm] = useState(plan && TIME_SLOTS.some(s => s.end === ed.hm) ? ed.hm : DEFAULT_NEW_SCHEDULE_END_HM);
   const [dialogResources, setDialogResources] = useState(resources);
   const [resourceId, setResourceId] = useState(init.resourceId || initialData?.resourceId || resources?.[0]?.resourceId || '');
   const initialResource = resources?.find(r => String(r.resourceId) === String(init.resourceId || initialData?.resourceId));

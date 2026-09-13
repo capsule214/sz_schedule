@@ -155,10 +155,9 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     sales_locations: displaySettings?.dprsaleslocationlist || [],
     publication_years: displaySettings?.dprpublicationyearlist || [],
   });
-  const displayMonths = Math.max(1, Number(displaySettings?.dprduration ?? 4));
-  const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
-  const viewMode = dateWidth === 120 ? 'slot' : 'day';
-  const colW = viewMode === 'slot' ? 20 : dateWidth;
+  const duration = Math.max(1, Number(displaySettings?.dprduration ?? 4));
+  const endDate = useMemo(() => addDays(startDate, duration * 30), [startDate, duration]);
+  const colW = dateWidth === 120 ? dateWidth / SLOT_COUNT : dateWidth;
   const leftWidth = DPR_LEFT_COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0);
 
   const handleColResizeMove = useCallback((event) => {
@@ -308,10 +307,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   }, []);
 
   const dateColumns = useMemo(() => buildDateColumns(startDate, endDate, calendarData), [startDate, endDate, calendarData]);
-  const totalCols = Math.max(1, dateColumns.length * (viewMode === 'slot' ? SLOT_COUNT : 1));
+  const totalCols = Math.max(1, dateColumns.length * (dateWidth === 120 ? SLOT_COUNT : 1));
   const { groups: layoutGroups, totalRows } = useMemo(
-    () => layoutPlans(plans, 'dpr', groups, viewMode, startDate, 4),
-    [plans, groups, viewMode, startDate],
+    () => layoutPlans(plans, 'dpr', groups, dateWidth, startDate, 4),
+    [plans, groups, dateWidth, startDate],
   );
   const contentWidth = Math.max(totalCols * colW, viewport.width);
   const contentHeight = Math.max(totalRows * CELL_SIZE, viewport.height);
@@ -348,7 +347,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       setContextMenu(null);
       return;
     }
-    const date = addDays(startDate, viewMode === 'day' ? cell.col : Math.floor(cell.col / SLOT_COUNT));
+    const date = addDays(startDate, dateWidth === 120 ? Math.floor(cell.col / SLOT_COUNT) : cell.col);
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -362,7 +361,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         }),
       }],
     });
-  }, [ipadOS, pointerCell, startDate, viewMode]);
+  }, [ipadOS, pointerCell, startDate, dateWidth]);
 
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
@@ -715,7 +714,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} />
         <div style={{ position: 'absolute', left: leftWidth, right: 0, top: 0, height: TOTAL_HDR_H, overflow: 'hidden', borderBottom: '1px solid #9ca3af' }}>
           <div style={{ position: 'relative', width: contentWidth, height: TOTAL_HDR_H, transform: `translateX(${-scroll.left}px)` }}>
-            <SpreadsheetGridHeaders viewMode={viewMode} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
+            <SpreadsheetGridHeaders dateWidth={dateWidth} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
           </div>
         </div>
         <div ref={leftHeaderRef} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
@@ -752,12 +751,12 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               <SpreadsheetGridCanvas
                 width={viewport.width} height={viewport.height} scrollLeft={scroll.left} scrollTop={scroll.top}
                 visColStart={visColStart} visColEnd={visColEnd} visRowStart={visRowStart} visRowEnd={visRowEnd}
-                colW={colW} dateColumns={dateColumns} viewMode={viewMode} mode="dpr"
+                colW={colW} dateColumns={dateColumns} dateWidth={dateWidth} mode="dpr"
                 layoutGroups={layoutGroups} locationRowAbsSet={new Set()}
               />
             </div>
             <DprBars
-              layoutGroups={layoutGroups} startDate={startDate} viewMode={viewMode} colW={colW}
+              layoutGroups={layoutGroups} startDate={startDate} dateWidth={dateWidth} colW={colW}
               totalCols={totalCols} scrollLeft={scroll.left} viewportWidth={viewport.width}
               visRowStart={visRowStart} visRowEnd={visRowEnd}
               onBarRightClick={handleBarRightClick}

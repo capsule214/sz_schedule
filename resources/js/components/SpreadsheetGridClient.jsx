@@ -75,13 +75,13 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     settingName: '表示設定1',
     duration: 1,
     flgdiff: false, flgkeppin: false, flgsyoyo: false, flgukeoi: false,
-    pllocation: 3, plscale: 1,
+    pllocation: 3,
     sbcolor: 0, sbdspdate: false, sbdspincharge: false, sbdspplplan: false, flggoso: false,
-    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbscale: 1, sbequiptype: -1,
+    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbequiptype: -1,
     flgsyoyo: false, flgukeoi: false, flgkeppin: false, flgdiff: false,
     sbinchargelist: [], sbmodellist: [], sbstatuslist: [], sbszgrouplist: [],
-    sycolor: 0, sygroup: 0, syscale: 1, syteamlist: [], sytasklist: [],
-    tksbmb: 0, tkscale: 1, tktasklist: [],
+    sycolor: 0, sygroup: 0, syteamlist: [], sytasklist: [],
+    tksbmb: 0, tktasklist: [],
   });
   const [displaySettingsList, setDisplaySettingsList] = useState([]);
   const [displaySettingsApplyVersion, setDisplaySettingsApplyVersion] = useState(0);

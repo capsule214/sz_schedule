@@ -1,14 +1,15 @@
-import { HDR_H, SLOT_COUNT, SLOT_LABELS, TODAY_STR } from '../lib/spreadsheet';
+import { HDR_H, SLOT_COUNT, TODAY_STR, isSlotDateWidth } from '../lib/spreadsheet';
 
 export default function SpreadsheetGridHeaders({
-  viewMode,
+  dateWidth,
   colW,
   dateColumns,
   scrollLeft,
   containerW,
 }) {
   const rows = [];
-  const dayW = viewMode === 'day' ? colW : colW * SLOT_COUNT;
+  const slotView = isSlotDateWidth(dateWidth);
+  const dayW = slotView ? colW * SLOT_COUNT : colW;
   const DOW_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
   const today = new Date(`${TODAY_STR}T00:00:00`);
   const currentMonthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
@@ -29,7 +30,7 @@ export default function SpreadsheetGridHeaders({
 
   // 予定表示エリアと同じ条件で、ヘッダー全体にも黒い実線を描画する。
   for (let dayIdx = 1; dayIdx < dateColumns.length; dayIdx++) {
-    if (viewMode === 'slot'
+    if (slotView
       || (dateColumns[dayIdx - 1]?.dow === 6 && dateColumns[dayIdx]?.dow === 0)) {
       solidBoundaryDayIndexes.push(dayIdx);
     }
@@ -99,7 +100,7 @@ export default function SpreadsheetGridHeaders({
     boxSizing: 'border-box',
   };
 
-  if (viewMode === 'slot') {
+  if (slotView) {
     rows.push(...weekSpans.filter(s => s.x + s.w > scrollLeft && s.x < scrollLeft + containerW).map((s) => {
       const weekStartDay = Math.floor(s.x / dayW);
       const weekStart = dateColumns[weekStartDay];
@@ -181,24 +182,17 @@ export default function SpreadsheetGridHeaders({
     if (dc.type === 'sunday' || dc.type === 'holiday') color = '#ef4444';
     if (dc.type === 'saturday') color = '#3b82f6';
     if (isToday) { bg = '#ef4444'; color = '#fff'; }
-    if (viewMode === 'day') {
-      const dowColor = (dc.type === 'sunday' || dc.type === 'holiday') ? '#ef4444'
-        : dc.type === 'saturday' ? '#3b82f6'
-          : '#374151';
-      return [
-        <div key={`${dc.dateStr}-day`} style={{ ...commonStyle, left: x, width: dayW, top: HDR_H * 2, background: bg, color }}>
-          {String(dc.day).padStart(2, '0')}
-        </div>,
-        <div key={`${dc.dateStr}-dow`} style={{ ...commonStyle, left: x, width: dayW, top: HDR_H * 3, color: dowColor }}>
-          {DOW_LABELS[dc.dow]}
-        </div>
-      ];
-    }
-    return SLOT_LABELS.map((label, si) => (
-      <div key={`${dc.dateStr}-${si}`} style={{ ...commonStyle, left: x + si * colW, width: colW, top: HDR_H * 3, background: si === 0 ? bg : '#f3f4f6', color: si === 0 ? color : '#374151', fontSize: 13 }}>
-        {si === 0 ? dc.day : label}
+    const dowColor = (dc.type === 'sunday' || dc.type === 'holiday') ? '#ef4444'
+      : dc.type === 'saturday' ? '#3b82f6'
+        : '#374151';
+    return [
+      <div key={`${dc.dateStr}-day`} style={{ ...commonStyle, left: x, width: dayW, top: HDR_H * 2, background: bg, color }}>
+        {String(dc.day).padStart(2, '0')}
+      </div>,
+      <div key={`${dc.dateStr}-dow`} style={{ ...commonStyle, left: x, width: dayW, top: HDR_H * 3, color: dowColor }}>
+        {DOW_LABELS[dc.dow]}
       </div>
-    ));
+    ];
   }));
 
   appendSolidBoundaryLines();

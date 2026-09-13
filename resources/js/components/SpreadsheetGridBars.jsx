@@ -22,7 +22,7 @@ function syoyoCornerStyle(position) {
 export default function SpreadsheetGridBars({
   layoutGroups,
   startDate,
-  viewMode,
+  dateWidth,
   colW,
   totalCols,
   scrollLeft,
@@ -52,7 +52,7 @@ export default function SpreadsheetGridBars({
   for (const g of layoutGroups) {
     if (!g.plans) continue;
     for (const plan of g.plans) {
-      const sx = planToStartCol(plan, startDate, viewMode) * colW;
+      const sx = planToStartCol(plan, startDate, dateWidth) * colW;
       const absRow = g.startRow + plan.rowIdx;
       if (!rowStartXMap.has(absRow)) rowStartXMap.set(absRow, []);
       rowStartXMap.get(absRow).push({ startX: sx, planId: plan.planId });
@@ -65,8 +65,8 @@ export default function SpreadsheetGridBars({
   for (const g of layoutGroups) {
     if (!g.plans) continue;
     for (const plan of g.plans) {
-      const startCol = planToStartCol(plan, startDate, viewMode);
-      const endCol = planToEndCol(plan, startDate, viewMode);
+      const startCol = planToStartCol(plan, startDate, dateWidth);
+      const endCol = planToEndCol(plan, startDate, dateWidth);
 
       let drawStartCol = startCol;
       let drawEndCol = endCol;

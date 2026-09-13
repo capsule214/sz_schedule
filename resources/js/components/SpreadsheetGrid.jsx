@@ -27,8 +27,8 @@ import {
   MIN_ROWS_LOCATION,
   BUFFER_ROWS,
   SLOT_COUNT,
+  DEFAULT_NEW_SCHEDULE_END_HM,
   HANDLE_W,
-  SLOT_LABELS,
   TODAY_STR,
   dateToStr,
   addDays,
@@ -58,17 +58,17 @@ function normalizeDateWidth(value, fallback = CELL_SIZE) {
   return Math.max(20, Math.min(120, Math.round(width / 20) * 20));
 }
 
-function loadTabDateWidth(mode, suffix = '') {
+function loadTabDateWidth(mode) {
   try {
-    return normalizeDateWidth(sessionStorage.getItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}${suffix}`));
+    return normalizeDateWidth(sessionStorage.getItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}`));
   } catch {
     return CELL_SIZE;
   }
 }
 
-function saveTabDateWidth(mode, width, suffix = '') {
+function saveTabDateWidth(mode, width) {
   try {
-    sessionStorage.setItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}${suffix}`, String(width));
+    sessionStorage.setItem(`${DATE_WIDTH_STORAGE_PREFIX}${mode}`, String(width));
   } catch {
     // sessionStorageを利用できない環境では、現在のコンポーネントstateだけで保持する。
   }
@@ -116,20 +116,9 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const DEVICE_GROUP_OVERSCAN = 40;
   const today = new Date();
   const [startDate, setStartDate] = useState(() => dateToStr(today));
-  const [displayMonths, setDisplayMonths] = useState(() => {
-    const d = displaySettings?.duration;
-    return (d && d >= 1) ? d : 4;
-  });
-
-  // 表示設定の duration（ヶ月）が変わったら displayMonths を同期
-  useEffect(() => {
-    const d = displaySettings?.duration;
-    if (d && d >= 1) setDisplayMonths(d);
-  }, [displaySettings?.duration]);
+  const duration = Math.max(1, Number(displaySettings?.duration ?? 4));
   const [deviceCount, setDeviceCount] = useState(1000);
   const [dateWidth, setDateWidth] = useState(() => loadTabDateWidth(mode));
-  const lastDayWidthRef = useRef(loadTabDateWidth(mode, '_day'));
-  const viewMode = dateWidth === 120 ? 'slot' : 'day';
   const [plans, setPlans] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
   const [serialSearchText, setSerialSearchText] = useState('');
@@ -344,7 +333,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const visibleDeviceGroupCount = Math.max(1, Math.ceil(Math.max(0, containerH - TOTAL_HDR_H) / (planMinRows * CELL_SIZE)));
   const deviceGroupWindowSize = visibleDeviceGroupCount + DEVICE_GROUP_OVERSCAN;
 
-  const endDate = useMemo(() => addDays(startDate, displayMonths * 30), [startDate, displayMonths]);
+  const endDate = useMemo(() => addDays(startDate, duration * 30), [startDate, duration]);
 
   // 表示範囲を親へ通知（ジャンプ前チェックに使用）
   useEffect(() => {
@@ -353,8 +342,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const totalCols = useMemo(() => {
     const days = daysBetween(startDate, endDate);
-    return viewMode === 'day' ? days : days * SLOT_COUNT;
-  }, [startDate, endDate, viewMode]);
+    return dateWidth === 120 ? days * SLOT_COUNT : days;
+  }, [startDate, endDate, dateWidth]);
 
   const baseDeviceGroups = useMemo(() => {
     if (!settingsReady) return [];
@@ -465,7 +454,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       : 'place';
     const locPlans = extraLocationRow ? locationOverlayPlans : null;
     const activePlans = plans.filter(p => !p.deleted);
-    const result = layoutPlans(activePlans, groupKey, filteredGroups, viewMode, startDate, planMinRows, locPlans);
+    const result = layoutPlans(activePlans, groupKey, filteredGroups, dateWidth, startDate, planMinRows, locPlans);
 
     if (mode === 'device' && deviceGroupTotal > 0) {
       const searchStartOffset = deviceSearchStartOffset ?? 0;
@@ -516,8 +505,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const rows = Array.from({ length: unassignedMinRows }, () => null);
       const laidOutPlans = [];
       for (const plan of sorted) {
-        const startCol = planToStartCol(plan, startDate, viewMode);
-        const endCol = planToEndCol(plan, startDate, viewMode);
+        const startCol = planToStartCol(plan, startDate, dateWidth);
+        const endCol = planToEndCol(plan, startDate, dateWidth);
         let rowIdx = -1;
         for (let r = 0; r < rows.length; r++) {
           if (rows[r] === null || rows[r] <= startCol) { rowIdx = r; break; }
@@ -584,7 +573,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       });
     }
     return { groups: [...result.groups, ...extraGroups], totalRows: uaStartRow };
-  }, [plans, filteredGroups, mode, viewMode, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice, deviceGroupOffset, deviceGroupTotal, deviceSearchStartOffset]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plans, filteredGroups, mode, dateWidth, startDate, planMinRows, extraLocationRow, locationOverlayPlans, serials, displaySettings, isMorderDevice, deviceGroupOffset, deviceGroupTotal, deviceSearchStartOffset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 矩形選択のクロージャ内から常に最新レイアウトを参照できるようにする
   layoutGroupsRef.current = layoutGroups;
@@ -605,7 +594,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const totalH = totalRows * CELL_SIZE;
   // 120px は従来の時間割（20px × 6枠）、それ未満は1日1セルで指定幅を使用する。
-  const colW = viewMode === 'slot' ? CELL_SIZE : dateWidth;
+  const colW = dateWidth === 120 ? dateWidth / SLOT_COUNT : dateWidth;
 
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
@@ -1452,16 +1441,22 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     else showOnlyTargetSerial();
   }, [mode, serialSearchText, baseDeviceGroups, baseMorderGroups, isMorderDevice, deviceGroupOffset, fetchDeviceGroups, isDirty, onBeforeRedraw, retainPendingPlans, handleSerialSearchClear]);
 
+  const handleWorkerSearchClear = useCallback(() => {
+    if (mode !== 'worker') return;
+    setWorkerSearchText('');
+    pendingScrollWorkerIdRef.current = null;
+    searchAnchorWorkerIdRef.current = null;
+    releaseWorkerAnchorAfterLayoutRef.current = false;
+    revealingPreviousWorkerRef.current = false;
+    setWorkerSearchStartId(null);
+    setWorkerSearchTick(t => t + 1);
+  }, [mode]);
+
   const handleWorkerSearch = useCallback(() => {
     if (mode !== 'worker') return;
     const q = workerSearchText.trim();
     if (!q) {
-      pendingScrollWorkerIdRef.current = null;
-      searchAnchorWorkerIdRef.current = null;
-      releaseWorkerAnchorAfterLayoutRef.current = false;
-      revealingPreviousWorkerRef.current = false;
-      setWorkerSearchStartId(null);
-      setWorkerSearchTick(t => t + 1);
+      handleWorkerSearchClear();
       return;
     }
 
@@ -1488,7 +1483,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     searchAnchorWorkerIdRef.current = hits[0].workerId;
     pendingScrollWorkerIdRef.current = hits[0].workerId;
     setWorkerSearchTick(t => t + 1);
-  }, [mode, workerSearchText, workers, displaySettings]);
+  }, [mode, workerSearchText, workers, displaySettings, handleWorkerSearchClear]);
 
   const onScroll = useCallback(e => {
     const sl = e.currentTarget.scrollLeft;
@@ -1610,13 +1605,13 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   );
 
   const visibleFetchRange = useMemo(() => {
-    const from = colToDateStr(startDate, Math.max(0, Math.floor(scrollLeft / colW)), viewMode);
-    const to = colToDateStr(startDate, Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW)), viewMode);
+    const from = colToDateStr(startDate, Math.max(0, Math.floor(scrollLeft / colW)), dateWidth);
+    const to = colToDateStr(startDate, Math.min(totalCols - 1, Math.ceil((scrollLeft + containerW) / colW)), dateWidth);
     return {
       from: from < startDate ? startDate : from,
       to: addDays(to, 30) > endDate ? endDate : addDays(to, 30),
     };
-  }, [startDate, endDate, scrollLeft, colW, containerW, totalCols, viewMode]);
+  }, [startDate, endDate, scrollLeft, colW, containerW, totalCols, dateWidth]);
 
   useEffect(() => {
     if (!settingsReady || mode !== 'device') return;
@@ -1690,8 +1685,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function getPlanBar(plan) {
-    const startCol = planToStartCol(plan, startDate, viewMode);
-    const endCol = planToEndCol(plan, startDate, viewMode);
+    const startCol = planToStartCol(plan, startDate, dateWidth);
+    const endCol = planToEndCol(plan, startDate, dateWidth);
     const g = layoutGroups.find(g => g.plans?.some(p => p.planId === plan.planId));
     if (!g) return null;
     const pp = g.plans.find(p => p.planId === plan.planId);
@@ -1707,8 +1702,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   }
 
   function getLocationPlanBar(plan) {
-    const startCol = planToStartCol(plan, startDate, viewMode);
-    const endCol = planToEndCol(plan, startDate, viewMode);
+    const startCol = planToStartCol(plan, startDate, dateWidth);
+    const endCol = planToEndCol(plan, startDate, dateWidth);
     const g = layoutGroups.find(group => group.locationPlans?.some(p => p.planId === plan.planId));
     if (!g) return null;
     const pp = g.locationPlans.find(p => p.planId === plan.planId);
@@ -1778,8 +1773,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const newSelectedLocation = new Set();
       for (const g of layoutGroupsRef.current) {
         for (const p of (g.plans || [])) {
-          const sc = planToStartCol(p, startDate, viewMode);
-          const ec = planToEndCol(p, startDate, viewMode);
+          const sc = planToStartCol(p, startDate, dateWidth);
+          const ec = planToEndCol(p, startDate, dateWidth);
           const absRow = g.startRow + p.rowIdx;
           const bx1 = sc * colW;
           const bx2 = (ec + 1) * colW;
@@ -1790,8 +1785,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           }
         }
         for (const p of (g.locationPlans || [])) {
-          const sc = planToStartCol(p, startDate, viewMode);
-          const ec = planToEndCol(p, startDate, viewMode);
+          const sc = planToStartCol(p, startDate, dateWidth);
+          const ec = planToEndCol(p, startDate, dateWidth);
           const absRow = g.startRow + g.locationRowIdx + p.rowIdx;
           const bx1 = sc * colW;
           const bx2 = (ec + 1) * colW;
@@ -1990,8 +1985,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       newStartCol = Math.max(0, Math.min(newStartCol, totalCols - 1));
       newEndCol = Math.max(newStartCol, Math.min(newEndCol, totalCols - 1));
 
-      const newStartDate = colToDateTime(startDate, newStartCol, 'start', viewMode);
-      const newEndDate = colToDateTime(startDate, newEndCol, 'end', viewMode);
+      const newStartDate = colToDateTime(startDate, newStartCol, 'start', dateWidth);
+      const newEndDate = colToDateTime(startDate, newEndCol, 'end', dateWidth);
 
       // 移動先グループが確定している場合は全プランを同一グループへ
       let newSerialId   = dp.serialId;
@@ -2269,8 +2264,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       const after = {
         ...before,
         serialId: destinationSerialId ?? locationPlan.serialId,
-        startDate: colToDateTime(startDate, newStartCol, 'start', viewMode),
-        endDate: colToDateTime(startDate, newEndCol, 'end', viewMode),
+        startDate: colToDateTime(startDate, newStartCol, 'start', dateWidth),
+        endDate: colToDateTime(startDate, newEndCol, 'end', dateWidth),
       };
       if (!Object.keys(after).some(key => String(after[key] ?? '') !== String(before[key] ?? ''))) continue;
       const previousPendingHad = pendingLocationUpdatesRef.current.has(locationPlan.planId);
@@ -2326,8 +2321,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setSelected(new Set());
     setSelectedLocation(new Set());
     if (locationCell) {
-      const startDateTime = colToDateTime(startDate, col, 'start', viewMode);
-      const endDateTime = colToDateTime(startDate, col + (viewMode === 'slot' ? 5 : 0), 'end', viewMode);
+      const startDateTime = colToDateTime(startDate, col, 'start', dateWidth);
+      const endDateTime = `${colToDateStr(startDate, col, dateWidth)}T${DEFAULT_NEW_SCHEDULE_END_HM}:00`;
       const items = [{
         label: '場所予定を追加',
         onClick: () => openScheduleDialog({
@@ -2359,8 +2354,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       ...(g?.isUnassigned ? [] : [{
         label: '予定を追加',
         onClick: () => {
-          const dateStr = colToDateTime(startDate, col, 'start', viewMode);
-          const endStr = colToDateTime(startDate, col + (viewMode === 'slot' ? 5 : 0), 'end', viewMode);
+          const dateStr = colToDateTime(startDate, col, 'start', dateWidth);
+          const endStr = `${colToDateStr(startDate, col, dateWidth)}T${DEFAULT_NEW_SCHEDULE_END_HM}:00`;
           openScheduleDialog({
             plan: null,
             initialData: {
@@ -2583,15 +2578,15 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const targetResourceId = mode === 'place' ? targetGroup.id : null;
 
     // 先頭プランの開始列を基準に列オフセットを算出
-    const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
+    const firstStartCol = planToStartCol(copied[0], startDate, dateWidth);
     const offset = targetCol - firstStartCol;
 
     const newPlans = [];
     for (const p of copied) {
-      const sc = planToStartCol(p, startDate, viewMode) + offset;
-      const ec = planToEndCol(p, startDate, viewMode) + offset;
-      const newStart = colToDateTime(startDate, Math.max(0, sc), 'start', viewMode);
-      const newEnd   = colToDateTime(startDate, Math.max(0, ec), 'end', viewMode);
+      const sc = planToStartCol(p, startDate, dateWidth) + offset;
+      const ec = planToEndCol(p, startDate, dateWidth) + offset;
+      const newStart = colToDateTime(startDate, Math.max(0, sc), 'start', dateWidth);
+      const newEnd   = colToDateTime(startDate, Math.max(0, ec), 'end', dateWidth);
 
       // 全プランを貼り付け先の場所/装置/担当者に統一する
       const newSerialId   = mode === 'device' && !isMorderDevice ? targetSerialId : p.serialId;
@@ -2665,16 +2660,16 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const targetGroup = getGroupAtRow(targetRow);
     if (!targetGroup || !isLocationRow(targetGroup, targetRow) || Number(targetGroup.id) <= 0) return;
 
-    const firstStartCol = planToStartCol(copied[0], startDate, viewMode);
+    const firstStartCol = planToStartCol(copied[0], startDate, dateWidth);
     const offset = targetCol - firstStartCol;
     const newPlans = copied.map(plan => {
-      const startCol = Math.max(0, planToStartCol(plan, startDate, viewMode) + offset);
-      const endCol = Math.max(startCol, planToEndCol(plan, startDate, viewMode) + offset);
+      const startCol = Math.max(0, planToStartCol(plan, startDate, dateWidth) + offset);
+      const endCol = Math.max(startCol, planToEndCol(plan, startDate, dateWidth) + offset);
       const payload = {
         resourceId: plan.resourceId,
         serialId: Number(targetGroup.id),
-        startDate: colToDateTime(startDate, startCol, 'start', viewMode),
-        endDate: colToDateTime(startDate, endCol, 'end', viewMode),
+        startDate: colToDateTime(startDate, startCol, 'start', dateWidth),
+        endDate: colToDateTime(startDate, endCol, 'end', dateWidth),
         remark: plan.remark ?? '',
       };
       const tempId = tempIdCounterRef.current--;
@@ -2995,7 +2990,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     jumpAnchorPlanIdRef.current = plan.planId;
     pendingJumpSonarPlanIdRef.current = plan.planId;
 
-    const col = planToStartCol(plan, startDate, viewMode);
+    const col = planToStartCol(plan, startDate, dateWidth);
     const absRow = targetGroup.startRow + targetPlanRow.rowIdx;
 
     // バーを画面中央に来るようにスクロール
@@ -3108,7 +3103,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     setPlans([]);
     await apiJson('/seed', {
       method: 'POST',
-      body: JSON.stringify({ count: deviceCount, baseDate: startDate, months: displayMonths }),
+      body: JSON.stringify({ count: deviceCount, baseDate: startDate, months: duration }),
     });
     setFetchVersion(v => v + 1);
   }
@@ -3138,10 +3133,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
 
   const handleDateWidthChange = useCallback((width) => {
     const normalizedWidth = normalizeDateWidth(width);
-    if (normalizedWidth < 120) {
-      lastDayWidthRef.current = normalizedWidth;
-      saveTabDateWidth(mode, normalizedWidth, '_day');
-    }
     saveTabDateWidth(mode, normalizedWidth);
 
     // 幅変更の前後で、画面左端にある日付が大きくずれないよう日単位の位置を維持する。
@@ -3154,10 +3145,6 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       setScrollLeft(scrollRef.current.scrollLeft);
     });
   }, [dateWidth, mode]);
-
-  const handleViewModeChange = useCallback((nextMode) => {
-    handleDateWidthChange(nextMode === 'slot' ? 120 : lastDayWidthRef.current);
-  }, [handleDateWidthChange]);
 
   const dateColumns = useMemo(() => {
     const cols = [];
@@ -3201,8 +3188,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         for (const plan of g.plans) {
           const absRow = g.startRow + plan.rowIdx;
           if (absRow < visRowStart || absRow > visRowEnd) continue;
-          const startCol = planToStartCol(plan, startDate, viewMode);
-          const endCol = planToEndCol(plan, startDate, viewMode);
+          const startCol = planToStartCol(plan, startDate, dateWidth);
+          const endCol = planToEndCol(plan, startDate, dateWidth);
           const x = startCol * colW;
           if (x >= contentRight) continue;
           const w = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - x);
@@ -3213,8 +3200,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         for (const plan of g.locationPlans) {
           const absRow = g.startRow + g.locationRowIdx + plan.rowIdx;
           if (absRow < visRowStart || absRow > visRowEnd) continue;
-          const startCol = planToStartCol(plan, startDate, viewMode);
-          const endCol = planToEndCol(plan, startDate, viewMode);
+          const startCol = planToStartCol(plan, startDate, dateWidth);
+          const endCol = planToEndCol(plan, startDate, dateWidth);
           const x = startCol * colW;
           if (x >= contentRight) continue;
           const w = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - x);
@@ -3223,7 +3210,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       }
     }
     return false;
-  }, [layoutGroups, totalCols, colW, scrollLeft, containerW, visRowStart, visRowEnd, startDate, viewMode, extraLocationRow]);
+  }, [layoutGroups, totalCols, colW, scrollLeft, containerW, visRowStart, visRowEnd, startDate, dateWidth, extraLocationRow]);
   const shouldShowScheduleAreaOverlay = isScheduleAreaFetching && !hasVisibleScheduleBars;
   const sonarPosition = useMemo(() => {
     if (!sonar) return null;
@@ -3231,8 +3218,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     for (const group of layoutGroups) {
       const plan = group.plans?.find(item => String(item.planId) === String(sonar.planId));
       if (!plan) continue;
-      const startCol = planToStartCol(plan, startDate, viewMode);
-      const endCol = planToEndCol(plan, startDate, viewMode);
+      const startCol = planToStartCol(plan, startDate, dateWidth);
+      const endCol = planToEndCol(plan, startDate, dateWidth);
       const absoluteRow = group.startRow + plan.rowIdx;
       return {
         ...sonar,
@@ -3241,7 +3228,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       };
     }
     return null;
-  }, [sonar, layoutGroups, startDate, viewMode, colW, scrollLeft, scrollTop, leftHdrW]);
+  }, [sonar, layoutGroups, startDate, dateWidth, colW, scrollLeft, scrollTop, leftHdrW]);
 
   function handleHeaderClick(group, event) {
     event.stopPropagation();
@@ -3327,17 +3314,10 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           else setStartDate(date);
         }}
         onShiftMonth={handleShiftMonth}
-        displayMonths={displayMonths}
-        onDisplayMonthsChange={(months) => {
-          if (isDirty) onBeforeRedraw?.(() => setDisplayMonths(months));
-          else setDisplayMonths(months);
-        }}
         deviceCount={deviceCount}
         onDeviceCountChange={setDeviceCount}
         onSeedApply={handleSeedApply}
         mode={mode}
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
         dateWidth={dateWidth}
         onDateWidthChange={handleDateWidthChange}
         serialSearchText={serialSearchText}
@@ -3348,6 +3328,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         workerSearchText={workerSearchText}
         onWorkerSearchTextChange={setWorkerSearchText}
         onWorkerSearch={handleWorkerSearch}
+        onWorkerSearchClear={handleWorkerSearchClear}
         onRefresh={handleRefresh}
         lastUpdatedAt={lastUpdatedAt}
         pllocation={pllocation}
@@ -3433,7 +3414,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                 visRowEnd={visRowEnd}
                 colW={colW}
                 dateColumns={dateColumns}
-                viewMode={viewMode}
+                dateWidth={dateWidth}
                 mode={mode}
                 layoutGroups={layoutGroups}
                 locationRowAbsSet={locationRowAbsSet}
@@ -3522,7 +3503,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                 >
                   <div style={{ position: 'relative', height: TOTAL_HDR_H, width: totalCols * colW }}>
                     <SpreadsheetGridHeaders
-                      viewMode={viewMode}
+                      dateWidth={dateWidth}
                       colW={colW}
                       dateColumns={dateColumns}
                       scrollLeft={scrollLeft}
@@ -3576,7 +3557,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   <SpreadsheetGridBars
                     layoutGroups={layoutGroups}
                     startDate={startDate}
-                    viewMode={viewMode}
+                    dateWidth={dateWidth}
                     colW={colW}
                     totalCols={totalCols}
                     scrollLeft={scrollLeft}
@@ -3603,7 +3584,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     extraLocationRow={extraLocationRow}
                     layoutGroups={layoutGroups}
                     startDate={startDate}
-                    viewMode={viewMode}
+                    dateWidth={dateWidth}
                     planToStartCol={planToStartCol}
                     planToEndCol={planToEndCol}
                     visRowStart={visRowStart}
@@ -3753,8 +3734,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         const laidOutPlans = [...visPlans]
           .map(plan => ({
             plan,
-            startCol: planToStartCol(plan, startDate, viewMode),
-            endCol: planToEndCol(plan, startDate, viewMode),
+            startCol: planToStartCol(plan, startDate, dateWidth),
+            endCol: planToEndCol(plan, startDate, dateWidth),
           }))
           .sort((a, b) => (a.startCol - b.startCol) || (a.endCol - b.endCol) || (a.plan.planId - b.plan.planId))
           .map(item => {

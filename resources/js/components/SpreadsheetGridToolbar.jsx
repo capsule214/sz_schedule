@@ -5,14 +5,10 @@ export default function SpreadsheetGridToolbar({
   startDate,
   onStartDateChange,
   onShiftMonth,
-  displayMonths,
-  onDisplayMonthsChange,
   deviceCount,
   onDeviceCountChange,
   onSeedApply,
   mode,
-  viewMode,
-  onViewModeChange,
   dateWidth,
   onDateWidthChange,
   serialSearchText,
@@ -23,6 +19,7 @@ export default function SpreadsheetGridToolbar({
   workerSearchText = '',
   onWorkerSearchTextChange,
   onWorkerSearch,
+  onWorkerSearchClear,
   onRefresh,
   lastUpdatedAt,
   pllocation,
@@ -70,11 +67,6 @@ export default function SpreadsheetGridToolbar({
           {label}
         </button>
       ))}
-      <select value={displayMonths} onChange={e => onDisplayMonthsChange(Number(e.target.value))} style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}>
-        {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
-          <option key={n} value={n}>{n}ヶ月</option>
-        ))}
-      </select>
       {mode !== 'place' && mode !== 'task' && (
         <>
           <select value={deviceCount} onChange={e => onDeviceCountChange(Number(e.target.value))} style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4 }}>
@@ -109,8 +101,6 @@ export default function SpreadsheetGridToolbar({
           </select>
         );
       })()}
-      <button onClick={() => onViewModeChange('day')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'day' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'day' ? '#eff6ff' : '#fff', color: viewMode === 'day' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>日単位</button>
-      <button onClick={() => onViewModeChange('slot')} style={{ padding: '3px 8px', border: `1px solid ${viewMode === 'slot' ? '#2563eb' : '#d1d5db'}`, borderRadius: 4, background: viewMode === 'slot' ? '#eff6ff' : '#fff', color: viewMode === 'slot' ? '#2563eb' : '#374151', cursor: 'pointer', fontSize: 13 }}>時間割</button>
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
         日付幅
         <select
@@ -125,44 +115,54 @@ export default function SpreadsheetGridToolbar({
       </label>
       {mode === 'worker' && (
         <>
-          <input
-            type="text"
-            value={workerSearchText}
-            onChange={e => onWorkerSearchTextChange?.(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onWorkerSearch?.();
-            }}
-            placeholder="担当者名/user_no検索"
-            style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, minWidth: 170 }}
-          />
+          <div style={{ position: 'relative', minWidth: 170 }}>
+            <input
+              type="text"
+              value={workerSearchText}
+              onChange={e => onWorkerSearchTextChange?.(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') onWorkerSearch?.();
+              }}
+              placeholder="担当者名/user_no検索"
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: `3px ${workerSearchText ? 28 : 6}px 3px 6px`, border: '1px solid #d1d5db', borderRadius: 4 }}
+            />
+            {workerSearchText && (
+              <button
+                type="button"
+                aria-label="担当者検索をクリア"
+                title="検索をクリア"
+                onClick={onWorkerSearchClear}
+                style={{ position: 'absolute', top: '50%', right: 3, transform: 'translateY(-50%)', width: 22, height: 22, padding: 0, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              >×</button>
+            )}
+          </div>
           <button onClick={onWorkerSearch} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>検索</button>
         </>
       )}
       {mode === 'device' && (
         <>
-          <input
-            type="text"
-            value={serialSearchText}
-            onChange={e => onSerialSearchTextChange(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onSerialSearch();
-            }}
-            placeholder={serialSearchPlaceholder}
-            style={{ fontSize: 13, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, minWidth: 140 }}
-          />
+          <div style={{ position: 'relative', minWidth: 140 }}>
+            <input
+              type="text"
+              value={serialSearchText}
+              onChange={e => onSerialSearchTextChange(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') onSerialSearch();
+              }}
+              placeholder={serialSearchPlaceholder}
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: `3px ${serialSearchText ? 28 : 6}px 3px 6px`, border: '1px solid #d1d5db', borderRadius: 4 }}
+            />
+            {serialSearchText && (
+              <button
+                type="button"
+                aria-label="装置検索をクリア"
+                title="検索をクリア"
+                onClick={onSerialSearchClear}
+                style={{ position: 'absolute', top: '50%', right: 3, transform: 'translateY(-50%)', width: 22, height: 22, padding: 0, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              >×</button>
+            )}
+          </div>
           <button onClick={onSerialSearch} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>検索</button>
-          <button
-            onClick={onSerialSearchClear}
-            disabled={!serialSearchText}
-            style={{
-              padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4,
-              background: serialSearchText ? '#fff' : '#f3f4f6',
-              color: serialSearchText ? '#374151' : '#9ca3af',
-              cursor: serialSearchText ? 'pointer' : 'not-allowed', fontSize: 13,
-            }}
-          >
-            クリア
-          </button>
         </>
       )}
       <button onClick={onRefresh} style={{ padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 13 }}>再描画</button>
