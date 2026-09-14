@@ -521,7 +521,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     <div style={{ display: 'flex', flexDirection: 'column', width: 'var(--web-viewport-width, 100vw)', height: 'var(--web-viewport-height, 100dvh)', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       <GridNavBar
         onOpenSettings={handleOpenSettings}
-        onOpenSeparateData={() => window.open('/teams', '_blank', 'noopener,noreferrer')}
+        onOpenSeparateData={(teamId) => {
+          const params = new URLSearchParams({ teamId: String(Number(teamId)) });
+          window.open(`/teams?${params.toString()}`, '_blank', 'noopener,noreferrer');
+        }}
         onSeedMaster={handleSeedMaster}
         onSeedPlans={handleSeedPlans}
         seeding={seeding}

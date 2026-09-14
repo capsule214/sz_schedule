@@ -26,6 +26,8 @@ function departmentName(szgroupId) {
 }
 
 export default function TeamListPage() {
+  const requestedTeamId = Number(new URLSearchParams(window.location.search).get('teamId'));
+  const teamId = Number.isInteger(requestedTeamId) && requestedTeamId > 0 ? requestedTeamId : null;
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,16 +36,17 @@ export default function TeamListPage() {
     setLoading(true);
     setError('');
     try {
-      setTeams(await apiArray('/worker/team'));
+      const data = await apiArray('/worker/team');
+      setTeams(teamId === null ? data : data.filter(team => Number(team.teamId) === teamId));
     } catch {
       setError('チームリストを取得できませんでした');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
-    document.title = 'チームリスト - 生産スケジュール';
+    document.title = `${teamId === null ? 'チームリスト' : `チームID ${teamId}`} - 生産スケジュール`;
     loadTeams();
   }, [loadTeams]);
 
@@ -51,6 +54,9 @@ export default function TeamListPage() {
     <div style={{ width: 'var(--web-viewport-width, 100vw)', height: 'var(--web-viewport-height, 100dvh)', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, background: '#f9fafb' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid #d1d5db', background: '#fff', flexShrink: 0 }}>
         <h1 style={{ margin: 0, fontSize: 17, color: '#111827' }}>チームリスト</h1>
+        {teamId !== null && (
+          <span style={{ padding: '3px 8px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>チームID: {teamId}</span>
+        )}
         <span style={{ color: '#6b7280', fontSize: 13 }}>{loading ? '取得中...' : `${teams.length}件`}</span>
         <div style={{ flex: 1 }} />
         <button
