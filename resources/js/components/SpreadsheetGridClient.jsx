@@ -521,6 +521,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     <div style={{ display: 'flex', flexDirection: 'column', width: 'var(--web-viewport-width, 100vw)', height: 'var(--web-viewport-height, 100dvh)', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       <GridNavBar
         onOpenSettings={handleOpenSettings}
+        onOpenSeparateData={() => window.open('/teams', '_blank', 'noopener,noreferrer')}
         onSeedMaster={handleSeedMaster}
         onSeedPlans={handleSeedPlans}
         seeding={seeding}

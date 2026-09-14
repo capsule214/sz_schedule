@@ -1,6 +1,7 @@
 export default function GridNavBar({
   userName,
   onOpenSettings,
+  onOpenSeparateData,
   onSeedMaster,
   onSeedPlans,
   seeding,
@@ -30,6 +31,13 @@ export default function GridNavBar({
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
         表示設定
+      </button>
+      <button
+        onClick={onOpenSeparateData}
+        style={{ marginLeft: 6, padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+      >
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3h6v6"/><path d="M17 3l-8 8"/><path d="M15 11v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+        別データ
       </button>
       <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 8px' }} />
       <span style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{userName}</span>

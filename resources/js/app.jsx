@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import SpreadsheetGridClient from './components/SpreadsheetGridClient';
+import TeamListPage from './components/TeamListPage';
 import LoginPage from './components/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
 import AlertToast from './components/AlertToast';
@@ -83,6 +84,16 @@ function App() {
     return (
       <>
         <LoginPage onLogin={u => { resetUnauthorizedState(); setUser(u); }} />
+        <AlertToast message={toast} onClose={() => setToast(null)} />
+      </>
+    );
+  }
+
+  const pagePath = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (pagePath === '/teams') {
+    return (
+      <>
+        <TeamListPage />
         <AlertToast message={toast} onClose={() => setToast(null)} />
       </>
     );
