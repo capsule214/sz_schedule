@@ -42,7 +42,7 @@ class DprGroupsApiTest extends TestCase
             'start_date' => '2026-07-01 08:30:00', 'end_date' => '2026-07-01 10:30:00',
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $response = $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             // 候補抽出は機種Aだけだが、同じDPR Noに属する機種Bも左ヘッダ情報へ集約される。
             'machines' => ['機種A'],
             'sales_locations' => ['CH'],
@@ -62,7 +62,7 @@ class DprGroupsApiTest extends TestCase
             ->assertJsonPath('nextCursor', 'CH26000001');
         $response->assertJsonCount(1, 'plans');
 
-        $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             'machines' => ['機種A'],
             'sales_locations' => ['CH'],
             'publication_years' => ['26'],
@@ -75,7 +75,7 @@ class DprGroupsApiTest extends TestCase
             ->assertJsonPath('groups.0.dprNo', 'CH26000002')
             ->assertJsonPath('hasMore', false);
 
-        $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             'machines' => ['機種A'],
             'sales_locations' => ['CH'],
             'publication_years' => ['26'],
@@ -85,14 +85,14 @@ class DprGroupsApiTest extends TestCase
             'limit' => 10,
         ])->assertOk()->assertJsonPath('groups.0.dprNo', 'CH26000002');
 
-        $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             'machines' => ['機種A'],
             'leader_user_nos' => ['00001'],
             'from' => '2026-08-01',
             'to' => '2026-08-31',
         ])->assertOk()->assertJsonCount(4, 'groups');
 
-        $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             'machines' => ['機種A'],
             'leader_user_nos' => ['99999'],
             'from' => '2026-08-01',
@@ -108,7 +108,7 @@ class DprGroupsApiTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        $this->actingAs($user)->postJson('/api/dpr/groups', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
             'machines' => [], 'from' => '2026-08-01', 'to' => '2026-08-31',
         ])->assertUnprocessable()->assertJsonValidationErrors('machines');
     }
@@ -168,26 +168,26 @@ class DprGroupsApiTest extends TestCase
             'from' => '2026-08-01',
             'to' => '2026-08-31',
         ];
-        $this->actingAs($user)->postJson('/api/dpr/search', $payload)
+        $this->actingAs($user)->postJson('/api/dpr/plans/search', $payload)
             ->assertOk()
             ->assertJsonPath('inDisplaySettings', false)
             ->assertJsonPath('group.dprNo', 'CH26000999-00')
             ->assertJsonPath('group.machine', '機種019')
             ->assertJsonPath('plans.0.planId', $plan->plan_id);
 
-        $this->actingAs($user)->postJson('/api/dpr/search', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/search', [
             ...$payload,
             'machines' => ['機種019'],
             'leader_user_nos' => ['00001'],
         ])->assertOk()->assertJsonPath('inDisplaySettings', true);
 
-        $this->actingAs($user)->postJson('/api/dpr/search', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/search', [
             ...$payload,
             'machines' => ['機種019'],
             'leader_user_nos' => ['99999'],
         ])->assertOk()->assertJsonPath('inDisplaySettings', false);
 
-        $this->actingAs($user)->postJson('/api/dpr/search', [
+        $this->actingAs($user)->postJson('/api/dpr/plans/search', [
             ...$payload,
             'dprNo' => 'NOT-FOUND',
         ])->assertOk()->assertExactJson(['found' => false]);

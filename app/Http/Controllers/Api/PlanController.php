@@ -9,7 +9,6 @@ use App\Models\KdSerial;
 use App\Models\KmQualification;
 use App\Models\KmSkillmap;
 use App\Models\KsSystemLog;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -37,32 +36,21 @@ class PlanController extends Controller
       'plannedMinutes' => 'nullable|integer|min:0',
       'price' => 'nullable|integer|min:0',
       'remark' => 'nullable|string',
-      'dprNo' => 'nullable|string|max:255',
-      'userNo' => ['nullable', 'string', 'regex:/^\d{1,5}$/'],
     ];
   }
 
   private function planPayload(array $data): array
   {
-    $isDprPlan = ! empty($data['dprNo']);
-    if ($isDprPlan && ! in_array((int) $data['taskId'], [20001, 20002, 20003, 20004], true)) {
-      throw ValidationException::withMessages([
-        'taskId' => ['DPR予定のタスクを選択してください'],
-      ]);
-    }
-
     return [
-      'serial_id' => $isDprPlan ? -1 : $data['serialId'],
-      'morder_id' => $isDprPlan ? -1 : ($data['morderId'] ?? -1),
-      'dpr_no' => $isDprPlan ? $data['dprNo'] : null,
-      'user_no' => $isDprPlan && ! empty($data['userNo'])
-        ? str_pad($data['userNo'], 5, '0', STR_PAD_LEFT)
-        : null,
+      'serial_id' => $data['serialId'],
+      'morder_id' => $data['morderId'] ?? -1,
+      'dpr_no' => null,
+      'user_no' => null,
       'task_id' => $data['taskId'],
-      'worker_id' => $isDprPlan ? null : ($data['workerId'] ?? null),
-      'educator_worker_id' => $isDprPlan ? null : ($data['teacherId'] ?? null),
-      'start_date' => $isDprPlan ? Carbon::parse($data['startDate'])->toDateString().' 08:30:00' : $data['startDate'],
-      'end_date' => $isDprPlan ? Carbon::parse($data['endDate'])->toDateString().' 21:25:00' : $data['endDate'],
+      'worker_id' => $data['workerId'] ?? null,
+      'educator_worker_id' => $data['teacherId'] ?? null,
+      'start_date' => $data['startDate'],
+      'end_date' => $data['endDate'],
       'planned_minutes' => $data['plannedMinutes'] ?? 0,
       'price' => $data['price'] ?? 0,
       'remark' => $data['remark'] ?? '',
@@ -299,6 +287,7 @@ class PlanController extends Controller
   public function index(Request $request)
   {
     $query = KdPlan::with($this->planRelations())
+      ->whereNull('dpr_no')
       ->where('deleted', 0);
 
     return response()->json($query->get()->map(fn ($p) => $this->formatPlan($p)));
@@ -331,7 +320,8 @@ class PlanController extends Controller
       'updates.*.id' => 'required|integer|min:1',
       'updates.*.updatedAt' => 'nullable|string|max:64',
     ]);
-    $currentVersions = KdPlan::whereIn('plan_id', collect($data['updates'])->pluck('id'))
+    $currentVersions = KdPlan::whereNull('dpr_no')
+      ->whereIn('plan_id', collect($data['updates'])->pluck('id'))
       ->get(['plan_id', 'updated_at'])
       ->mapWithKeys(fn (KdPlan $plan) => [
         (int) $plan->plan_id => $plan->updated_at?->format('Y-m-d H:i:s.u'),
@@ -384,6 +374,7 @@ class PlanController extends Controller
     $includeMorder = (($mode === 'device' || $mode === 'task') && $isMorderDisplay)
       || ($mode === 'worker' && ! empty($data['show_unassigned_worker']));
     $query = KdPlan::with($this->planRelations($includeMorder))
+      ->whereNull('dpr_no')
       ->where('deleted', 0)
       ->where('start_date', '<=', $data['to'])
       ->where('end_date', '>=', $data['from']);
@@ -471,7 +462,7 @@ class PlanController extends Controller
 
   public function update(Request $request, int $id)
   {
-    $plan = KdPlan::findOrFail($id);
+    $plan = KdPlan::whereNull('dpr_no')->findOrFail($id);
 
     $data = $request->validate($this->planRules());
     $this->validatePlanQualification($data);
@@ -498,7 +489,7 @@ class PlanController extends Controller
     ]);
 
     // グローバルスコープで削除済みは除外されるため、実際に削除対象となる ID のみログに残す
-    $targetIds = KdPlan::whereIn('plan_id', $data['ids'])->pluck('plan_id')->all();
+    $targetIds = KdPlan::whereNull('dpr_no')->whereIn('plan_id', $data['ids'])->pluck('plan_id')->all();
     $deleted = DB::transaction(function () use ($targetIds) {
       $deleted = KdPlan::whereIn('plan_id', $targetIds)->update(['deleted' => 1, 'updated_at' => now()]);
       KsSystemLog::recordMany($targetIds, ['deleted' => 1]);
@@ -511,7 +502,7 @@ class PlanController extends Controller
 
   public function destroyOne(int $id)
   {
-    $plan = KdPlan::findOrFail($id);
+    $plan = KdPlan::whereNull('dpr_no')->findOrFail($id);
     DB::transaction(function () use ($plan) {
       $plan->update(['deleted' => 1]);
       KsSystemLog::record($plan->plan_id, ['deleted' => 1]);
@@ -525,6 +516,7 @@ class PlanController extends Controller
   {
     $plans = KdPlan::with($this->planRelations())
       ->where('serial_id', $serialId)
+      ->whereNull('dpr_no')
       ->where('deleted', 0)
       ->orderBy('start_date')
       ->get();

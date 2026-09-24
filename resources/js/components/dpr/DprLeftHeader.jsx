@@ -61,10 +61,10 @@ function GridRows({ rows, colWidths, background = '#f3f4f6', showHorizontalLines
   });
 }
 
-export function DprLeftHeaderCorner({ colWidths, onStartResize }) {
+export function DprLeftHeaderCorner({ colWidths, onStartResize, onWheel }) {
   const leftWidth = DPR_LEFT_COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0);
   return (
-    <div style={{ position: 'absolute', left: 0, top: 0, width: leftWidth, height: TOTAL_HDR_H, overflow: 'hidden', borderRight: '1px solid #9ca3af', boxSizing: 'border-box', zIndex: 4 }}>
+    <div onWheel={onWheel} style={{ position: 'absolute', left: 0, top: 0, width: leftWidth, height: TOTAL_HDR_H, overflow: 'hidden', borderRight: '1px solid #9ca3af', boxSizing: 'border-box', zIndex: 4 }}>
       <GridRows rows={HEADER_ROWS} colWidths={colWidths} />
       {DPR_LEFT_COLUMN_KEYS.map((key, index) => {
         const right = DPR_LEFT_COLUMN_KEYS.slice(0, index + 1).reduce((sum, columnKey) => sum + colWidths[columnKey], 0);

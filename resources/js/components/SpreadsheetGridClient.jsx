@@ -614,6 +614,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             onGenerated={handleDprGenerated}
             onError={showAlert}
             onDirtyChange={setIsDirty}
+            onBeforeRedraw={handleBeforeRedraw}
             onHistoryChange={(mode, state) => setHistoryState(prev => ({ ...prev, [mode]: state }))}
           />
         </GridTabPane>

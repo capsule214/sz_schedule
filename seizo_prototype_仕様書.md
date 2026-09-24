@@ -164,6 +164,15 @@ POST   /seed
 
 `index()` で `shippingDate`, `responsible` も含めて返す。
 
+### 4-3-1. PlanDprController
+
+- DPRタブの予定取得・検索・競合確認・登録・更新・削除を専用管理する
+- APIは `/api/dpr/plans` 配下へ集約する
+  - `POST /groups`, `POST /search`, `POST /check-updates`
+  - `POST /`, `PUT /{id}`, `DELETE /{id}`
+- DPR予定は開始時刻を08:30、終了時刻を21:25に固定する
+- 通常予定の `PlanController` は `dpr_no IS NULL` の予定だけを更新・削除する
+
 ### 4-4. TaskController
 
 タスクに `km_process` をeagerロード。`processId`, `processName`, `processSortNo`, `sortNo` を返す。
@@ -443,6 +452,11 @@ const leftHdrW = mode === 'device'   ? DEV_HDR_W + deviceExtraW
 - 月送りボタン（◀◀ -2M / ◀ -1M / ▶ +1M / ▶▶ +2M）
 - 日付幅選択（120pxは時間割、それ以外は日単位として `dateWidth` から判定）
 - 製番検索（`device` モードのみ）
+
+**DprToolbar:**
+- 日付幅は20px固定（変更セレクタなし）
+- 「再描画」で現在のDPR表示設定を使ってグループ・予定を再取得
+- DPR左ヘッダ上のホイール／iPadタッチ操作を予定表示領域の縦スクロールへ転送
 
 ---
 

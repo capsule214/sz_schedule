@@ -17,8 +17,7 @@ export default function DprToolbar({
   onDprSearchTextChange,
   onDprSearch,
   onDprSearchClear,
-  dateWidth,
-  onDateWidthChange,
+  onRefresh,
   onGenerate,
   generating = false,
 }) {
@@ -87,18 +86,7 @@ export default function DprToolbar({
         クリア
       </button>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>
-        日付幅
-        <select
-          value={dateWidth}
-          onChange={e => onDateWidthChange(Number(e.target.value))}
-          style={{ ...CONTROL_STYLE, padding: '3px 6px' }}
-        >
-          {[20, 40, 60, 80, 100, 120].map(width => (
-            <option key={width} value={width}>{width}px</option>
-          ))}
-        </select>
-      </label>
+      <button type="button" onClick={onRefresh} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>再描画</button>
 
       <button
         type="button"

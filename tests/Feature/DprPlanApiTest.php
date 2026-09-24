@@ -19,7 +19,7 @@ class DprPlanApiTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        $created = $this->actingAs($user)->postJson('/api/plan', [
+        $created = $this->actingAs($user)->postJson('/api/dpr/plans', [
             'serialId' => 999,
             'morderId' => 999,
             'dprNo' => 'CH26000001-00',
@@ -48,7 +48,7 @@ class DprPlanApiTest extends TestCase
             'end_date' => '2026-09-02 21:25:00',
         ]);
 
-        $this->actingAs($user)->putJson('/api/plan/'.$planId, [
+        $this->actingAs($user)->putJson('/api/dpr/plans/'.$planId, [
             'serialId' => 123,
             'morderId' => 456,
             'dprNo' => 'CH26000001-00',
@@ -72,6 +72,11 @@ class DprPlanApiTest extends TestCase
             'end_date' => '2026-09-06 21:25:00',
             'remark' => 'その他備考',
         ]);
+
+        $this->actingAs($user)->deleteJson('/api/dpr/plans/'.$planId)
+            ->assertOk()
+            ->assertJsonPath('deleted', 1);
+        $this->assertDatabaseHas('kd_plan', ['plan_id' => $planId, 'deleted' => 1]);
     }
 
     public function test_dpr_plan_rejects_non_dpr_task(): void
@@ -82,7 +87,7 @@ class DprPlanApiTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        $this->actingAs($user)->postJson('/api/plan', [
+        $this->actingAs($user)->postJson('/api/dpr/plans', [
             'serialId' => -1,
             'dprNo' => 'CH26000001-00',
             'taskId' => 1,

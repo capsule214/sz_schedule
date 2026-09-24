@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { apiArray, apiJson } from '../../lib/api';
 import {
-  CELL_SIZE, SLOT_COUNT, TOTAL_HDR_H, addDays, dateToStr, daysBetween,
+  CELL_SIZE, TOTAL_HDR_H, addDays, dateToStr, daysBetween,
   getMonthWeekInfo, layoutPlans,
 } from '../../lib/spreadsheet';
 import SpreadsheetGridCanvas from '../SpreadsheetGridCanvas';
@@ -18,7 +18,7 @@ import { clampLeftColW, loadLeftColWidths, saveLeftColWidth } from '../../lib/le
 import { isIPadOS } from '../../lib/platform';
 import { attachForwardedVerticalTouchScroll } from '../../lib/forwardTouchScroll';
 
-const DATE_WIDTH_STORAGE_KEY = 'sz_schedule_date_width_dpr';
+const DATE_WIDTH = 20;
 const PAGE_SIZE = 200;
 const DPR_TASKS = {
   20001: { taskName: 'DPRメカ設計', taskBackColor: 1, taskFontColor: 6 },
@@ -26,17 +26,6 @@ const DPR_TASKS = {
   20003: { taskName: 'DPRソフト設計', taskBackColor: 3, taskFontColor: 6 },
   20004: { taskName: 'DPR他', taskBackColor: 4, taskFontColor: 6 },
 };
-
-function normalizeDateWidth(value) {
-  const width = Number(value);
-  if (!Number.isFinite(width)) return 20;
-  return Math.max(20, Math.min(120, Math.round(width / 20) * 20));
-}
-
-function loadDateWidth() {
-  try { return normalizeDateWidth(sessionStorage.getItem(DATE_WIDTH_STORAGE_KEY)); }
-  catch { return 20; }
-}
 
 function shiftMonth(dateString, amount) {
   const [year, month, day] = dateString.split('-').map(Number);
@@ -62,10 +51,9 @@ function buildDateColumns(startDate, endDate, calendarData) {
   return columns;
 }
 
-const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, displaySettingsApplyVersion = 0, onGenerated, onError, onDirtyChange, onHistoryChange }, ref) {
+const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, displaySettingsApplyVersion = 0, onGenerated, onError, onDirtyChange, onHistoryChange, onBeforeRedraw }, ref) {
   const ipadOS = useMemo(() => isIPadOS(), []);
   const [startDate, setStartDate] = useState(() => dateToStr(new Date()));
-  const [dateWidth, setDateWidth] = useState(loadDateWidth);
   const [generating, setGenerating] = useState(false);
   const [groups, setGroups] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -96,6 +84,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const sonarRafRef = useRef(null);
   const pendingCreatesRef = useRef(new Map());
   const pendingUpdatesRef = useRef(new Map());
+  const pendingDeletesRef = useRef(new Map());
   const tempIdCounterRef = useRef(-1);
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
@@ -118,7 +107,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   }, [onHistoryChange]);
 
   const syncDirty = useCallback(() => {
-    onDirtyChange?.(pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0);
+    onDirtyChange?.(pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0 || pendingDeletesRef.current.size > 0);
   }, [onDirtyChange]);
 
   const clearHistory = useCallback(() => {
@@ -135,9 +124,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const mergePendingPlans = useCallback((fetchedPlans) => {
     const byId = new Map(fetchedPlans.map(plan => {
+      if (pendingDeletesRef.current.has(Number(plan.planId))) return null;
       const update = pendingUpdatesRef.current.get(Number(plan.planId));
       return [Number(plan.planId), update ? { ...plan, ...update, ...DPR_TASKS[update.taskId] } : plan];
-    }));
+    }).filter(Boolean));
     for (const [tempId, pending] of pendingCreatesRef.current) {
       byId.set(tempId, { ...pending.visual });
     }
@@ -157,7 +147,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   });
   const duration = Math.max(1, Number(displaySettings?.dprduration ?? 4));
   const endDate = useMemo(() => addDays(startDate, duration * 30), [startDate, duration]);
-  const colW = dateWidth === 120 ? dateWidth / SLOT_COUNT : dateWidth;
+  const colW = DATE_WIDTH;
   const leftWidth = DPR_LEFT_COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0);
 
   const handleColResizeMove = useCallback((event) => {
@@ -198,12 +188,6 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
   }, []);
 
-  const changeDateWidth = useCallback((width) => {
-    const normalized = normalizeDateWidth(width);
-    setDateWidth(normalized);
-    try { sessionStorage.setItem(DATE_WIDTH_STORAGE_KEY, String(normalized)); } catch { /* stateで保持 */ }
-  }, []);
-
   const openHeaderTooltip = useCallback((group, event) => {
     const anchorRect = event.currentTarget.getBoundingClientRect();
     setHeaderDetail({ group, anchorRect, x: event.clientX, y: event.clientY });
@@ -227,7 +211,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     loadingRef.current = true;
     setLoading(true);
     try {
-      const response = await apiJson('/dpr/groups', {
+      const response = await apiJson('/dpr/plans/groups', {
         method: 'POST',
         body: JSON.stringify({
           machines: selectedMachines, from: startDate, to: endDate, limit: PAGE_SIZE,
@@ -307,10 +291,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   }, []);
 
   const dateColumns = useMemo(() => buildDateColumns(startDate, endDate, calendarData), [startDate, endDate, calendarData]);
-  const totalCols = Math.max(1, dateColumns.length * (dateWidth === 120 ? SLOT_COUNT : 1));
+  const totalCols = Math.max(1, dateColumns.length);
   const { groups: layoutGroups, totalRows } = useMemo(
-    () => layoutPlans(plans, 'dpr', groups, dateWidth, startDate, 4),
-    [plans, groups, dateWidth, startDate],
+    () => layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 4),
+    [plans, groups, startDate],
   );
   const contentWidth = Math.max(totalCols * colW, viewport.width);
   const contentHeight = Math.max(totalRows * CELL_SIZE, viewport.height);
@@ -347,7 +331,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       setContextMenu(null);
       return;
     }
-    const date = addDays(startDate, dateWidth === 120 ? Math.floor(cell.col / SLOT_COUNT) : cell.col);
+    const date = addDays(startDate, cell.col);
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -361,7 +345,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         }),
       }],
     });
-  }, [ipadOS, pointerCell, startDate, dateWidth]);
+  }, [ipadOS, pointerCell, startDate]);
 
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
@@ -380,39 +364,54 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       });
       return;
     }
+    const deletePlan = () => {
+      if (!window.confirm('このDPR予定を削除しますか？')) return;
+      const planId = Number(plan.planId);
+      if (planId < 0) {
+        const pending = pendingCreatesRef.current.get(planId);
+        pendingCreatesRef.current.delete(planId);
+        setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
+        pushHistory({ type: 'delete-new', plan: { ...plan }, pending });
+      } else {
+        const beforePayload = pendingUpdatesRef.current.get(planId) ?? null;
+        pendingUpdatesRef.current.delete(planId);
+        pendingDeletesRef.current.set(planId, { ...plan });
+        setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
+        pushHistory({ type: 'delete', plan: { ...plan }, beforePayload });
+      }
+      setContextMenu(null);
+      onDirtyChange?.(true);
+    };
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
-      items: [{
-        label: '編集',
-        onClick: () => setScheduleDialog({
-          plan,
-          initialData: {
-            dprNo: plan.dprNo,
-            machine: group.machine,
-            startDate: String(plan.startDate).slice(0, 10),
-            endDate: String(plan.endDate).slice(0, 10),
-          },
-        }),
-      }],
+      items: [
+        {
+          label: '編集',
+          onClick: () => setScheduleDialog({
+            plan,
+            initialData: {
+              dprNo: plan.dprNo,
+              machine: group.machine,
+              startDate: String(plan.startDate).slice(0, 10),
+              endDate: String(plan.endDate).slice(0, 10),
+            },
+          }),
+        },
+        { label: '削除', onClick: deletePlan },
+      ],
     });
-  }, [ipadOS]);
+  }, [ipadOS, onDirtyChange, pushHistory]);
 
   const saveDialogPlan = useCallback((data) => {
     const dialog = scheduleDialog;
     if (!dialog) return;
     const payload = {
-      serialId: -1,
-      morderId: -1,
       dprNo: data.dprNo,
       userNo: data.userNo || null,
       taskId: Number(data.taskId),
-      workerId: null,
-      teacherId: null,
       startDate: data.startDate,
       endDate: data.endDate,
-      plannedMinutes: 0,
-      price: 0,
       remark: data.remark ?? '',
     };
     const visual = { ...payload, ...DPR_TASKS[payload.taskId] };
@@ -445,6 +444,28 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const applyHistory = useCallback((action, direction) => {
     const redo = direction === 'redo';
+    if (action.type === 'delete-new') {
+      if (redo) {
+        pendingCreatesRef.current.delete(action.plan.planId);
+        setPlans(previous => previous.filter(plan => Number(plan.planId) !== Number(action.plan.planId)));
+      } else {
+        if (action.pending) pendingCreatesRef.current.set(action.plan.planId, action.pending);
+        setPlans(previous => previous.some(plan => Number(plan.planId) === Number(action.plan.planId)) ? previous : [...previous, action.plan]);
+      }
+      return;
+    }
+    if (action.type === 'delete') {
+      if (redo) {
+        pendingUpdatesRef.current.delete(action.plan.planId);
+        pendingDeletesRef.current.set(action.plan.planId, action.plan);
+        setPlans(previous => previous.filter(plan => Number(plan.planId) !== Number(action.plan.planId)));
+      } else {
+        pendingDeletesRef.current.delete(action.plan.planId);
+        if (action.beforePayload) pendingUpdatesRef.current.set(action.plan.planId, action.beforePayload);
+        setPlans(previous => previous.some(plan => Number(plan.planId) === Number(action.plan.planId)) ? previous : [...previous, action.plan]);
+      }
+      return;
+    }
     if (action.type === 'create') {
       if (redo) {
         pendingCreatesRef.current.set(action.plan.planId, { payload: action.payload, visual: action.plan });
@@ -509,14 +530,17 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     undoLastEdit,
     redoLastEdit,
     async saveChanges() {
-      const updateVersions = [...pendingUpdatesRef.current.keys()].map(planId => ({
+      const changedPlanIds = new Set([...pendingUpdatesRef.current.keys(), ...pendingDeletesRef.current.keys()]);
+      const updateVersions = [...changedPlanIds].map(planId => ({
         id: planId,
-        updatedAt: plansRef.current.find(plan => Number(plan.planId) === Number(planId))?.updatedAtVersion ?? null,
+        updatedAt: plansRef.current.find(plan => Number(plan.planId) === Number(planId))?.updatedAtVersion
+          ?? pendingDeletesRef.current.get(planId)?.updatedAtVersion
+          ?? null,
       }));
       if (updateVersions.length > 0) {
         let conflictIds;
         try {
-          const result = await apiJson('/plan/check-updates', {
+          const result = await apiJson('/dpr/plans/check-updates', {
             method: 'POST',
             body: JSON.stringify({ updates: updateVersions }),
           });
@@ -529,7 +553,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           const decision = await requestConflictDecision();
           if (decision === 'cancel') return false;
           if (decision === 'skip') {
-            conflictIds.forEach(planId => pendingUpdatesRef.current.delete(planId));
+            conflictIds.forEach(planId => {
+              pendingUpdatesRef.current.delete(planId);
+              pendingDeletesRef.current.delete(planId);
+            });
           }
         }
       }
@@ -537,7 +564,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       let failed = false;
       for (const [tempId, pending] of [...pendingCreatesRef.current]) {
         try {
-          const saved = await apiJson('/plan', { method: 'POST', body: JSON.stringify(pending.payload) });
+          const saved = await apiJson('/dpr/plans', { method: 'POST', body: JSON.stringify(pending.payload) });
           setPlans(previous => previous.map(plan => plan.planId === tempId ? { ...plan, ...saved } : plan));
           pendingCreatesRef.current.delete(tempId);
         } catch {
@@ -546,7 +573,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       }
       for (const [planId, payload] of [...pendingUpdatesRef.current]) {
         try {
-          const saved = await apiJson(`/plan/${planId}`, { method: 'PUT', body: JSON.stringify(payload) });
+          const saved = await apiJson(`/dpr/plans/${planId}`, { method: 'PUT', body: JSON.stringify(payload) });
           setPlans(previous => previous.map(plan => Number(plan.planId) === Number(planId) ? { ...plan, ...saved } : plan));
           pendingUpdatesRef.current.delete(planId);
         } catch {
@@ -554,7 +581,17 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         }
       }
 
-      const dirty = pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0;
+      const deleteIds = [...pendingDeletesRef.current.keys()];
+      if (deleteIds.length > 0) {
+        try {
+          await apiJson('/dpr/plans', { method: 'DELETE', body: JSON.stringify({ ids: deleteIds }) });
+          deleteIds.forEach(planId => pendingDeletesRef.current.delete(planId));
+        } catch {
+          failed = true;
+        }
+      }
+
+      const dirty = pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0 || pendingDeletesRef.current.size > 0;
       if (!dirty) {
         clearHistory();
         onDirtyChange?.(false);
@@ -568,6 +605,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     async cancelChanges() {
       pendingCreatesRef.current = new Map();
       pendingUpdatesRef.current = new Map();
+      pendingDeletesRef.current = new Map();
       tempIdCounterRef.current = -1;
       clearHistory();
       onDirtyChange?.(false);
@@ -633,7 +671,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setLoading(true);
     try {
       const categoryFilters = JSON.parse(categoryFilterKey);
-      const result = await apiJson('/dpr/search', {
+      const result = await apiJson('/dpr/plans/search', {
         method: 'POST',
         body: JSON.stringify({
           dprNo, machines: JSON.parse(machineKey), from: startDate, to: endDate,
@@ -682,6 +720,25 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setReloadTick(value => value + 1);
   }, [dprSearchText]);
 
+  const redraw = useCallback(() => {
+    setDprSearchText('');
+    pendingSonarDprNoRef.current = null;
+    setReloadTick(value => value + 1);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    const dirty = pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0 || pendingDeletesRef.current.size > 0;
+    if (dirty && onBeforeRedraw) onBeforeRedraw(redraw);
+    else redraw();
+  }, [onBeforeRedraw, redraw]);
+
+  const forwardHeaderWheel = useCallback((event) => {
+    const viewportElement = viewportRef.current;
+    if (!viewportElement) return;
+    viewportElement.scrollTop += event.deltaY;
+    viewportElement.scrollLeft += event.deltaX;
+  }, []);
+
   const handleGenerated = useCallback((count) => {
     setReloadTick(value => value + 1);
     onGenerated?.(count);
@@ -707,17 +764,17 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         onShiftMonth={months => setStartDate(current => shiftMonth(current, months))}
         dprSearchText={dprSearchText} onDprSearchTextChange={setDprSearchText}
         onDprSearch={handleDprSearch} onDprSearchClear={handleDprSearchClear}
-        dateWidth={dateWidth} onDateWidthChange={changeDateWidth}
+        onRefresh={handleRefresh}
         onGenerate={generateDpr} generating={generating}
       />
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-        <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} />
+        <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} onWheel={forwardHeaderWheel} />
         <div style={{ position: 'absolute', left: leftWidth, right: 0, top: 0, height: TOTAL_HDR_H, overflow: 'hidden', borderBottom: '1px solid #9ca3af' }}>
           <div style={{ position: 'relative', width: contentWidth, height: TOTAL_HDR_H, transform: `translateX(${-scroll.left}px)` }}>
-            <SpreadsheetGridHeaders dateWidth={dateWidth} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
+            <SpreadsheetGridHeaders dateWidth={DATE_WIDTH} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
           </div>
         </div>
-        <div ref={leftHeaderRef} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
+        <div ref={leftHeaderRef} onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
           <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} onGroupClick={openHeaderTooltip} />
         </div>
         <div
@@ -751,12 +808,12 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               <SpreadsheetGridCanvas
                 width={viewport.width} height={viewport.height} scrollLeft={scroll.left} scrollTop={scroll.top}
                 visColStart={visColStart} visColEnd={visColEnd} visRowStart={visRowStart} visRowEnd={visRowEnd}
-                colW={colW} dateColumns={dateColumns} dateWidth={dateWidth} mode="dpr"
+                colW={colW} dateColumns={dateColumns} dateWidth={DATE_WIDTH} mode="dpr"
                 layoutGroups={layoutGroups} locationRowAbsSet={new Set()}
               />
             </div>
             <DprBars
-              layoutGroups={layoutGroups} startDate={startDate} dateWidth={dateWidth} colW={colW}
+              layoutGroups={layoutGroups} startDate={startDate} dateWidth={DATE_WIDTH} colW={colW}
               totalCols={totalCols} scrollLeft={scroll.left} viewportWidth={viewport.width}
               visRowStart={visRowStart} visRowEnd={visRowEnd}
               onBarRightClick={handleBarRightClick}
