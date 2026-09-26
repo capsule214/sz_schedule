@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { apiJson } from '../../lib/api';
+import { useState } from 'react';
 import AdaptiveMultiSelect from './AdaptiveMultiSelect';
 
 const BTN = {
@@ -78,55 +77,9 @@ function TagSection({ label, values, onAdd, onRemove, placeholder }) {
 }
 
 export default function DprSettingsTab({ form, setField, machines = [], salesLocations = [], publicationYears = [], scrollable = false }) {
-  // チェックボックスで絞り込んだ後の選択肢（初期値はプロップから）
-  const [filteredMachines,   setFilteredMachines]   = useState([]);
-  const [filteredLocations,  setFilteredLocations]  = useState([]);
-  const [filteredYears,      setFilteredYears]      = useState([]);
-
-  // stale closure を避けるための form 参照
-  const formRef = useRef(form);
-  useEffect(() => { formRef.current = form; });
-
-  // チェックボックス4種が変化したら filter-options API を呼んで選択肢を更新
-  useEffect(() => {
-    const { dprformtypelist: ft, dprdeliverytypelist: dt,
-            dprclassificationlist: cl, dprstatuslist: st } = form;
-
-    const hasFilter = ft.length > 0 || dt.length > 0 || cl.length > 0 || st.length > 0;
-
-    // チェックが全て外れているときは何も表示しない
-    if (!hasFilter) {
-      setFilteredMachines([]);
-      setFilteredLocations([]);
-      setFilteredYears([]);
-      setField('dprmodellist',          []);
-      setField('dprsaleslocationlist',  []);
-      setField('dprpublicationyearlist',[]);
-      return;
-    }
-
-    const params = new URLSearchParams();
-    ft.forEach(v => params.append('formtype[]',       v));
-    dt.forEach(v => params.append('deliverytype[]',   v));
-    cl.forEach(v => params.append('classification[]', v));
-    st.forEach(v => params.append('status[]',         v));
-
-    let cancelled = false;
-    apiJson(`/dpr/filter-options?${params}`)
-      .then(({ machines: m, locations: l, years: y }) => {
-        if (cancelled) return;
-        setFilteredMachines(m);
-        setFilteredLocations(l);
-        setFilteredYears(y);
-        // 絞り込みで存在しなくなった選択済みアイテムを自動解除
-        const f = formRef.current;
-        setField('dprmodellist',          f.dprmodellist.filter(v => m.includes(v)));
-        setField('dprsaleslocationlist',  f.dprsaleslocationlist.filter(v => l.includes(v)));
-        setField('dprpublicationyearlist',f.dprpublicationyearlist.filter(v => y.includes(v)));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [form.dprformtypelist, form.dprdeliverytypelist, form.dprclassificationlist, form.dprstatuslist]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filteredMachines = machines;
+  const filteredLocations = salesLocations;
+  const filteredYears = publicationYears;
 
   function toggleStr(key, val) {
     setField(key,

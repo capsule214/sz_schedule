@@ -72,10 +72,7 @@ Route::middleware('auth:web')->group(function () {
   Route::post('/seed/plans', [SeedController::class, 'seedPlans']);
   Route::post('/seed/dpr', [SeedController::class, 'seedDpr']);
 
-  Route::get('/dpr/machines', [DprController::class, 'machines']);
-  Route::get('/dpr/locations', [DprController::class, 'salesLocations']);
-  Route::get('/dpr/years', [DprController::class, 'publicationYears']);
-  Route::get('/dpr/filter-options', [DprController::class, 'filterOptions']);
+  Route::get('/dpr/options', [DprController::class, 'options']);
   Route::post('/dpr/related-serials', [DprController::class, 'relatedSerials']);
   Route::post('/dpr/plans/groups', [PlanDprController::class, 'groups']);
   Route::post('/dpr/plans/search', [PlanDprController::class, 'search']);

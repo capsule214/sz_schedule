@@ -458,6 +458,11 @@ const leftHdrW = mode === 'device'   ? DEV_HDR_W + deviceExtraW
 - 「再描画」で現在のDPR表示設定を使ってグループ・予定を再取得
 - DPR左ヘッダ上のホイール／iPadタッチ操作を予定表示領域の縦スクロールへ転送
 
+**DPR表示設定の選択肢:**
+- `GET /api/dpr/options` で機種・営業拠点・発行年を一括取得。`m_dpr` 明細はアプリケーション側へ読み込まず、DB側で種別ごとにグループ化し、`UNION ALL` による1回のDBクエリで集約結果だけを返す
+- 取得結果は `sessionStorage` に保存し、同一タブではキャッシュがない場合だけAPIを呼ぶ
+- `m_dpr` 再生成時はキャッシュを破棄する
+
 ---
 
 ## 12. Canvas 描画方式

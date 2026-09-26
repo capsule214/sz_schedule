@@ -25,6 +25,20 @@ export default function DprToolbar({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexShrink: 0, flexWrap: 'wrap' }}>
+      {[
+        ['◀◀', -4, '4ヶ月前'],
+        ['◀', -2, '2ヶ月前'],
+      ].map(([label, months, title]) => (
+        <button
+          type="button"
+          key={label}
+          title={title}
+          onClick={() => onShiftMonth(months)}
+          style={{ ...CONTROL_STYLE, cursor: 'pointer' }}
+        >
+          {label}
+        </button>
+      ))}
       <div style={{ position: 'relative' }}>
         <button
           type="button"
@@ -47,10 +61,8 @@ export default function DprToolbar({
       </div>
 
       {[
-        ['◀◀', -2, '2ヶ月前'],
-        ['◀', -1, '1ヶ月前'],
-        ['▶', 1, '1ヶ月後'],
-        ['▶▶', 2, '2ヶ月後'],
+        ['▶', 2, '2ヶ月後'],
+        ['▶▶', 4, '4ヶ月後'],
       ].map(([label, months, title]) => (
         <button
           type="button"

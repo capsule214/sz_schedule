@@ -5,6 +5,7 @@ import { apiArray, apiJson } from '../lib/api';
 import { loadKisyuMaster } from '../lib/kisyuMaster';
 import { loadTeamMaster } from '../lib/teamMaster';
 import { loadTaskMaster } from '../lib/taskMaster';
+import { clearDprMasterOptionsCache, loadDprMasterOptions } from '../lib/dprMasterOptions';
 import GridNavBar from './GridNavBar';
 import GridTabBar from './GridTabBar';
 import GridTabPane from './GridTabPane';
@@ -88,7 +89,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [pendingSettingsOpen, setPendingSettingsOpen] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
+  const [loadedMasters, setLoadedMasters] = useState({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprOptions: false });
   const [seeding, setSeeding] = useState(false);
   const [jumpTarget, setJumpTarget] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -139,7 +140,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
   }, [tab, user]);
 
   const ensureMasters = useCallback(async (keys) => {
-    const dataByKey = { serials, workers, tasks, resources, kisyus, teams, dprMachines, dprSalesLocations, dprPublicationYears };
+    const dataByKey = { serials, workers, tasks, resources, kisyus, teams, dprOptions: { machines: dprMachines, locations: dprSalesLocations, years: dprPublicationYears } };
     const missing = keys.filter(key => !loadedMasters[key]);
     if (missing.length === 0) return dataByKey;
 
@@ -150,9 +151,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       if (key === 'resources') return [key, await apiArray('/resource')];
       if (key === 'kisyus') return [key, await loadKisyuMaster()];
       if (key === 'teams') return [key, await loadTeamMaster()];
-      if (key === 'dprMachines') return [key, await apiArray('/dpr/machines')];
-      if (key === 'dprSalesLocations') return [key, await apiArray('/dpr/locations')];
-      if (key === 'dprPublicationYears') return [key, await apiArray('/dpr/years')];
+      if (key === 'dprOptions') return [key, await loadDprMasterOptions()];
       throw new Error(`Unknown master key: ${key}`);
     }));
 
@@ -164,9 +163,11 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       else if (key === 'resources') setResources(data);
       else if (key === 'kisyus') setKisyus(data);
       else if (key === 'teams') setTeams(data);
-      else if (key === 'dprMachines') setDprMachines(data);
-      else if (key === 'dprSalesLocations') setDprSalesLocations(data);
-      else if (key === 'dprPublicationYears') setDprPublicationYears(data);
+      else if (key === 'dprOptions') {
+        setDprMachines(data.machines);
+        setDprSalesLocations(data.locations);
+        setDprPublicationYears(data.years);
+      }
     }
 
     setLoadedMasters(prev => ({
@@ -260,7 +261,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
       setDprMachines([]);
       setDprSalesLocations([]);
       setDprPublicationYears([]);
-      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprMachines: false, dprSalesLocations: false, dprPublicationYears: false });
+      clearDprMasterOptionsCache();
+      setLoadedMasters({ serials: false, workers: false, tasks: false, resources: false, kisyus: false, teams: false, dprOptions: false });
       await reloadDisplaySettings();
       await handleCancel();
       showAlert('初期データを生成しました');
@@ -298,12 +300,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     setDprMachines([]);
     setDprSalesLocations([]);
     setDprPublicationYears([]);
-    setLoadedMasters(prev => ({
-      ...prev,
-      dprMachines: false,
-      dprSalesLocations: false,
-      dprPublicationYears: false,
-    }));
+    clearDprMasterOptionsCache();
+    setLoadedMasters(prev => ({ ...prev, dprOptions: false }));
     showAlert(`m_dprサンプルデータを${inserted.toLocaleString()}件生成しました`);
   }
 
