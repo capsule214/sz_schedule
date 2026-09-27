@@ -413,7 +413,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           processName: task.processName || '(未設定)',
           taskName: task.taskName,
         }));
-      if (!displaySettings.synobody) return taskGroups;
+      if (!displaySettings.sydspnobody) return taskGroups;
       return taskGroups.flatMap(task => [
         {
           ...task,
@@ -449,7 +449,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const groupKey = mode === 'device' ? (isMorderDevice ? 'morder' : 'device')
       : mode === 'worker' ? 'worker'
-      : mode === 'task' && displaySettings.synobody ? 'task-assignment'
+      : mode === 'task' && displaySettings.sydspnobody ? 'task-assignment'
       : mode === 'task' ? 'task'
       : 'place';
     const locPlans = extraLocationRow ? locationOverlayPlans : null;
@@ -470,7 +470,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       };
     }
 
-    if (mode !== 'worker' || !displaySettings.synobody) return result;
+    if (mode !== 'worker' || !displaySettings.sydspnobody) return result;
 
     // 担当者未定の予定（workerId が NULL/0以下）を製番/M番/直送DPR別にグループ化して末尾に追加
     const unassignedPlans = activePlans.filter(p => p.workerId == null || Number(p.workerId) <= 0);
@@ -622,7 +622,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const syteamlist    = displaySettings.syteamlist    || [];
     const sytasklist    = displaySettings.sytasklist    || [];
     const tktasklist    = displaySettings.tktasklist    || [];
-    const synobody      = displaySettings.synobody      || false;
+    const sydspnobody   = displaySettings.sydspnobody   || false;
     const body = {};
     // 「完了製品も表示」(sboption) OFF のときは flg_finish=0 の製番のみ取得する
     body.show_finished = displaySettings.sboption ? 1 : 0;
@@ -642,7 +642,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
       if (sygroup > 0) body.team_szgroup_id = sygroup;
       if (syteamlist.length > 0) body.team_ids = syteamlist;
       if (sytasklist.length > 0) body.task_ids = sytasklist;
-      if (synobody) body.show_unassigned_worker = true;
+      if (sydspnobody) body.show_unassigned_worker = true;
     } else if (mode === 'task') {
       if (isMorderTask) body.product_display = 'morder';
       if (tktasklist.length > 0) body.task_ids = tktasklist;
@@ -659,6 +659,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     receiptNo: ser.receiptNo ?? null,
     shippingDate: ser.shippingDate || null,
     responsible: ser.responsible || null,
+    customerName: ser.customerName || '',
     kisyuId: ser.kisyuId,
     flgSyoyo: ser.flgSyoyo,
     flgGoso: ser.flgGoso,
@@ -676,6 +677,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     shippingDate: m.shippingDate || null,
     kouteiPicNo: m.kouteiPicNo || '',
     publicRemark: m.publicRemark || '',
+    customerName: m.customerName || '',
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const beginGridFetch = useCallback((countsForUpdatedAt = true) => {
@@ -2777,6 +2779,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
         taskBackColor: selectedTask?.backColor ?? dialog.plan?.taskBackColor ?? 1,
         taskFontColor: selectedTask?.fontColor ?? dialog.plan?.taskFontColor ?? 6,
         workerName: selectedWorker?.workerName ?? dialog.plan?.workerName ?? '',
+        customerName: selectedSerial?.customerName ?? dialog.plan?.customerName ?? dialog.initialData?.customerName ?? '',
         serialNo: selectedSerial?.serialNo ?? dialog.plan?.serialNo ?? dialog.initialData?.serialNo ?? '',
         kisyuId: selectedSerial?.kisyuId ?? dialog.plan?.kisyuId ?? dialog.initialData?.kisyuId,
         kisyuName: selectedSerial?.kisyuName ?? dialog.plan?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
@@ -2859,6 +2862,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           taskBackColor: selectedTask?.backColor ?? 1,
           taskFontColor: selectedTask?.fontColor ?? 6,
           workerName: worker?.workerName ?? '',
+          customerName: serial?.customerName ?? dialog.initialData?.customerName ?? '',
           serialNo: serial?.serialNo ?? dialog.initialData?.serialNo ?? '',
           kisyuId: serial?.kisyuId ?? dialog.initialData?.kisyuId,
           kisyuName: serial?.kisyuName ?? dialog.initialData?.kisyuName ?? '',
@@ -2966,6 +2970,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
           shippingDate: plan.morderShippingDate || null,
           kouteiPicNo: plan.morderKouteiPicNo || '',
           publicRemark: plan.publicRemark || '',
+          customerName: plan.customerName || '',
         };
         setDevicePagedGroups(prev => prev.some(g => Number(g.id) === Number(plan.morderId)) ? prev : [morderGroup, ...prev]);
         setDeviceGroupTotal(prev => Math.max(prev, 1));
@@ -3579,6 +3584,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                     flgdiff={!!displaySettings.flgdiff}
                     flgsyoyo={!!displaySettings.flgsyoyo}
                     useKisyuColor={useKisyuColor}
+                    showCustomer={!!displaySettings.flgdspcustomer}
                   />
                   <SpreadsheetGridLocationOverlayBars
                     extraLocationRow={extraLocationRow}
@@ -3835,7 +3841,7 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
                   paddingLeft: lblClampL > labelScreenX ? 0 : 2,
                   userSelect: 'none',
                 }}>
-                  {`${p.taskName}${p.remark ? `＜${p.remark}＞` : ''}`}
+                  {`${displaySettings.flgdspcustomer && p.customerName ? `${p.customerName} ` : ''}${p.taskName}${p.remark ? `＜${p.remark}＞` : ''}`}
                 </div>
               );
             }

@@ -21,6 +21,7 @@ class DisplaySettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('userNo', (string) $user->id)
             ->assertJsonPath('settingNo', 0)
+            ->assertJsonPath('flgdspcustomer', false)
             ->assertJsonCount(5, 'settingsList');
     }
 
@@ -34,12 +35,16 @@ class DisplaySettingsApiTest extends TestCase
                 'settingName' => '工程確認用',
                 'sbmodellist' => ['10', '20'],
                 'sbdspplplan' => true,
+                'sydspnobody' => true,
+                'flgdspcustomer' => true,
             ])
             ->assertOk()
             ->assertJsonPath('settingNo', 3)
             ->assertJsonPath('settingName', '工程確認用')
             ->assertJsonPath('sbmodellist', [10, 20])
             ->assertJsonPath('sbdspplplan', true)
+            ->assertJsonPath('sydspnobody', true)
+            ->assertJsonPath('flgdspcustomer', true)
             ->assertJsonPath('settingsList.3.settingName', '工程確認用');
 
         $this->assertDatabaseHas('display_settings', [
@@ -48,10 +53,15 @@ class DisplaySettingsApiTest extends TestCase
             'setting_name' => '工程確認用',
             'duration' => 1,
             'sbdspplplan' => true,
+            'sydspnobody' => true,
+            'flgdspcustomer' => true,
         ]);
         $this->assertFalse(Schema::hasColumn('display_settings', 'value'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'is_active'));
         $this->assertTrue(Schema::hasColumn('display_settings', 'sbmodellist'));
+        $this->assertTrue(Schema::hasColumn('display_settings', 'sydspnobody'));
+        $this->assertTrue(Schema::hasColumn('display_settings', 'flgdspcustomer'));
+        $this->assertFalse(Schema::hasColumn('display_settings', 'synobody'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'plscale'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'sbscale'));
         $this->assertFalse(Schema::hasColumn('display_settings', 'syscale'));

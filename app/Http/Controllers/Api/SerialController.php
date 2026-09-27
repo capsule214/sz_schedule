@@ -26,6 +26,7 @@ class SerialController extends Controller
       'shippingDate' => $s->shipping_date,
       'morderStartDate' => $s->morder_start_date,
       'responsible' => $s->koutei_pic_no,
+      'customerName' => $s->customer_name,
       'flgSyoyo' => $s->flg_syoyo,
       'flgGoso' => $s->flg_goso,
     ];

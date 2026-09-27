@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { apiArray } from '../../lib/api';
 import { deliveryTypeLabel } from './DprLeftHeader';
 
-export default function DprHeaderTooltip({ detail, onClose }) {
+export default function DprHeaderTooltip({ detail, onClose, showCustomer = false }) {
   const rootRef = useRef(null);
   const [serials, setSerials] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export default function DprHeaderTooltip({ detail, onClose }) {
     ['種別', group.classification],
     ['出荷形態', deliveryTypeLabel(group.deliveryType)],
     ['ステータス', group.status],
-    ['顧客名', group.customerName],
+    ...(showCustomer ? [['顧客名', group.customerName]] : []),
     ['件名', group.subject],
   ];
 

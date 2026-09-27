@@ -44,6 +44,7 @@ export default function SpreadsheetGridBars({
   flgdiff = false,
   flgsyoyo = false,
   useKisyuColor = false,
+  showCustomer = false,
 }) {
   const bars = [];
   const labels = [];
@@ -169,9 +170,10 @@ export default function SpreadsheetGridBars({
 
       const currentLabel = plan.workerName ? `${plan.taskName} ${plan.workerName}` : plan.taskName;
       const remarkSuffix = plan.remark ? `＜${plan.remark}＞` : '';
+      const customerPrefix = showCustomer && plan.customerName ? `${plan.customerName} ` : '';
       const label = mode === 'place'
         ? (plan.serialNo ? `${plan.kisyuName} ${plan.serialNo}` : '')
-        : `${currentLabel}${remarkSuffix}`;
+        : `${customerPrefix}${currentLabel}${remarkSuffix}`;
 
       labels.push(
         <div

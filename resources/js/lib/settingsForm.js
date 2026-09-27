@@ -43,10 +43,11 @@ export function normalizeSettings(s = {}) {
     dprszgrouplist:        (s.dprszgrouplist         || []).map(Number),
     // 表示オプション2（全タブ共通）
     sboption:       !!s.sboption,
-    synobody:       !!s.synobody,
+    sydspnobody:    !!s.sydspnobody,
     sbdspplplan:    !!s.sbdspplplan,
     sbdspdate:      !!s.sbdspdate,
     sbdspincharge:  !!s.sbdspincharge,
+    flgdspcustomer: !!s.flgdspcustomer,
     flgsyoyo:       !!s.flgsyoyo,
     flgukeoi:       !!s.flgukeoi,
     flgkeppin:      !!s.flgkeppin,

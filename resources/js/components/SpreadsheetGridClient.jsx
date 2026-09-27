@@ -77,8 +77,8 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     duration: 1,
     flgdiff: false, flgkeppin: false, flgsyoyo: false, flgukeoi: false,
     pllocation: 3,
-    sbcolor: 0, sbdspdate: false, sbdspincharge: false, sbdspplplan: false, flggoso: false,
-    sboption: 0, synobody: false, sborder: 0, sbsbmb: 0, sbequiptype: -1,
+    sbcolor: 0, sbdspdate: false, sbdspincharge: false, flgdspcustomer: false, sbdspplplan: false, flggoso: false,
+    sboption: 0, sydspnobody: false, sborder: 0, sbsbmb: 0, sbequiptype: -1,
     flgsyoyo: false, flgukeoi: false, flgkeppin: false, flgdiff: false,
     sbinchargelist: [], sbmodellist: [], sbstatuslist: [], sbszgrouplist: [],
     sycolor: 0, sygroup: 0, syteamlist: [], sytasklist: [],
@@ -461,7 +461,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
           showAlert('表示対象データがありませんでした（表示設定で非表示のチームです）');
           return;
         }
-      } else if (!displaySettings.synobody) {
+      } else if (!displaySettings.sydspnobody) {
         showAlert('表示対象データがありませんでした（担当者未定予定が非表示です）');
         return;
       }

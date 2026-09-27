@@ -127,6 +127,7 @@ class PlanController extends Controller
       'morderOrderTypeName' => $morder ? ($morderOrderTypeNames[$morder->order_type_id] ?? (string) $morder->order_type_id) : '',
       'partsNo' => $morder ? $morder->parts_no : '',
       'publicRemark' => $morder ? $morder->public_remark : '',
+      'customerName' => $serial?->customer_name ?? $morder?->customer_name ?? '',
       'morderShippingDate' => $morder ? $morder->shipping_date : null,
       'morderKouteiPicNo' => $morder ? $morder->koutei_pic_no : '',
       'taskId' => $plan->task_id,

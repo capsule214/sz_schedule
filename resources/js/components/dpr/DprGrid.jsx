@@ -1072,14 +1072,14 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         onGenerate={generateDpr} generating={generating}
       />
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-        <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} onWheel={forwardHeaderWheel} />
+        <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} onWheel={forwardHeaderWheel} showCustomer={!!displaySettings?.flgdspcustomer} />
         <div style={{ position: 'absolute', left: leftWidth, right: 0, top: 0, height: TOTAL_HDR_H, overflow: 'hidden', borderBottom: '1px solid #9ca3af' }}>
           <div style={{ position: 'relative', width: contentWidth, height: TOTAL_HDR_H, transform: `translateX(${-scroll.left}px)` }}>
             <SpreadsheetGridHeaders dateWidth={DATE_WIDTH} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
           </div>
         </div>
         <div ref={leftHeaderRef} onWheel={forwardHeaderWheel} style={{ position: 'absolute', left: 0, top: TOTAL_HDR_H, bottom: 0, width: leftWidth, overflow: 'hidden', borderRight: '1px solid #9ca3af' }}>
-          <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} onGroupClick={openHeaderTooltip} />
+          <DprLeftHeader layoutGroups={layoutGroups} scrollTop={scroll.top} viewportHeight={viewport.height} colWidths={colWidths} leftWidth={leftWidth} onGroupClick={openHeaderTooltip} showCustomer={!!displaySettings?.flgdspcustomer} />
         </div>
         <div
           ref={viewportRef}
@@ -1139,7 +1139,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           </div>
         </div>
         {loading && <div style={{ position: 'absolute', right: 18, bottom: 18, padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.92)', boxShadow: '0 1px 5px rgba(0,0,0,0.2)', fontSize: 12, color: '#6b7280' }}>読み込み中...</div>}
-        <DprHeaderTooltip detail={headerDetail} onClose={() => setHeaderDetail(null)} />
+        <DprHeaderTooltip detail={headerDetail} onClose={() => setHeaderDetail(null)} showCustomer={!!displaySettings?.flgdspcustomer} />
         {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
         {active && sonar && [0, 380, 760].map((delay, index) => (
           <div

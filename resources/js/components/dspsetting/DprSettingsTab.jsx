@@ -329,6 +329,11 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
             onChange={e => setField('dprflgseiban', e.target.checked)}
             label="製番予定も表示"
           />
+          <Chk
+            checked={form.flgdspcustomer}
+            onChange={e => setField('flgdspcustomer', e.target.checked)}
+            label="客先名表示"
+          />
         </div>
       </div>
     </div>

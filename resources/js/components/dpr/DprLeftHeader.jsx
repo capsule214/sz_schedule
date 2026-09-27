@@ -61,11 +61,11 @@ function GridRows({ rows, colWidths, background = '#f3f4f6', showHorizontalLines
   });
 }
 
-export function DprLeftHeaderCorner({ colWidths, onStartResize, onWheel }) {
+export function DprLeftHeaderCorner({ colWidths, onStartResize, onWheel, showCustomer = false }) {
   const leftWidth = DPR_LEFT_COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0);
   return (
     <div onWheel={onWheel} style={{ position: 'absolute', left: 0, top: 0, width: leftWidth, height: TOTAL_HDR_H, overflow: 'hidden', borderRight: '1px solid #9ca3af', boxSizing: 'border-box', zIndex: 4 }}>
-      <GridRows rows={HEADER_ROWS} colWidths={colWidths} />
+      <GridRows rows={HEADER_ROWS.map((row, index) => index === 2 && !showCustomer ? ['', '', '', 'エレキ担当'] : row)} colWidths={colWidths} />
       {DPR_LEFT_COLUMN_KEYS.map((key, index) => {
         const right = DPR_LEFT_COLUMN_KEYS.slice(0, index + 1).reduce((sum, columnKey) => sum + colWidths[columnKey], 0);
         return (
@@ -81,7 +81,7 @@ export function DprLeftHeaderCorner({ colWidths, onStartResize, onWheel }) {
   );
 }
 
-export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight, colWidths, leftWidth, onGroupClick }) {
+export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight, colWidths, leftWidth, onGroupClick, showCustomer = false }) {
   return layoutGroups.flatMap(group => {
     const top = group.startRow * CELL_SIZE - scrollTop;
     const height = group.numRows * CELL_SIZE;
@@ -89,7 +89,7 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
     const rows = [
       [group.machine, deliveryTypeLabel(group.deliveryType), group.qty, group.leaderUserNo],
       [group.dprNo, group.classification, group.status, group.mechanismUserNo],
-      [{ value: group.customerName, span: 3 }, group.electricityUserNo],
+      [{ value: showCustomer ? group.customerName : '', span: 3 }, group.electricityUserNo],
       [{ value: group.subject, span: 3 }, group.softUserNo],
     ];
     const hasSerialPlans = group.serialPlanRowIdx >= 0;
