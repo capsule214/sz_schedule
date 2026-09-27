@@ -121,6 +121,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
   const lastAutoLoadKeyRef = useRef(null);
+  const initialMachineSelectionCheckedRef = useRef(false);
   const loadingRef = useRef(false);
   const errorRef = useRef(onError);
   const colWidthsRef = useRef(colWidths);
@@ -329,9 +330,16 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setHasMore(false);
     loadingRef.current = false;
     if (machines.length === 0) {
-      errorRef.current?.('機種を1つ以上選択してください');
+      // ブラウザ更新直後は、保存済み表示設定が反映される前の空配列で
+      // 初回effectが走る場合がある。初期復元中は警告せず、設定適用や
+      // 再描画といった明示操作後に未選択だった場合だけ通知する。
+      if (initialMachineSelectionCheckedRef.current || displaySettingsApplyVersion > 0 || reloadTick > 0) {
+        errorRef.current?.('機種を1つ以上選択してください');
+      }
+      initialMachineSelectionCheckedRef.current = true;
       return;
     }
+    initialMachineSelectionCheckedRef.current = true;
     loadPage(true);
   }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
