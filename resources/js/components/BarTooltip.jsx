@@ -1,16 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { getColor } from '../lib/colors';
 
+function parseDateTime(value) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(text)
+    ? `${text}T00:00:00`
+    : text.replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function fmtDT(s) {
-  if (!s) return '';
-  const d = s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
+  const d = parseDateTime(s);
+  if (!d) return String(s || '');
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
 function dayDiff(start, end) {
-  const s = start.includes('T') ? new Date(start) : new Date(start + 'T00:00:00');
-  const e = end.includes('T') ? new Date(end) : new Date(end + 'T00:00:00');
-  return Math.max(1, Math.round((e - s) / 86400000) + 1);
+  const s = parseDateTime(start);
+  const e = parseDateTime(end);
+  if (!s || !e) return '';
+  const startDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  const endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+  return Math.max(1, Math.round((endDay - startDay) / 86400000) + 1);
 }
 
 export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
@@ -36,6 +49,25 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
   const taskBg = getColor(plan.taskBackColor);
   const taskFg = getColor(plan.taskFontColor);
   const isMorderPlan = Number(plan.morderId) > 0;
+  const isDprPlan = !!plan.dprNo;
+  const durationDays = dayDiff(plan.startDate, plan.endDate);
+  const detailRows = isDprPlan
+    ? [
+        ['機種', plan.machine || plan.kisyuName],
+        ['DPR No', plan.dprNo],
+        ['担当者', plan.userNo || plan.workerName],
+        ['開始', fmtDT(plan.startDate)],
+        ['終了', fmtDT(plan.endDate)],
+        ['日数', durationDays ? `${durationDays}日` : ''],
+      ]
+    : [
+        [isMorderPlan ? '手配区分' : '機種', isMorderPlan ? plan.morderOrderTypeName : plan.kisyuName],
+        [isMorderPlan ? 'M番' : '製番', isMorderPlan ? plan.morderNo : plan.serialNo],
+        ['担当者', plan.workerName],
+        ['開始', fmtDT(plan.startDate)],
+        ['終了', fmtDT(plan.endDate)],
+        ['日数', durationDays ? `${durationDays}日` : ''],
+      ];
 
   return (
     <div
@@ -54,14 +86,7 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
       </div>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <tbody>
-          {[
-            [isMorderPlan ? '手配区分' : '機種', isMorderPlan ? plan.morderOrderTypeName : plan.kisyuName],
-            [isMorderPlan ? 'M番' : '製番', isMorderPlan ? plan.morderNo : plan.serialNo],
-            ['担当者', plan.workerName],
-            ['開始', fmtDT(plan.startDate)],
-            ['終了', fmtDT(plan.endDate)],
-            ['日数', `${dayDiff(plan.startDate, plan.endDate)}日`],
-          ].map(([k, v]) => (
+          {detailRows.map(([k, v]) => (
             <tr key={k}>
               <td style={{ color: '#6b7280', padding: '2px 8px 2px 0', whiteSpace: 'nowrap' }}>{k}</td>
               <td style={{ padding: '2px 0', fontWeight: 500 }}>{v}</td>

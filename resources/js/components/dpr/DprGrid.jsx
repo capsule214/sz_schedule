@@ -8,6 +8,7 @@ import SpreadsheetGridCanvas from '../SpreadsheetGridCanvas';
 import SpreadsheetGridHeaders from '../SpreadsheetGridHeaders';
 import SpreadsheetGridStatusBar from '../SpreadsheetGridStatusBar';
 import ContextMenu from '../ContextMenu';
+import BarTooltip from '../BarTooltip';
 import UpdateConflictDialog from '../UpdateConflictDialog';
 import DprBars, { DprSerialPlanBars } from './DprBars';
 import DprHeaderTooltip from './DprHeaderTooltip';
@@ -111,6 +112,8 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
   const [ghostDrag, setGhostDrag] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
+  const [clipboard, setClipboard] = useState({ plan: null, action: 'copy' });
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
   const viewportRef = useRef(null);
@@ -313,6 +316,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setSelectedCell(null);
     setSelectedPlanIds(new Set());
     setContextMenu(null);
+    setTooltip(null);
     setScheduleDialog(null);
     pendingSonarDprNoRef.current = null;
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
@@ -535,6 +539,68 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setContextMenu(null);
   }, [pointerCell]);
 
+  const deleteDprPlan = useCallback((plan, confirmDelete = true, recordHistory = true) => {
+    if (!plan || (confirmDelete && !window.confirm('このDPR予定を削除しますか？'))) return null;
+    const planId = Number(plan.planId);
+    let historyAction;
+    if (planId < 0) {
+      const pending = pendingCreatesRef.current.get(planId);
+      pendingCreatesRef.current.delete(planId);
+      setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
+      historyAction = { type: 'delete-new', plan: { ...plan }, pending };
+    } else {
+      const beforePayload = pendingUpdatesRef.current.get(planId) ?? null;
+      pendingUpdatesRef.current.delete(planId);
+      pendingDeletesRef.current.set(planId, { ...plan });
+      setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
+      historyAction = { type: 'delete', plan: { ...plan }, beforePayload };
+    }
+    if (recordHistory) pushHistory(historyAction);
+    setSelectedPlanIds(previous => {
+      const next = new Set(previous);
+      next.delete(planId);
+      return next;
+    });
+    setContextMenu(null);
+    onDirtyChange?.(true);
+    return historyAction;
+  }, [onDirtyChange, pushHistory]);
+
+  const pasteDprPlan = useCallback((cell) => {
+    const source = clipboard.plan;
+    if (!source || !cell?.group) return;
+    const sourceStartCol = planToStartCol(source, startDate, DATE_WIDTH);
+    const sourceEndCol = planToEndCol(source, startDate, DATE_WIDTH);
+    const durationCols = Math.max(0, sourceEndCol - sourceStartCol);
+    const targetStartCol = Math.max(0, Math.min(cell.col, totalCols - 1));
+    const targetEndCol = Math.max(targetStartCol, Math.min(targetStartCol + durationCols, totalCols - 1));
+    const payload = {
+      dprNo: cell.group.dprNo,
+      userNo: source.userNo || null,
+      taskId: Number(source.taskId),
+      startDate: `${addDays(startDate, targetStartCol)}T08:30:00`,
+      endDate: `${addDays(startDate, targetEndCol)}T21:25:00`,
+      remark: source.remark ?? '',
+    };
+    const planId = tempIdCounterRef.current--;
+    const plan = { ...source, ...payload, planId, updatedAtVersion: null };
+    pendingCreatesRef.current.set(planId, { payload, visual: plan });
+    setPlans(previous => [...previous, plan]);
+    const createAction = { type: 'create', plan, payload };
+    setSelectedPlanIds(new Set([planId]));
+    setSelectedCell(null);
+    if (clipboard.action === 'cut') {
+      const currentSource = plansRef.current.find(item => Number(item.planId) === Number(source.planId));
+      const deleteAction = currentSource ? deleteDprPlan(currentSource, false, false) : null;
+      pushHistory(deleteAction ? { type: 'batch', actions: [createAction, deleteAction] } : createAction);
+      setClipboard({ plan: null, action: 'copy' });
+    } else {
+      pushHistory(createAction);
+    }
+    setContextMenu(null);
+    onDirtyChange?.(true);
+  }, [clipboard, startDate, totalCols, pushHistory, deleteDprPlan, onDirtyChange]);
+
   const openCellContextMenu = useCallback((event) => {
     event.preventDefault();
     if (ipadOS) return;
@@ -550,20 +616,27 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       return;
     }
     const date = addDays(startDate, cell.col);
+    const items = [{
+      label: '予定の追加',
+      onClick: () => setScheduleDialog({
+        dprNo: cell.group.dprNo,
+        machine: cell.group.machine,
+        startDate: date,
+        endDate: date,
+      }),
+    }];
+    if (clipboard.plan) {
+      items.push('separator', {
+        label: '貼り付け',
+        onClick: () => pasteDprPlan(cell),
+      });
+    }
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
-      items: [{
-        label: '予定の追加',
-        onClick: () => setScheduleDialog({
-          dprNo: cell.group.dprNo,
-          machine: cell.group.machine,
-          startDate: date,
-          endDate: date,
-        }),
-      }],
+      items,
     });
-  }, [ipadOS, pointerCell, startDate]);
+  }, [ipadOS, pointerCell, startDate, clipboard.plan, pasteDprPlan]);
 
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
@@ -571,48 +644,25 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setSelectedCell(null);
     setSelectedPlanIds(previous => previous.has(Number(plan.planId)) ? previous : new Set([Number(plan.planId)]));
     if (ipadOS) {
-      const anchorRect = event.currentTarget.getBoundingClientRect();
       const x = event.clientX;
       const y = event.clientY;
       setContextMenu({
         x,
         y,
         items: [{
-          label: '詳細',
-          onClick: () => setHeaderDetail({ group, anchorRect, x, y }),
+          label: '詳細表示',
+          onClick: () => setTooltip({ plan: { ...plan, machine: group.machine }, x, y }),
         }],
       });
       return;
     }
-    const deletePlan = () => {
-      if (!window.confirm('このDPR予定を削除しますか？')) return;
-      const planId = Number(plan.planId);
-      if (planId < 0) {
-        const pending = pendingCreatesRef.current.get(planId);
-        pendingCreatesRef.current.delete(planId);
-        setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
-        pushHistory({ type: 'delete-new', plan: { ...plan }, pending });
-      } else {
-        const beforePayload = pendingUpdatesRef.current.get(planId) ?? null;
-        pendingUpdatesRef.current.delete(planId);
-        pendingDeletesRef.current.set(planId, { ...plan });
-        setPlans(previous => previous.filter(item => Number(item.planId) !== planId));
-        pushHistory({ type: 'delete', plan: { ...plan }, beforePayload });
-      }
-      setContextMenu(null);
-      setSelectedPlanIds(previous => {
-        const next = new Set(previous);
-        next.delete(planId);
-        return next;
-      });
-      onDirtyChange?.(true);
-    };
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
+        { label: '詳細表示', onClick: () => setTooltip({ plan: { ...plan, machine: group.machine }, x: event.clientX, y: event.clientY }) },
         {
-          label: '編集',
+          label: '修正',
           onClick: () => setScheduleDialog({
             plan,
             initialData: {
@@ -623,10 +673,13 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
             },
           }),
         },
-        { label: '削除', onClick: deletePlan },
+        { label: 'コピー', onClick: () => setClipboard({ plan: { ...plan }, action: 'copy' }) },
+        { label: '切り取り', onClick: () => setClipboard({ plan: { ...plan }, action: 'cut' }) },
+        'separator',
+        { label: '削除', danger: true, onClick: () => deleteDprPlan(plan) },
       ],
     });
-  }, [ipadOS, onDirtyChange, pushHistory]);
+  }, [ipadOS, deleteDprPlan]);
 
   const saveDialogPlan = useCallback((data) => {
     const dialog = scheduleDialog;
@@ -669,6 +722,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const applyHistory = useCallback((action, direction) => {
     const redo = direction === 'redo';
+    if (action.type === 'batch') {
+      const actions = redo ? action.actions : [...action.actions].reverse();
+      actions.forEach(child => applyHistory(child, direction));
+      return;
+    }
     if (action.type === 'drag') {
       const stateById = new Map();
       for (const change of action.changes) {
@@ -1103,9 +1161,19 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         dayCount={daysBetween(startDate, endDate)}
         planCount={plans.length}
         selectedCount={selectedPlanIds.size}
-        copiedCount={0}
+        copiedCount={clipboard.plan ? 1 : 0}
+        clipboardAction={clipboard.action}
+        cutApplied={false}
         loading={loading}
       />
+      {tooltip && (
+        <BarTooltip
+          plan={tooltip.plan}
+          anchorX={tooltip.x}
+          anchorY={tooltip.y}
+          onClose={() => setTooltip(null)}
+        />
+      )}
       {scheduleDialog && (
         <DprScheduleDialog
           plan={scheduleDialog.plan}
