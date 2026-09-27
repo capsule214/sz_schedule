@@ -51,7 +51,7 @@ class DprPlanApiTest extends TestCase
         $this->actingAs($user)->putJson('/api/dpr/plans/'.$planId, [
             'serialId' => 123,
             'morderId' => 456,
-            'dprNo' => 'CH26000001-00',
+            'dprNo' => 'OS26000002-00',
             'userNo' => '00456',
             'taskId' => 20004,
             'startDate' => '2026-09-05',
@@ -60,12 +60,14 @@ class DprPlanApiTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('taskName', 'DPR他')
             ->assertJsonPath('taskBackColor', 4)
+            ->assertJsonPath('dprNo', 'OS26000002-00')
             ->assertJsonPath('userNo', '00456');
 
         $this->assertDatabaseHas('kd_plan', [
             'plan_id' => $planId,
             'serial_id' => -1,
             'morder_id' => -1,
+            'dpr_no' => 'OS26000002-00',
             'task_id' => 20004,
             'user_no' => '00456',
             'start_date' => '2026-09-05 08:30:00',

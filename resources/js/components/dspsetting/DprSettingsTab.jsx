@@ -318,6 +318,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
             >
               <option value={0}>タスクカラー</option>
               <option value={1}>機種カラー</option>
+              <option value={2}>出荷形態</option>
             </select>
           </div>
 

@@ -108,6 +108,8 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [headerDetail, setHeaderDetail] = useState(null);
   const [sonar, setSonar] = useState(null);
   const [selectedCell, setSelectedCell] = useState(null);
+  const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
+  const [ghostDrag, setGhostDrag] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
@@ -115,6 +117,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const leftHeaderRef = useRef(null);
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
+  const lastAutoLoadKeyRef = useRef(null);
   const loadingRef = useRef(false);
   const errorRef = useRef(onError);
   const colWidthsRef = useRef(colWidths);
@@ -130,6 +133,8 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const redoStackRef = useRef([]);
   const plansRef = useRef(plans);
   const conflictDecisionRef = useRef(null);
+  const dragRef = useRef(null);
+  const dragCleanupRef = useRef(null);
   errorRef.current = onError;
   colWidthsRef.current = colWidths;
   plansRef.current = plans;
@@ -286,6 +291,18 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   useEffect(() => {
     if (!active) return;
+    const autoLoadKey = JSON.stringify({
+      machineKey,
+      categoryFilterKey,
+      startDate,
+      endDate,
+      showSerialPlans,
+      displaySettingsApplyVersion,
+      reloadTick,
+    });
+    // タブを非表示から表示へ戻しただけなら、取得済みデータ・検索状態・スクロール位置を維持する。
+    if (lastAutoLoadKeyRef.current === autoLoadKey) return;
+    lastAutoLoadKeyRef.current = autoLoadKey;
     requestIdRef.current += 1;
     cursorRef.current = null;
     // 表示条件変更前のscrollTopが残ると、件数が少ない結果では全グループが
@@ -294,6 +311,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setScroll(previous => previous.top === 0 ? previous : { ...previous, top: 0 });
     setHeaderDetail(null);
     setSelectedCell(null);
+    setSelectedPlanIds(new Set());
     setContextMenu(null);
     setScheduleDialog(null);
     pendingSonarDprNoRef.current = null;
@@ -366,10 +384,154 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     return group ? { col, row, group } : null;
   }, [colW, totalCols, totalRows, layoutGroups]);
 
+  const getPlanLayout = useCallback((plan) => {
+    const group = layoutGroups.find(item => item.plans?.some(candidate => Number(candidate.planId) === Number(plan.planId)));
+    const laidOutPlan = group?.plans?.find(candidate => Number(candidate.planId) === Number(plan.planId));
+    if (!group || !laidOutPlan) return null;
+    return {
+      group,
+      row: group.startRow + laidOutPlan.rowIdx,
+      startCol: planToStartCol(plan, startDate, DATE_WIDTH),
+      endCol: planToEndCol(plan, startDate, DATE_WIDTH),
+    };
+  }, [layoutGroups, startDate]);
+
+  const commitDprDrag = useCallback((drag) => {
+    const mainLayout = getPlanLayout(drag.plan);
+    let destinationGroup = null;
+    if (drag.type === 'move' && drag.deltaRow !== 0 && mainLayout) {
+      const destinationRow = mainLayout.row + drag.deltaRow;
+      destinationGroup = layoutGroups.find(group => destinationRow >= group.startRow && destinationRow < group.startRow + group.numRows) ?? null;
+    }
+
+    const changes = [];
+    const nextStates = new Map();
+    for (const plan of drag.dragPlans) {
+      const layout = getPlanLayout(plan);
+      if (!layout) continue;
+      let nextStartCol = layout.startCol;
+      let nextEndCol = layout.endCol;
+      if (drag.type === 'move') {
+        nextStartCol += drag.deltaCol;
+        nextEndCol += drag.deltaCol;
+      } else if (drag.type === 'resize-left') {
+        nextStartCol = Math.min(nextEndCol, nextStartCol + drag.deltaCol);
+      } else {
+        nextEndCol = Math.max(nextStartCol, nextEndCol + drag.deltaCol);
+      }
+      nextStartCol = Math.max(0, Math.min(nextStartCol, totalCols - 1));
+      nextEndCol = Math.max(nextStartCol, Math.min(nextEndCol, totalCols - 1));
+
+      const movedOnlyBetweenGroups = drag.type === 'move' && drag.deltaCol === 0;
+      const nextStartDate = drag.type === 'resize-right' || movedOnlyBetweenGroups
+        ? plan.startDate
+        : `${addDays(startDate, nextStartCol)}T08:30:00`;
+      const nextEndDate = drag.type === 'resize-left' || movedOnlyBetweenGroups
+        ? plan.endDate
+        : `${addDays(startDate, nextEndCol)}T21:25:00`;
+
+      const after = {
+        ...plan,
+        dprNo: destinationGroup?.dprNo ?? plan.dprNo,
+        startDate: nextStartDate,
+        endDate: nextEndDate,
+      };
+      const afterPayload = {
+        dprNo: after.dprNo,
+        userNo: after.userNo || null,
+        taskId: Number(after.taskId),
+        startDate: after.startDate,
+        endDate: after.endDate,
+        remark: after.remark ?? '',
+      };
+      const changed = String(after.dprNo) !== String(plan.dprNo)
+        || String(after.startDate).slice(0, 10) !== String(plan.startDate).slice(0, 10)
+        || String(after.endDate).slice(0, 10) !== String(plan.endDate).slice(0, 10);
+      if (!changed) continue;
+
+      const planId = Number(plan.planId);
+      const beforePending = planId < 0
+        ? pendingCreatesRef.current.get(planId)?.payload ?? null
+        : pendingUpdatesRef.current.get(planId) ?? null;
+      changes.push({ planId, before: { ...plan }, after, beforePending, afterPayload });
+      nextStates.set(planId, after);
+      if (planId < 0) pendingCreatesRef.current.set(planId, { payload: afterPayload, visual: after });
+      else pendingUpdatesRef.current.set(planId, afterPayload);
+    }
+
+    if (changes.length === 0) return;
+    setPlans(previous => previous.map(plan => nextStates.has(Number(plan.planId)) ? nextStates.get(Number(plan.planId)) : plan));
+    pushHistory({ type: 'drag', changes });
+    onDirtyChange?.(true);
+  }, [getPlanLayout, layoutGroups, totalCols, startDate, pushHistory, onDirtyChange]);
+
+  const handleBarPointerDown = useCallback((event, plan, type) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (ipadOS || event.button !== 0) return;
+    setSelectedCell(null);
+    setContextMenu(null);
+
+    const planId = Number(plan.planId);
+    const additive = event.ctrlKey || event.metaKey;
+    let capturedSelection;
+    if (additive) {
+      capturedSelection = new Set(selectedPlanIds);
+      if (capturedSelection.has(planId)) capturedSelection.delete(planId);
+      else capturedSelection.add(planId);
+      setSelectedPlanIds(capturedSelection);
+    } else if (selectedPlanIds.has(planId) && selectedPlanIds.size > 1) {
+      capturedSelection = new Set(selectedPlanIds);
+    } else {
+      capturedSelection = new Set([planId]);
+      setSelectedPlanIds(capturedSelection);
+    }
+
+    const dragPlans = [...capturedSelection]
+      .map(id => plansRef.current.find(item => Number(item.planId) === Number(id)))
+      .filter(Boolean);
+    if (!dragPlans.some(item => Number(item.planId) === planId)) dragPlans.push(plan);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    dragRef.current = { type, plan, dragPlans, startX, startY, deltaCol: 0, deltaRow: 0, active: false };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      dragCleanupRef.current = null;
+    };
+    const handleMove = moveEvent => {
+      if (!dragRef.current) return;
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (!dragRef.current.active && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) dragRef.current.active = true;
+      dragRef.current.deltaCol = Math.round(dx / colW);
+      dragRef.current.deltaRow = type === 'move' ? Math.round(dy / CELL_SIZE) : 0;
+      setGhostDrag({ ...dragRef.current });
+    };
+    const handleUp = () => {
+      cleanup();
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setGhostDrag(null);
+      if (drag?.active) commitDprDrag(drag);
+    };
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  }, [ipadOS, selectedPlanIds, colW, commitDprDrag]);
+
+  useEffect(() => () => {
+    dragCleanupRef.current?.();
+    dragRef.current = null;
+  }, []);
+
   const selectCell = useCallback((event) => {
     const cell = pointerCell(event);
     if (!cell) return;
     setSelectedCell({ col: cell.col, row: cell.row });
+    setSelectedPlanIds(new Set());
     setContextMenu(null);
   }, [pointerCell]);
 
@@ -406,6 +568,8 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
     event.stopPropagation();
+    setSelectedCell(null);
+    setSelectedPlanIds(previous => previous.has(Number(plan.planId)) ? previous : new Set([Number(plan.planId)]));
     if (ipadOS) {
       const anchorRect = event.currentTarget.getBoundingClientRect();
       const x = event.clientX;
@@ -436,6 +600,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         pushHistory({ type: 'delete', plan: { ...plan }, beforePayload });
       }
       setContextMenu(null);
+      setSelectedPlanIds(previous => {
+        const next = new Set(previous);
+        next.delete(planId);
+        return next;
+      });
       onDirtyChange?.(true);
     };
     setContextMenu({
@@ -500,6 +669,23 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const applyHistory = useCallback((action, direction) => {
     const redo = direction === 'redo';
+    if (action.type === 'drag') {
+      const stateById = new Map();
+      for (const change of action.changes) {
+        const state = redo ? change.after : change.before;
+        const payload = redo ? change.afterPayload : change.beforePending;
+        stateById.set(Number(change.planId), state);
+        if (Number(change.planId) < 0) {
+          pendingCreatesRef.current.set(Number(change.planId), { payload: payload ?? change.afterPayload, visual: state });
+        } else if (payload) {
+          pendingUpdatesRef.current.set(Number(change.planId), payload);
+        } else {
+          pendingUpdatesRef.current.delete(Number(change.planId));
+        }
+      }
+      setPlans(previous => previous.map(plan => stateById.has(Number(plan.planId)) ? { ...stateById.get(Number(plan.planId)) } : plan));
+      return;
+    }
     if (action.type === 'delete-new') {
       if (redo) {
         pendingCreatesRef.current.delete(action.plan.planId);
@@ -650,6 +836,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       const dirty = pendingCreatesRef.current.size > 0 || pendingUpdatesRef.current.size > 0 || pendingDeletesRef.current.size > 0;
       if (!dirty) {
         clearHistory();
+        setSelectedPlanIds(new Set());
         onDirtyChange?.(false);
         setReloadTick(value => value + 1);
       } else {
@@ -663,6 +850,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       pendingUpdatesRef.current = new Map();
       pendingDeletesRef.current = new Map();
       tempIdCounterRef.current = -1;
+      setSelectedPlanIds(new Set());
       clearHistory();
       onDirtyChange?.(false);
       setReloadTick(value => value + 1);
@@ -874,8 +1062,14 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               layoutGroups={layoutGroups} startDate={startDate} dateWidth={DATE_WIDTH} colW={colW}
               totalCols={totalCols} scrollLeft={scroll.left} viewportWidth={viewport.width}
               visRowStart={visRowStart} visRowEnd={visRowEnd}
+              selected={selectedPlanIds}
+              editedPlanIds={new Set(pendingUpdatesRef.current.keys())}
+              dragRef={dragRef}
+              ghostDrag={ghostDrag}
+              onBarPointerDown={handleBarPointerDown}
               onBarRightClick={handleBarRightClick}
               interactionReadOnly={ipadOS}
+              colorMode={displaySettings?.dprcolor ?? 0}
             />
             {showSerialPlans && (
               <DprSerialPlanBars
@@ -908,7 +1102,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         totalRows={totalRows}
         dayCount={daysBetween(startDate, endDate)}
         planCount={plans.length}
-        selectedCount={0}
+        selectedCount={selectedPlanIds.size}
         copiedCount={0}
         loading={loading}
       />
