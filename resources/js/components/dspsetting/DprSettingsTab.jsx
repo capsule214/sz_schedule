@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AdaptiveMultiSelect from './AdaptiveMultiSelect';
+import { loadDprMasterOptions } from '../../lib/dprMasterOptions';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
@@ -77,9 +78,37 @@ function TagSection({ label, values, onAdd, onRemove, placeholder }) {
 }
 
 export default function DprSettingsTab({ form, setField, machines = [], salesLocations = [], publicationYears = [], scrollable = false }) {
-  const filteredMachines = machines;
-  const filteredLocations = salesLocations;
-  const filteredYears = publicationYears;
+  const [options, setOptions] = useState({ machines, locations: salesLocations, years: publicationYears });
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const optionsRequestIdRef = useRef(0);
+  const categoryFilterKey = useMemo(() => JSON.stringify({
+    formtype: [...form.dprformtypelist].sort((a, b) => a - b),
+    deliverytype: [...form.dprdeliverytypelist].sort((a, b) => a - b),
+    classification: [...form.dprclassificationlist].sort(),
+    status: [...form.dprstatuslist].sort(),
+  }), [form.dprformtypelist, form.dprdeliverytypelist, form.dprclassificationlist, form.dprstatuslist]);
+
+  useEffect(() => {
+    const requestId = ++optionsRequestIdRef.current;
+    const filters = JSON.parse(categoryFilterKey);
+    setOptionsLoading(true);
+    loadDprMasterOptions(filters)
+      .then(nextOptions => {
+        if (requestId !== optionsRequestIdRef.current) return;
+        setOptions(nextOptions);
+        setField('dprmodellist', form.dprmodellist.filter(value => nextOptions.machines.includes(String(value))));
+        setField('dprsaleslocationlist', form.dprsaleslocationlist.filter(value => nextOptions.locations.includes(String(value))));
+        setField('dprpublicationyearlist', form.dprpublicationyearlist.filter(value => nextOptions.years.includes(String(value))));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (requestId === optionsRequestIdRef.current) setOptionsLoading(false);
+      });
+  }, [categoryFilterKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredMachines = options.machines;
+  const filteredLocations = options.locations;
+  const filteredYears = options.years;
 
   function toggleStr(key, val) {
     setField(key,
@@ -165,7 +194,17 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
       <div style={{ flex: scrollable ? 'none' : 1, display: 'flex', gap: 12, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0 }}>
 
         {/* 左 flex:2 → 内部を横3分割（機種 / 営業拠点 / 発行年） */}
-        <div style={{ flex: 2, display: 'flex', gap: 8, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>
+        <div style={{ flex: 2, display: 'flex', gap: 8, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0, position: 'relative' }}>
+
+          {optionsLoading && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 5, background: 'rgba(255,255,255,0.9)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#6b7280', fontSize: 14, fontWeight: 600,
+            }}>
+              データ取得中...
+            </div>
+          )}
 
           {/* 機種選択（装置タブと同じ multi-select） */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: scrollable ? 'visible' : 'hidden', minHeight: scrollable ? 'auto' : 0, minWidth: 0 }}>

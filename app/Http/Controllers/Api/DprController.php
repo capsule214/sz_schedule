@@ -8,6 +8,14 @@ use Illuminate\Support\Facades\DB;
 
 class DprController extends Controller
 {
+  private function applyCategoryFilters($query, array $data): void
+  {
+    if (! empty($data['formtype'])) $query->whereIn('formtype', array_map('intval', $data['formtype']));
+    if (! empty($data['deliverytype'])) $query->whereIn('deliverytype', array_map('intval', $data['deliverytype']));
+    if (! empty($data['classification'])) $query->whereIn('classification', $data['classification']);
+    if (! empty($data['status'])) $query->whereIn('status', $data['status']);
+  }
+
   private function dprSalesExpression(): string
   {
     return DB::connection()->getDriverName() === 'sqlite'
@@ -52,8 +60,18 @@ class DprController extends Controller
   }
 
   /** 表示設定用の機種・営業拠点・発行年を1レスポンスで返す。 */
-  public function options()
+  public function options(Request $request)
   {
+    $data = $request->validate([
+      'formtype' => 'nullable|array',
+      'formtype.*' => 'integer|in:1,2,3',
+      'deliverytype' => 'nullable|array',
+      'deliverytype.*' => 'integer|in:1,2',
+      'classification' => 'nullable|array',
+      'classification.*' => 'string|max:50',
+      'status' => 'nullable|array',
+      'status.*' => 'string|max:100',
+    ]);
     $salesExpression = $this->dprSalesExpression();
     $publishExpression = $this->dprPublishExpression();
 
@@ -64,16 +82,19 @@ class DprController extends Controller
       ->whereNotNull('machine')
       ->where('machine', '<>', '')
       ->groupBy('machine');
+    $this->applyCategoryFilters($machineOptions, $data);
     $locationOptions = DB::table('m_dpr')
       ->selectRaw("'location' as option_type, {$salesExpression} as option_value")
       ->whereNotNull('dprno')
       ->where('dprno', '<>', '')
       ->groupByRaw($salesExpression);
+    $this->applyCategoryFilters($locationOptions, $data);
     $yearOptions = DB::table('m_dpr')
       ->selectRaw("'year' as option_type, {$publishExpression} as option_value")
       ->whereNotNull('dprno')
       ->where('dprno', '<>', '')
       ->groupByRaw($publishExpression);
+    $this->applyCategoryFilters($yearOptions, $data);
 
     $rows = DB::query()
       ->fromSub($machineOptions->unionAll($locationOptions)->unionAll($yearOptions), 'dpr_options')

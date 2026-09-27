@@ -72,7 +72,7 @@ export default function DisplaySettingsDrawer({
       : tab === 'worker'
         ? ['teams', 'tasks']
         : tab === 'dpr'
-          ? ['dprOptions']
+          ? []
           : ['tasks'];
     onEnsureMasters?.(requirements)?.catch(() => {});
   }, [open, tab, onEnsureMasters]);

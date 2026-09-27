@@ -56,8 +56,13 @@ export function DprSerialPlanBars({ layoutGroups, startDate, dateWidth, colW, to
       const startCol = planToStartCol(plan, startDate, dateWidth);
       const endCol = planToEndCol(plan, startDate, dateWidth);
       const row = group.startRow + group.serialPlanRowIdx + plan.rowIdx;
-      const left = startCol * colW;
-      const width = Math.min(Math.max(colW, (endCol - startCol + 1) * colW), contentRight - left);
+      // 表示期間外の予定もレイアウト行には残すが、バーと予定名は描画しない。
+      if (endCol < 0 || startCol >= totalCols) continue;
+      // 表示開始日より前から続く予定は0列目で切り取り、予定名を画面左端へ表示する。
+      const visibleStartCol = Math.max(0, startCol);
+      const visibleEndCol = Math.min(totalCols - 1, endCol);
+      const left = visibleStartCol * colW;
+      const width = Math.min((visibleEndCol - visibleStartCol + 1) * colW, contentRight - left);
       if (left + width < scrollLeft || left > scrollLeft + viewportWidth || row < visRowStart || row > visRowEnd) continue;
       const label = `${plan.serialNo}:${plan.shikakariTypeName}`;
       bars.push(

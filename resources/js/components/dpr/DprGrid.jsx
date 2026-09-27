@@ -337,7 +337,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const dateColumns = useMemo(() => buildDateColumns(startDate, endDate, calendarData), [startDate, endDate, calendarData]);
   const totalCols = Math.max(1, dateColumns.length);
   const { groups: layoutGroups, totalRows } = useMemo(() => {
-    const base = layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 4);
+    const base = layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 3);
     return showSerialPlans ? appendSerialPlanRows(base.groups, serialPlans, startDate) : base;
   }, [plans, groups, startDate, showSerialPlans, serialPlans]);
   const serialPlanRowAbsSet = useMemo(() => {

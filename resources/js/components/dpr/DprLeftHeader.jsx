@@ -26,7 +26,7 @@ export function deliveryTypeLabel(value) {
   return String(value || '').split(' / ').map(item => DELIVERY_TYPE_NAMES[item] || item).join(' / ');
 }
 
-function GridRows({ rows, colWidths, background = '#f3f4f6', showHorizontalLines = true }) {
+function GridRows({ rows, colWidths, background = '#f3f4f6', showHorizontalLines = true, rowHeight = CELL_SIZE }) {
   return rows.flatMap((row, rowIndex) => {
     let left = 0;
     let colIndex = 0;
@@ -43,8 +43,8 @@ function GridRows({ rows, colWidths, background = '#f3f4f6', showHorizontalLines
           key={`${rowIndex}-${startColIndex}`}
           title={value || ''}
           style={{
-            position: 'absolute', left, top: rowIndex * CELL_SIZE,
-            width, height: CELL_SIZE, padding: '0 4px',
+            position: 'absolute', left, top: rowIndex * rowHeight,
+            width, height: rowHeight, padding: '0 4px',
             borderRight: '1px solid #d1d5db', borderBottom: showHorizontalLines ? '1px solid #d1d5db' : 'none',
             boxSizing: 'border-box', display: 'flex', alignItems: 'center',
             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -93,6 +93,8 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
       [{ value: group.subject, span: 3 }, group.softUserNo],
     ];
     const hasSerialPlans = group.serialPlanRowIdx >= 0;
+    const mainNumRows = hasSerialPlans ? group.serialPlanRowIdx : group.numRows;
+    const detailRowHeight = mainNumRows * CELL_SIZE / rows.length;
     return (
       <div
         key={group.dprNo}
@@ -100,17 +102,14 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
         onClick={event => onGroupClick?.(group, event)}
         style={{ position: 'absolute', left: 0, top, width: leftWidth, height, background: dprStatusColor(group.status), borderBottom: '1px solid #9ca3af', boxSizing: 'border-box', cursor: 'pointer' }}
       >
-        <GridRows rows={rows} colWidths={colWidths} background="transparent" showHorizontalLines={false} />
+        <GridRows rows={rows} colWidths={colWidths} background="transparent" showHorizontalLines={false} rowHeight={detailRowHeight} />
         {hasSerialPlans && (
           <div style={{
             position: 'absolute', left: 0, top: group.serialPlanRowIdx * CELL_SIZE,
             width: leftWidth, height: group.serialPlanNumRows * CELL_SIZE,
             borderTop: '1px solid #9ca3af', background: 'rgba(156,163,175,0.32)',
-            boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, color: '#374151', fontWeight: 700, letterSpacing: '0.05em',
-          }}>
-            製番予定
-          </div>
+            boxSizing: 'border-box',
+          }} />
         )}
       </div>
     );

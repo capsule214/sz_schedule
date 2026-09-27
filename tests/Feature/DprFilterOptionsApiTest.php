@@ -35,7 +35,7 @@ class DprFilterOptionsApiTest extends TestCase
         });
 
         $this->actingAs($user)
-            ->getJson('/api/dpr/options')
+            ->postJson('/api/dpr/options', [])
             ->assertOk()
             ->assertExactJson([
                 'machines' => ['機種A', '機種B', '機種C'],
@@ -44,6 +44,34 @@ class DprFilterOptionsApiTest extends TestCase
             ]);
 
         $this->assertCount(1, $dprQueries, 'm_dprの表示設定用集約は1回のDBクエリで取得すること');
+    }
+
+    public function test_it_filters_all_option_lists_by_dpr_category_selections(): void
+    {
+        $user = User::create([
+            'name' => 'DPR filtered option user',
+            'email' => 'dpr-filtered-options@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        DB::table('m_dpr')->insert([
+            $this->row('OS260001-00', '機種A', 1, 1, 'A', '設計中'),
+            $this->row('CH250002-00', '機種B', 1, 2, 'B', '設計中'),
+            $this->row('KR240003-00', '機種C', 2, 1, 'A', '設計完了'),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/dpr/options', [
+                'formtype' => [1],
+                'deliverytype' => [1],
+                'classification' => ['A'],
+                'status' => ['設計中'],
+            ])
+            ->assertOk()
+            ->assertExactJson([
+                'machines' => ['機種A'],
+                'locations' => ['OS'],
+                'years' => ['26'],
+            ]);
     }
 
     private function row(string $dprNo, string $machine, int $formType, int $deliveryType, string $classification, string $status): array
