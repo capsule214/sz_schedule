@@ -49,25 +49,15 @@ export default function BarTooltip({ plan, anchorX, anchorY, onClose }) {
   const taskBg = getColor(plan.taskBackColor);
   const taskFg = getColor(plan.taskFontColor);
   const isMorderPlan = Number(plan.morderId) > 0;
-  const isDprPlan = !!plan.dprNo;
   const durationDays = dayDiff(plan.startDate, plan.endDate);
-  const detailRows = isDprPlan
-    ? [
-        ['機種', plan.machine || plan.kisyuName],
-        ['DPR No', plan.dprNo],
-        ['担当者', plan.userNo || plan.workerName],
-        ['開始', fmtDT(plan.startDate)],
-        ['終了', fmtDT(plan.endDate)],
-        ['日数', durationDays ? `${durationDays}日` : ''],
-      ]
-    : [
-        [isMorderPlan ? '手配区分' : '機種', isMorderPlan ? plan.morderOrderTypeName : plan.kisyuName],
-        [isMorderPlan ? 'M番' : '製番', isMorderPlan ? plan.morderNo : plan.serialNo],
-        ['担当者', plan.workerName],
-        ['開始', fmtDT(plan.startDate)],
-        ['終了', fmtDT(plan.endDate)],
-        ['日数', durationDays ? `${durationDays}日` : ''],
-      ];
+  const detailRows = [
+    [isMorderPlan ? '手配区分' : '機種', isMorderPlan ? plan.morderOrderTypeName : plan.kisyuName],
+    [isMorderPlan ? 'M番' : '製番', isMorderPlan ? plan.morderNo : plan.serialNo],
+    ['担当者', plan.workerName],
+    ['開始', fmtDT(plan.startDate)],
+    ['終了', fmtDT(plan.endDate)],
+    ['日数', durationDays ? `${durationDays}日` : ''],
+  ];
 
   return (
     <div

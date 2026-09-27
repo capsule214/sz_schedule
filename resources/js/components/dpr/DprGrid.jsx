@@ -8,7 +8,7 @@ import SpreadsheetGridCanvas from '../SpreadsheetGridCanvas';
 import SpreadsheetGridHeaders from '../SpreadsheetGridHeaders';
 import SpreadsheetGridStatusBar from '../SpreadsheetGridStatusBar';
 import ContextMenu from '../ContextMenu';
-import BarTooltip from '../BarTooltip';
+import DprBarTooltip from './DprBarTooltip';
 import UpdateConflictDialog from '../UpdateConflictDialog';
 import DprBars, { DprSerialPlanBars } from './DprBars';
 import DprHeaderTooltip from './DprHeaderTooltip';
@@ -1167,7 +1167,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         loading={loading}
       />
       {tooltip && (
-        <BarTooltip
+        <DprBarTooltip
           plan={tooltip.plan}
           anchorX={tooltip.x}
           anchorY={tooltip.y}
