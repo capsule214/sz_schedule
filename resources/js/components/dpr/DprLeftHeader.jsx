@@ -92,6 +92,7 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
       [{ value: group.customerName, span: 3 }, group.electricityUserNo],
       [{ value: group.subject, span: 3 }, group.softUserNo],
     ];
+    const hasSerialPlans = group.serialPlanRowIdx >= 0;
     return (
       <div
         key={group.dprNo}
@@ -100,6 +101,17 @@ export default function DprLeftHeader({ layoutGroups, scrollTop, viewportHeight,
         style={{ position: 'absolute', left: 0, top, width: leftWidth, height, background: dprStatusColor(group.status), borderBottom: '1px solid #9ca3af', boxSizing: 'border-box', cursor: 'pointer' }}
       >
         <GridRows rows={rows} colWidths={colWidths} background="transparent" showHorizontalLines={false} />
+        {hasSerialPlans && (
+          <div style={{
+            position: 'absolute', left: 0, top: group.serialPlanRowIdx * CELL_SIZE,
+            width: leftWidth, height: group.serialPlanNumRows * CELL_SIZE,
+            borderTop: '1px solid #9ca3af', background: 'rgba(156,163,175,0.32)',
+            boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, color: '#374151', fontWeight: 700, letterSpacing: '0.05em',
+          }}>
+            製番予定
+          </div>
+        )}
       </div>
     );
   });

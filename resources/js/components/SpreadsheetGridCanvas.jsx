@@ -21,6 +21,7 @@ export default function SpreadsheetGridCanvas({
   mode,
   layoutGroups,
   locationRowAbsSet,
+  readonlyRowAbsSet = new Set(),
 }) {
   const canvasRef = useRef(null);
 
@@ -58,11 +59,16 @@ export default function SpreadsheetGridCanvas({
       const base = colBg[col - visColStart];
       for (let row = visRowStart; row <= visRowEnd; row++) {
         const y = row * CELL_SIZE - scrollTop;
-        const bg = locationRowAbsSet.has(row)
+        const isLocationRow = locationRowAbsSet.has(row);
+        const bg = isLocationRow
           ? (base === '#e5e7eb' ? '#cfe2f3' : '#dbeafe')
           : base;
         ctx.fillStyle = bg;
         ctx.fillRect(x, y, colW, CELL_SIZE);
+        if (!isLocationRow && readonlyRowAbsSet.has(row)) {
+          ctx.fillStyle = 'rgba(107, 114, 128, 0.24)';
+          ctx.fillRect(x, y, colW, CELL_SIZE);
+        }
       }
     }
 
@@ -120,6 +126,13 @@ export default function SpreadsheetGridCanvas({
           ctx.fillRect(0, Math.round(locY), width, 1);
         }
       }
+      if (g.serialPlanRowIdx >= 0) {
+        const serialPlanY = (g.startRow + g.serialPlanRowIdx) * CELL_SIZE - scrollTop - 1;
+        if (serialPlanY >= -1 && serialPlanY <= height + 1) {
+          ctx.fillStyle = '#9ca3af';
+          ctx.fillRect(0, Math.round(serialPlanY), width, 1);
+        }
+      }
     }
   }, [
     width, height,
@@ -127,7 +140,7 @@ export default function SpreadsheetGridCanvas({
     visColStart, visColEnd, visRowStart, visRowEnd,
     colW, dateColumns, dateWidth,
     mode,
-    layoutGroups, locationRowAbsSet,
+    layoutGroups, locationRowAbsSet, readonlyRowAbsSet,
   ]);
 
   return <canvas ref={canvasRef} style={{ display: 'block', pointerEvents: 'none' }} />;

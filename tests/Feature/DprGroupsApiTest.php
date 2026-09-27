@@ -15,6 +15,28 @@ class DprGroupsApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_shikakari_types_and_corresponding_serial_plan_tasks_are_seeded(): void
+    {
+        foreach ([
+            1 => ['標準', '標準タスク'],
+            2 => ['客先', '客先タスク'],
+            3 => ['検査', '検査'],
+            4 => ['出荷', '出荷'],
+        ] as $id => [$typeName, $taskName]) {
+            $this->assertDatabaseHas('kk_shikakari_type', [
+                'shikakari_type_id' => $id,
+                'sort_no' => $id,
+                'shikakari_type_name' => $typeName,
+            ]);
+            $this->assertDatabaseHas('km_task', [
+                'task_type_id' => 2,
+                'shikakari_type_id' => $id,
+                'task_name' => $taskName,
+                'sort_no' => $id,
+            ]);
+        }
+    }
+
     public function test_it_groups_duplicate_dpr_numbers_and_returns_only_overlapping_plans(): void
     {
         $user = User::create([
@@ -141,6 +163,54 @@ class DprGroupsApiTest extends TestCase
             ['serialNo' => 'SN-00001', 'receiptNo' => 'YG00001'],
             ['serialNo' => 'SN-00002', 'receiptNo' => 'YG00002'],
         ]);
+    }
+
+    public function test_it_returns_related_serial_plans_grouped_by_serial_and_shikakari_type(): void
+    {
+        $user = User::create([
+            'name' => 'DPR serial plan user',
+            'email' => 'dpr-serial-plans@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        $machine = DmKisyu::create(['kisyu_name' => '機種A']);
+        DB::table('m_dpr')->insert($this->dprRow('CH26000001', '機種A', '設計中'));
+        $serialId = DB::table('kd_serial')->insertGetId([
+            'serial_no' => 'PX1441', 'order_no' => 'YG00001',
+            'kisyu_id' => $machine->kisyu_id, 'deleted' => 0,
+        ]);
+        $standardTask = KmTask::create(['task_name' => '標準作業', 'shikakari_type_id' => 1]);
+        $shippingTask = KmTask::create(['task_name' => '出荷作業', 'shikakari_type_id' => 4]);
+        foreach ([
+            [$standardTask->task_id, '2026-08-03 08:30:00', '2026-08-05 17:00:00'],
+            [$standardTask->task_id, '2026-08-10 08:30:00', '2026-08-12 17:00:00'],
+            [$shippingTask->task_id, '2026-08-20 08:30:00', '2026-08-21 17:00:00'],
+        ] as [$taskId, $startDate, $endDate]) {
+            KdPlan::create([
+                'serial_id' => $serialId, 'morder_id' => -1, 'task_id' => $taskId, 'deleted' => 0,
+                'start_date' => $startDate, 'end_date' => $endDate,
+            ]);
+        }
+
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            'machines' => ['機種A'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+            'include_serial_plans' => true,
+        ])->assertOk()
+            ->assertJsonCount(2, 'serialPlans')
+            ->assertJsonPath('serialPlans.0.dprNo', 'CH26000001')
+            ->assertJsonPath('serialPlans.0.serialNo', 'PX1441')
+            ->assertJsonPath('serialPlans.0.shikakariTypeName', '標準')
+            ->assertJsonPath('serialPlans.0.startDate', '2026-08-03 08:30:00')
+            ->assertJsonPath('serialPlans.0.endDate', '2026-08-12 17:00:00')
+            ->assertJsonPath('serialPlans.1.shikakariTypeName', '出荷');
+
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            'machines' => ['機種A'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+            'include_serial_plans' => false,
+        ])->assertOk()->assertJsonCount(0, 'serialPlans');
     }
 
     public function test_dpr_search_reports_display_scope_and_returns_one_group_with_overlapping_plans(): void

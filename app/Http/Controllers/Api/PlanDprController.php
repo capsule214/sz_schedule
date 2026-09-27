@@ -67,6 +67,7 @@ class PlanDprController extends Controller
       'sales_locations.*' => ['string', 'regex:/^[A-Za-z]{2}$/'],
       'publication_years' => 'nullable|array',
       'publication_years.*' => ['string', 'regex:/^\d{2}$/'],
+      'include_serial_plans' => 'nullable|boolean',
     ];
   }
 
@@ -137,6 +138,44 @@ class PlanDprController extends Controller
       ->map(fn (KdPlan $plan) => $this->formatPlan($plan));
   }
 
+  /** DPRの機種に関連する製番予定を、製番・仕掛区分単位の期間へ集約する。 */
+  private function serialPlansForDprNos($dprNos)
+  {
+    if ($dprNos->isEmpty()) return collect();
+
+    $relatedSerials = DB::table('m_dpr')
+      ->join('dm_kisyu', 'dm_kisyu.kisyu_name', '=', 'm_dpr.machine')
+      ->join('kd_serial', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
+      ->whereIn('m_dpr.dprno', $dprNos)
+      ->where('dm_kisyu.deleted', 0)
+      ->where('kd_serial.deleted', 0)
+      ->where('kd_serial.serial_no', '<>', '')
+      ->select('m_dpr.dprno as dpr_no', 'kd_serial.serial_id', 'kd_serial.serial_no')
+      ->distinct();
+
+    return DB::query()
+      ->fromSub($relatedSerials, 'related_serials')
+      ->join('kd_plan', 'kd_plan.serial_id', '=', 'related_serials.serial_id')
+      ->leftJoin('km_task', 'km_task.task_id', '=', 'kd_plan.task_id')
+      ->leftJoin('kk_shikakari_type', 'kk_shikakari_type.shikakari_type_id', '=', 'km_task.shikakari_type_id')
+      ->where('kd_plan.deleted', 0)
+      ->whereNotNull('kk_shikakari_type.shikakari_type_name')
+      ->selectRaw('related_serials.dpr_no, related_serials.serial_no, kk_shikakari_type.shikakari_type_name, kk_shikakari_type.sort_no, MIN(kd_plan.start_date) as start_date, MAX(kd_plan.end_date) as end_date')
+      ->groupBy('related_serials.dpr_no', 'related_serials.serial_no', 'kk_shikakari_type.shikakari_type_name', 'kk_shikakari_type.sort_no')
+      ->orderBy('related_serials.dpr_no')
+      ->orderBy('related_serials.serial_no')
+      ->orderBy('kk_shikakari_type.sort_no')
+      ->get()
+      ->map(fn ($plan) => [
+        'dprNo' => $plan->dpr_no,
+        'serialNo' => $plan->serial_no,
+        'shikakariTypeName' => $plan->shikakari_type_name,
+        'sortNo' => (int) $plan->sort_no,
+        'startDate' => $plan->start_date,
+        'endDate' => $plan->end_date,
+      ]);
+  }
+
   private function dprGroup(string $dprNo): ?array
   {
     $rows = DB::table('m_dpr')->where('dprno', $dprNo)->orderBy('machine')->get();
@@ -195,7 +234,7 @@ class PlanDprController extends Controller
     $hasMore = $dprNos->count() > $limit;
     $pageDprNos = $dprNos->take($limit)->values();
     if ($pageDprNos->isEmpty()) {
-      return response()->json(['groups' => [], 'plans' => [], 'hasMore' => false, 'nextCursor' => null]);
+      return response()->json(['groups' => [], 'plans' => [], 'serialPlans' => [], 'hasMore' => false, 'nextCursor' => null]);
     }
 
     $masterRows = DB::table('m_dpr')->whereIn('dprno', $pageDprNos)->orderBy('dprno')->orderBy('machine')->get();
@@ -228,6 +267,7 @@ class PlanDprController extends Controller
     return response()->json([
       'groups' => $groups,
       'plans' => $this->plansForDprNos($pageDprNos, $data['from'], $data['to']),
+      'serialPlans' => ! empty($data['include_serial_plans']) ? $this->serialPlansForDprNos($pageDprNos) : [],
       'hasMore' => $hasMore,
       'nextCursor' => $hasMore ? $pageDprNos->last() : null,
     ]);
@@ -255,6 +295,7 @@ class PlanDprController extends Controller
       'inDisplaySettings' => $filtered->exists(),
       'group' => $group,
       'plans' => $this->plansForDprNos([$dprNo], $data['from'], $data['to']),
+      'serialPlans' => ! empty($data['include_serial_plans']) ? $this->serialPlansForDprNos(collect([$dprNo])) : [],
     ]);
   }
 

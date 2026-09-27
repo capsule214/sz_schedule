@@ -2,14 +2,14 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { apiArray, apiJson } from '../../lib/api';
 import {
   CELL_SIZE, TOTAL_HDR_H, addDays, dateToStr, daysBetween,
-  getMonthWeekInfo, layoutPlans,
+  getMonthWeekInfo, layoutPlans, planToEndCol, planToStartCol,
 } from '../../lib/spreadsheet';
 import SpreadsheetGridCanvas from '../SpreadsheetGridCanvas';
 import SpreadsheetGridHeaders from '../SpreadsheetGridHeaders';
 import SpreadsheetGridStatusBar from '../SpreadsheetGridStatusBar';
 import ContextMenu from '../ContextMenu';
 import UpdateConflictDialog from '../UpdateConflictDialog';
-import DprBars from './DprBars';
+import DprBars, { DprSerialPlanBars } from './DprBars';
 import DprHeaderTooltip from './DprHeaderTooltip';
 import DprScheduleDialog from './DprScheduleDialog';
 import DprLeftHeader, { DPR_LEFT_COLUMN_KEYS, DprLeftHeaderCorner } from './DprLeftHeader';
@@ -51,12 +51,52 @@ function buildDateColumns(startDate, endDate, calendarData) {
   return columns;
 }
 
+function appendSerialPlanRows(baseGroups, serialPlans, startDate) {
+  const plansByDpr = new Map();
+  for (const plan of serialPlans) {
+    if (!plansByDpr.has(plan.dprNo)) plansByDpr.set(plan.dprNo, []);
+    plansByDpr.get(plan.dprNo).push(plan);
+  }
+
+  let startRow = 0;
+  const groups = baseGroups.map(group => {
+    const rows = [];
+    const laidOutPlans = [];
+    const sortedPlans = [...(plansByDpr.get(group.dprNo) || [])].sort((a, b) =>
+      String(a.serialNo).localeCompare(String(b.serialNo), 'ja') || Number(a.sortNo) - Number(b.sortNo));
+    for (const plan of sortedPlans) {
+      const startCol = planToStartCol(plan, startDate, DATE_WIDTH);
+      const endCol = planToEndCol(plan, startDate, DATE_WIDTH);
+      let rowIdx = rows.findIndex(intervals => intervals.every(interval => endCol < interval.startCol || startCol > interval.endCol));
+      if (rowIdx < 0) {
+        rowIdx = rows.length;
+        rows.push([]);
+      }
+      rows[rowIdx].push({ startCol, endCol });
+      laidOutPlans.push({ ...plan, rowIdx });
+    }
+    const serialPlanNumRows = Math.max(1, rows.length);
+    const next = {
+      ...group,
+      startRow,
+      serialPlanRowIdx: group.numRows,
+      serialPlanNumRows,
+      serialPlans: laidOutPlans,
+      numRows: group.numRows + serialPlanNumRows,
+    };
+    startRow += next.numRows;
+    return next;
+  });
+  return { groups, totalRows: startRow };
+}
+
 const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, displaySettingsApplyVersion = 0, onGenerated, onError, onDirtyChange, onHistoryChange, onBeforeRedraw }, ref) {
   const ipadOS = useMemo(() => isIPadOS(), []);
   const [startDate, setStartDate] = useState(() => dateToStr(new Date()));
   const [generating, setGenerating] = useState(false);
   const [groups, setGroups] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [serialPlans, setSerialPlans] = useState([]);
   const [calendarData, setCalendarData] = useState(new Map());
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -146,6 +186,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     publication_years: displaySettings?.dprpublicationyearlist || [],
   });
   const duration = Math.max(1, Number(displaySettings?.dprduration ?? 4));
+  const showSerialPlans = !!displaySettings?.dprflgseiban;
   const endDate = useMemo(() => addDays(startDate, duration * 30), [startDate, duration]);
   const colW = DATE_WIDTH;
   const leftWidth = DPR_LEFT_COLUMN_KEYS.reduce((sum, key) => sum + colWidths[key], 0);
@@ -215,6 +256,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         method: 'POST',
         body: JSON.stringify({
           machines: selectedMachines, from: startDate, to: endDate, limit: PAGE_SIZE,
+          include_serial_plans: showSerialPlans,
           ...categoryFilters,
           ...(atOrAfterDprNo
             ? { at_or_after_dpr_no: atOrAfterDprNo }
@@ -229,6 +271,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           : [...previous.filter(plan => Number(plan.planId) > 0), ...response.plans];
         return mergePendingPlans([...new Map(base.map(plan => [Number(plan.planId), plan])).values()]);
       });
+      setSerialPlans(previous => reset ? (response.serialPlans || []) : [...previous, ...(response.serialPlans || [])]);
       cursorRef.current = response.nextCursor;
       setHasMore(!!response.hasMore);
     } catch {
@@ -239,7 +282,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         setLoading(false);
       }
     }
-  }, [active, machineKey, categoryFilterKey, startDate, endDate, hasMore, mergePendingPlans]);
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, hasMore, mergePendingPlans, showSerialPlans]);
 
   useEffect(() => {
     if (!active) return;
@@ -260,6 +303,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setDprSearchText('');
     setGroups([]);
     setPlans(mergePendingPlans([]));
+    setSerialPlans([]);
     setHasMore(false);
     loadingRef.current = false;
     if (machines.length === 0) {
@@ -267,7 +311,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       return;
     }
     loadPage(true);
-  }, [active, machineKey, categoryFilterKey, startDate, endDate, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!active) return;
@@ -292,10 +336,18 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
   const dateColumns = useMemo(() => buildDateColumns(startDate, endDate, calendarData), [startDate, endDate, calendarData]);
   const totalCols = Math.max(1, dateColumns.length);
-  const { groups: layoutGroups, totalRows } = useMemo(
-    () => layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 4),
-    [plans, groups, startDate],
-  );
+  const { groups: layoutGroups, totalRows } = useMemo(() => {
+    const base = layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 4);
+    return showSerialPlans ? appendSerialPlanRows(base.groups, serialPlans, startDate) : base;
+  }, [plans, groups, startDate, showSerialPlans, serialPlans]);
+  const serialPlanRowAbsSet = useMemo(() => {
+    const rows = new Set();
+    for (const group of layoutGroups) {
+      if (group.serialPlanRowIdx < 0) continue;
+      for (let index = 0; index < group.serialPlanNumRows; index++) rows.add(group.startRow + group.serialPlanRowIdx + index);
+    }
+    return rows;
+  }, [layoutGroups]);
   const contentWidth = Math.max(totalCols * colW, viewport.width);
   const contentHeight = Math.max(totalRows * CELL_SIZE, viewport.height);
   const visRowStart = Math.max(0, Math.floor(scroll.top / CELL_SIZE));
@@ -328,6 +380,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     if (!cell) return;
     setSelectedCell({ col: cell.col, row: cell.row });
     if (event.target.closest?.('[data-dpr-plan-bar="1"]')) {
+      setContextMenu(null);
+      return;
+    }
+    if (event.target.closest?.('[data-dpr-serial-plan-bar="1"]')) {
       setContextMenu(null);
       return;
     }
@@ -675,6 +731,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         method: 'POST',
         body: JSON.stringify({
           dprNo, machines: JSON.parse(machineKey), from: startDate, to: endDate,
+          include_serial_plans: showSerialPlans,
           ...categoryFilters,
         }),
       });
@@ -696,6 +753,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       cursorRef.current = null;
       setGroups([result.group]);
       setPlans(result.plans || []);
+      setSerialPlans(result.serialPlans || []);
       setHasMore(false);
       setHeaderDetail(null);
       if (viewportRef.current) {
@@ -708,7 +766,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     } finally {
       setLoading(false);
     }
-  }, [dprSearchText, scrollToDpr, categoryFilterKey, machineKey, startDate, endDate, loadPage]);
+  }, [dprSearchText, scrollToDpr, categoryFilterKey, machineKey, startDate, endDate, showSerialPlans, loadPage]);
 
   const handleDprSearchClear = useCallback(() => {
     if (!dprSearchText) return;
@@ -809,7 +867,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
                 width={viewport.width} height={viewport.height} scrollLeft={scroll.left} scrollTop={scroll.top}
                 visColStart={visColStart} visColEnd={visColEnd} visRowStart={visRowStart} visRowEnd={visRowEnd}
                 colW={colW} dateColumns={dateColumns} dateWidth={DATE_WIDTH} mode="dpr"
-                layoutGroups={layoutGroups} locationRowAbsSet={new Set()}
+                layoutGroups={layoutGroups} locationRowAbsSet={new Set()} readonlyRowAbsSet={serialPlanRowAbsSet}
               />
             </div>
             <DprBars
@@ -819,6 +877,13 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               onBarRightClick={handleBarRightClick}
               interactionReadOnly={ipadOS}
             />
+            {showSerialPlans && (
+              <DprSerialPlanBars
+                layoutGroups={layoutGroups} startDate={startDate} dateWidth={DATE_WIDTH} colW={colW}
+                totalCols={totalCols} scrollLeft={scroll.left} viewportWidth={viewport.width}
+                visRowStart={visRowStart} visRowEnd={visRowEnd}
+              />
+            )}
           </div>
         </div>
         {loading && <div style={{ position: 'absolute', right: 18, bottom: 18, padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.92)', boxShadow: '0 1px 5px rgba(0,0,0,0.2)', fontSize: 12, color: '#6b7280' }}>読み込み中...</div>}
