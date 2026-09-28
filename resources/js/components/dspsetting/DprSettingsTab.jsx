@@ -265,7 +265,7 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
             onRemove={v => tagRemove('dprinchargelist', v)}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>装置グループ絞込</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>製造グループ絞込</div>
             <button
               onClick={() => setField('dprszgrouplist', [1, 2, 3])}
               style={{ ...BTN, width: '100%' }}

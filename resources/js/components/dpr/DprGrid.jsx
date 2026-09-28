@@ -52,7 +52,7 @@ function buildDateColumns(startDate, endDate, calendarData) {
   return columns;
 }
 
-function appendSerialPlanRows(baseGroups, serialPlans, startDate) {
+function appendSerialPlanRows(baseGroups, serialPlans) {
   const plansByDpr = new Map();
   for (const plan of serialPlans) {
     if (!plansByDpr.has(plan.dprNo)) plansByDpr.set(plan.dprNo, []);
@@ -61,22 +61,16 @@ function appendSerialPlanRows(baseGroups, serialPlans, startDate) {
 
   let startRow = 0;
   const groups = baseGroups.map(group => {
-    const rows = [];
-    const laidOutPlans = [];
     const sortedPlans = [...(plansByDpr.get(group.dprNo) || [])].sort((a, b) =>
-      String(a.serialNo).localeCompare(String(b.serialNo), 'ja') || Number(a.sortNo) - Number(b.sortNo));
-    for (const plan of sortedPlans) {
-      const startCol = planToStartCol(plan, startDate, DATE_WIDTH);
-      const endCol = planToEndCol(plan, startDate, DATE_WIDTH);
-      let rowIdx = rows.findIndex(intervals => intervals.every(interval => endCol < interval.startCol || startCol > interval.endCol));
-      if (rowIdx < 0) {
-        rowIdx = rows.length;
-        rows.push([]);
-      }
-      rows[rowIdx].push({ startCol, endCol });
-      laidOutPlans.push({ ...plan, rowIdx });
-    }
-    const serialPlanNumRows = Math.max(1, rows.length);
+      String(a.serialNo).localeCompare(String(b.serialNo), 'ja', { numeric: true }) || Number(a.sortNo) - Number(b.sortNo));
+    const serialNos = [...new Set(sortedPlans.map(plan => String(plan.serialNo)))];
+    const rowBySerialNo = new Map(serialNos.map((serialNo, rowIdx) => [serialNo, rowIdx]));
+    // 同じ製番の仕掛区分予定は期間が重なっていても同一行へ描画する。
+    const laidOutPlans = sortedPlans.map(plan => ({
+      ...plan,
+      rowIdx: rowBySerialNo.get(String(plan.serialNo)) ?? 0,
+    }));
+    const serialPlanNumRows = Math.max(1, serialNos.length);
     const next = {
       ...group,
       startRow,
@@ -117,6 +111,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
   const viewportRef = useRef(null);
+  const dateHeaderRef = useRef(null);
   const leftHeaderRef = useRef(null);
   const cursorRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -147,6 +142,22 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     if (!active || !ipadOS) return undefined;
     return attachForwardedVerticalTouchScroll(leftHeaderRef.current, () => viewportRef.current);
   }, [active, ipadOS]);
+
+  // カレンダーヘッダ上の縦ホイールを、予定表示領域の横スクロールへ転送する。
+  useEffect(() => {
+    const headerElement = dateHeaderRef.current;
+    if (!headerElement || !active) return undefined;
+
+    const handleWheel = event => {
+      const viewportElement = viewportRef.current;
+      if (!viewportElement) return;
+      event.preventDefault();
+      viewportElement.scrollLeft += event.deltaX + event.deltaY;
+    };
+
+    headerElement.addEventListener('wheel', handleWheel, { passive: false });
+    return () => headerElement.removeEventListener('wheel', handleWheel);
+  }, [active]);
 
   const notifyHistoryChange = useCallback(() => {
     onHistoryChange?.('dpr', {
@@ -193,6 +204,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     leader_user_nos: displaySettings?.dprinchargelist || [],
     sales_locations: displaySettings?.dprsaleslocationlist || [],
     publication_years: displaySettings?.dprpublicationyearlist || [],
+    seizo_group_ids: displaySettings?.dprszgrouplist || [],
   });
   const duration = Math.max(1, Number(displaySettings?.dprduration ?? 4));
   const showSerialPlans = !!displaySettings?.dprflgseiban;
@@ -368,7 +380,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const totalCols = Math.max(1, dateColumns.length);
   const { groups: layoutGroups, totalRows } = useMemo(() => {
     const base = layoutPlans(plans, 'dpr', groups, DATE_WIDTH, startDate, 3);
-    return showSerialPlans ? appendSerialPlanRows(base.groups, serialPlans, startDate) : base;
+    return showSerialPlans ? appendSerialPlanRows(base.groups, serialPlans) : base;
   }, [plans, groups, startDate, showSerialPlans, serialPlans]);
   const serialPlanRowAbsSet = useMemo(() => {
     const rows = new Set();
@@ -1081,7 +1093,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       />
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         <DprLeftHeaderCorner colWidths={colWidths} onStartResize={startColResize} onWheel={forwardHeaderWheel} showCustomer={!!displaySettings?.flgdspcustomer} />
-        <div style={{ position: 'absolute', left: leftWidth, right: 0, top: 0, height: TOTAL_HDR_H, overflow: 'hidden', borderBottom: '1px solid #9ca3af' }}>
+        <div ref={dateHeaderRef} style={{ position: 'absolute', left: leftWidth, right: 0, top: 0, height: TOTAL_HDR_H, overflow: 'hidden', borderBottom: '1px solid #9ca3af' }}>
           <div style={{ position: 'relative', width: contentWidth, height: TOTAL_HDR_H, transform: `translateX(${-scroll.left}px)` }}>
             <SpreadsheetGridHeaders dateWidth={DATE_WIDTH} colW={colW} dateColumns={dateColumns} scrollLeft={scroll.left} containerW={viewport.width} />
           </div>

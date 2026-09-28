@@ -135,6 +135,51 @@ class DprGroupsApiTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('machines');
     }
 
+    public function test_it_filters_dpr_groups_by_related_serial_seizo_group(): void
+    {
+        $user = User::create([
+            'name' => 'DPR equip group user',
+            'email' => 'dpr-equip-group@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        $machineA = DmKisyu::create(['kisyu_name' => '機種A']);
+        $machineB = DmKisyu::create(['kisyu_name' => '機種B']);
+        DB::table('m_dpr')->insert([
+            $this->dprRow('CH26000001', '機種A', '設計中'),
+            $this->dprRow('CH26000002', '機種B', '設計中'),
+        ]);
+        DB::table('kd_serial')->insert([
+            ['serial_no' => 'GROUP-1', 'kisyu_id' => $machineA->kisyu_id, 'seizo_group_id' => 1, 'deleted' => 0],
+            ['serial_no' => 'GROUP-2', 'kisyu_id' => $machineB->kisyu_id, 'seizo_group_id' => 2, 'deleted' => 0],
+        ]);
+
+        $payload = [
+            'machines' => ['機種A', '機種B'],
+            'from' => '2026-08-01',
+            'to' => '2026-08-31',
+        ];
+
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            ...$payload,
+            'seizo_group_ids' => [1],
+        ])->assertOk()
+            ->assertJsonCount(1, 'groups')
+            ->assertJsonPath('groups.0.dprNo', 'CH26000001');
+
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            ...$payload,
+            'seizo_group_ids' => [2],
+        ])->assertOk()
+            ->assertJsonCount(1, 'groups')
+            ->assertJsonPath('groups.0.dprNo', 'CH26000002');
+
+        $this->actingAs($user)->postJson('/api/dpr/plans/search', [
+            ...$payload,
+            'dprNo' => 'CH26000001',
+            'seizo_group_ids' => [2],
+        ])->assertOk()->assertJsonPath('inDisplaySettings', false);
+    }
+
     public function test_it_returns_all_non_deleted_serials_related_by_dpr_machine_ids(): void
     {
         $user = User::create([

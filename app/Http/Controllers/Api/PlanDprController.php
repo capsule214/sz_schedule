@@ -46,6 +46,25 @@ class PlanDprController extends Controller
     }
   }
 
+  /** DPR No に関連する製番の製造グループで絞り込む。 */
+  private function applySeizoGroupFilters($query, array $data): void
+  {
+    if (empty($data['seizo_group_ids'])) return;
+
+    $seizoGroupIds = array_map('intval', $data['seizo_group_ids']);
+    $query->whereExists(function ($relatedSerials) use ($seizoGroupIds) {
+      $relatedSerials
+        ->selectRaw('1')
+        ->from('m_dpr as related_dpr')
+        ->join('dm_kisyu', 'dm_kisyu.kisyu_name', '=', 'related_dpr.machine')
+        ->join('kd_serial', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
+        ->whereColumn('related_dpr.dprno', 'm_dpr.dprno')
+        ->where('dm_kisyu.deleted', 0)
+        ->where('kd_serial.deleted', 0)
+        ->whereIn('kd_serial.seizo_group_id', $seizoGroupIds);
+    });
+  }
+
   private function displayRules(): array
   {
     return [
@@ -67,6 +86,8 @@ class PlanDprController extends Controller
       'sales_locations.*' => ['string', 'regex:/^[A-Za-z]{2}$/'],
       'publication_years' => 'nullable|array',
       'publication_years.*' => ['string', 'regex:/^\d{2}$/'],
+      'seizo_group_ids' => 'nullable|array|max:3',
+      'seizo_group_ids.*' => 'integer|in:1,2,3',
       'include_serial_plans' => 'nullable|boolean',
     ];
   }
@@ -139,7 +160,7 @@ class PlanDprController extends Controller
   }
 
   /** DPRの機種に関連する製番予定を、製番・仕掛区分単位の期間へ集約する。 */
-  private function serialPlansForDprNos($dprNos)
+  private function serialPlansForDprNos($dprNos, array $seizoGroupIds = [])
   {
     if ($dprNos->isEmpty()) return collect();
 
@@ -152,6 +173,9 @@ class PlanDprController extends Controller
       ->where('kd_serial.serial_no', '<>', '')
       ->select('m_dpr.dprno as dpr_no', 'kd_serial.serial_id', 'kd_serial.serial_no')
       ->distinct();
+    if (! empty($seizoGroupIds)) {
+      $relatedSerials->whereIn('kd_serial.seizo_group_id', array_map('intval', $seizoGroupIds));
+    }
 
     return DB::query()
       ->fromSub($relatedSerials, 'related_serials')
@@ -221,6 +245,7 @@ class PlanDprController extends Controller
       ->whereNotNull('dprno')
       ->where('dprno', '<>', '');
     $this->applyCategoryFilters($query, $data);
+    $this->applySeizoGroupFilters($query, $data);
     if (! empty($data['leader_user_nos'])) $query->whereIn('dprleader_sytx', $data['leader_user_nos']);
     if (! empty($data['sales_locations'])) $query->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
     if (! empty($data['publication_years'])) $query->whereIn(DB::raw($this->dprPublishExpression()), $data['publication_years']);
@@ -267,7 +292,9 @@ class PlanDprController extends Controller
     return response()->json([
       'groups' => $groups,
       'plans' => $this->plansForDprNos($pageDprNos, $data['from'], $data['to']),
-      'serialPlans' => ! empty($data['include_serial_plans']) ? $this->serialPlansForDprNos($pageDprNos) : [],
+      'serialPlans' => ! empty($data['include_serial_plans'])
+        ? $this->serialPlansForDprNos($pageDprNos, $data['seizo_group_ids'] ?? [])
+        : [],
       'hasMore' => $hasMore,
       'nextCursor' => $hasMore ? $pageDprNos->last() : null,
     ]);
@@ -285,6 +312,7 @@ class PlanDprController extends Controller
 
     $filtered = DB::table('m_dpr')->where('dprno', $dprNo)->whereIn('machine', $data['machines'] ?? []);
     $this->applyCategoryFilters($filtered, $data);
+    $this->applySeizoGroupFilters($filtered, $data);
     if (! empty($data['leader_user_nos'])) $filtered->whereIn('dprleader_sytx', $data['leader_user_nos']);
     if (! empty($data['sales_locations'])) $filtered->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
     if (! empty($data['publication_years'])) $filtered->whereIn(DB::raw($this->dprPublishExpression()), $data['publication_years']);
@@ -295,7 +323,9 @@ class PlanDprController extends Controller
       'inDisplaySettings' => $filtered->exists(),
       'group' => $group,
       'plans' => $this->plansForDprNos([$dprNo], $data['from'], $data['to']),
-      'serialPlans' => ! empty($data['include_serial_plans']) ? $this->serialPlansForDprNos(collect([$dprNo])) : [],
+      'serialPlans' => ! empty($data['include_serial_plans'])
+        ? $this->serialPlansForDprNos(collect([$dprNo]), $data['seizo_group_ids'] ?? [])
+        : [],
     ]);
   }
 

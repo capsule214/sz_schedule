@@ -75,28 +75,26 @@ export default function DprToolbar({
         </button>
       ))}
 
-      <input
-        type="text"
-        value={dprSearchText}
-        onChange={event => onDprSearchTextChange(event.target.value)}
-        onKeyDown={event => { if (event.key === 'Enter') onDprSearch(); }}
-        placeholder="DPR No検索"
-        style={{ ...CONTROL_STYLE, minWidth: 145 }}
-      />
+      <div style={{ position: 'relative', minWidth: 145 }}>
+        <input
+          type="text"
+          value={dprSearchText}
+          onChange={event => onDprSearchTextChange(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter') onDprSearch(); }}
+          placeholder="DPR No検索"
+          style={{ ...CONTROL_STYLE, width: '100%', boxSizing: 'border-box', padding: `3px ${dprSearchText ? 28 : 8}px 3px 8px` }}
+        />
+        {dprSearchText && (
+          <button
+            type="button"
+            aria-label="DPR No検索をクリア"
+            title="検索をクリア"
+            onClick={onDprSearchClear}
+            style={{ position: 'absolute', top: '50%', right: 3, transform: 'translateY(-50%)', width: 22, height: 22, padding: 0, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+          >×</button>
+        )}
+      </div>
       <button type="button" onClick={onDprSearch} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>検索</button>
-      <button
-        type="button"
-        onClick={onDprSearchClear}
-        disabled={!dprSearchText}
-        style={{
-          ...CONTROL_STYLE,
-          background: dprSearchText ? '#fff' : '#f3f4f6',
-          color: dprSearchText ? '#374151' : '#9ca3af',
-          cursor: dprSearchText ? 'pointer' : 'not-allowed',
-        }}
-      >
-        クリア
-      </button>
 
       <button type="button" onClick={onRefresh} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>再描画</button>
 
