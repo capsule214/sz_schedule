@@ -18,10 +18,21 @@ export default function DprToolbar({
   onDprSearch,
   onDprSearchClear,
   onRefresh,
+  lastUpdatedAt,
   onGenerate,
   generating = false,
 }) {
   const [dateDialogOpen, setDateDialogOpen] = useState(false);
+  const updatedAtLabel = lastUpdatedAt
+    ? new Intl.DateTimeFormat('ja-JP', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(lastUpdatedAt)
+    : '未更新';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexShrink: 0, flexWrap: 'wrap' }}>
@@ -97,6 +108,7 @@ export default function DprToolbar({
       <button type="button" onClick={onDprSearch} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>検索</button>
 
       <button type="button" onClick={onRefresh} style={{ ...CONTROL_STYLE, cursor: 'pointer' }}>再描画</button>
+      <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>表示更新 {updatedAtLabel}</span>
 
       <button
         type="button"

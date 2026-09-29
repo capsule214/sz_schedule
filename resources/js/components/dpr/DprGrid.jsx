@@ -95,6 +95,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [calendarData, setCalendarData] = useState(new Map());
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [dprSearchText, setDprSearchText] = useState('');
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
@@ -295,6 +296,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       setSerialPlans(previous => reset ? (response.serialPlans || []) : [...previous, ...(response.serialPlans || [])]);
       cursorRef.current = response.nextCursor;
       setHasMore(!!response.hasMore);
+      if (reset) setLastUpdatedAt(new Date());
     } catch {
       if (requestId === requestIdRef.current) errorRef.current?.('DPR予定データの取得に失敗しました');
     } finally {
@@ -1027,6 +1029,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         viewportRef.current.scrollLeft = 0;
       }
       setScroll({ left: 0, top: 0 });
+      setLastUpdatedAt(new Date());
     } catch {
       errorRef.current?.('DPR Noの検索に失敗しました');
     } finally {
@@ -1089,6 +1092,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         dprSearchText={dprSearchText} onDprSearchTextChange={setDprSearchText}
         onDprSearch={handleDprSearch} onDprSearchClear={handleDprSearchClear}
         onRefresh={handleRefresh}
+        lastUpdatedAt={lastUpdatedAt}
         onGenerate={generateDpr} generating={generating}
       />
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
