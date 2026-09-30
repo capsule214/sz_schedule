@@ -2579,8 +2579,8 @@ const SpreadsheetGrid = forwardRef(function SpreadsheetGrid({
     const targetWorkerId   = mode === 'worker'   ? targetGroup.id : null;
     const targetResourceId = mode === 'place' ? targetGroup.id : null;
 
-    // 先頭プランの開始列を基準に列オフセットを算出
-    const firstStartCol = planToStartCol(copied[0], startDate, dateWidth);
+    // 複数予定の最も早い開始位置を、右クリックで選択したセルへ合わせる。
+    const firstStartCol = Math.min(...copied.map(plan => planToStartCol(plan, startDate, dateWidth)));
     const offset = targetCol - firstStartCol;
 
     const newPlans = [];
