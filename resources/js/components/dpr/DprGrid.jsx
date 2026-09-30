@@ -105,10 +105,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const [sonar, setSonar] = useState(null);
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
+  const [rectSelect, setRectSelect] = useState(null);
   const [ghostDrag, setGhostDrag] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [tooltip, setTooltip] = useState(null);
-  const [clipboard, setClipboard] = useState({ plan: null, action: 'copy' });
+  const [clipboard, setClipboard] = useState({ plans: [], action: 'copy' });
   const [scheduleDialog, setScheduleDialog] = useState(null);
   const [updateConflictDialogOpen, setUpdateConflictDialogOpen] = useState(false);
   const viewportRef = useRef(null);
@@ -135,6 +136,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const conflictDecisionRef = useRef(null);
   const dragRef = useRef(null);
   const dragCleanupRef = useRef(null);
+  const suppressNextCellClickRef = useRef(false);
   errorRef.current = onError;
   colWidthsRef.current = colWidths;
   plansRef.current = plans;
@@ -330,6 +332,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setHeaderDetail(null);
     setSelectedCell(null);
     setSelectedPlanIds(new Set());
+    setRectSelect(null);
     setContextMenu(null);
     setTooltip(null);
     setScheduleDialog(null);
@@ -554,12 +557,85 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   }, []);
 
   const selectCell = useCallback((event) => {
+    if (suppressNextCellClickRef.current) {
+      suppressNextCellClickRef.current = false;
+      return;
+    }
     const cell = pointerCell(event);
     if (!cell) return;
     setSelectedCell({ col: cell.col, row: cell.row });
     setSelectedPlanIds(new Set());
     setContextMenu(null);
   }, [pointerCell]);
+
+  const handleContentPointerDown = useCallback((event) => {
+    if (ipadOS || event.button !== 0) return;
+    if (event.target.closest?.('[data-dpr-plan-bar="1"], [data-dpr-serial-plan-bar="1"], [data-dpr-serial-plan-past-label="1"]')) return;
+    const viewportElement = viewportRef.current;
+    if (!viewportElement) return;
+    const rect = viewportElement.getBoundingClientRect();
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const toContentPoint = (clientX, clientY) => ({
+      x: clientX - rect.left + viewportElement.scrollLeft,
+      y: clientY - rect.top + viewportElement.scrollTop,
+    });
+    let dragging = false;
+    let lastClientX = startClientX;
+    let lastClientY = startClientY;
+
+    const handleMove = moveEvent => {
+      lastClientX = moveEvent.clientX;
+      lastClientY = moveEvent.clientY;
+      if (!dragging && (Math.abs(lastClientX - startClientX) > 4 || Math.abs(lastClientY - startClientY) > 4)) dragging = true;
+      if (!dragging) return;
+      moveEvent.preventDefault();
+      const start = toContentPoint(startClientX, startClientY);
+      const end = toContentPoint(lastClientX, lastClientY);
+      setRectSelect({ x1: start.x, y1: start.y, x2: end.x, y2: end.y });
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      if (!dragging) {
+        setRectSelect(null);
+        return;
+      }
+      suppressNextCellClickRef.current = true;
+      setTimeout(() => { suppressNextCellClickRef.current = false; }, 0);
+      const start = toContentPoint(startClientX, startClientY);
+      const end = toContentPoint(lastClientX, lastClientY);
+      const selection = {
+        left: Math.min(start.x, end.x),
+        right: Math.max(start.x, end.x),
+        top: Math.min(start.y, end.y),
+        bottom: Math.max(start.y, end.y),
+      };
+      const selectedIds = new Set();
+      for (const group of layoutGroups) {
+        for (const plan of group.plans || []) {
+          const startCol = planToStartCol(plan, startDate, DATE_WIDTH);
+          const endCol = planToEndCol(plan, startDate, DATE_WIDTH);
+          const row = group.startRow + plan.rowIdx;
+          const barLeft = startCol * colW;
+          const barRight = (endCol + 1) * colW;
+          const barTop = row * CELL_SIZE;
+          const barBottom = (row + 1) * CELL_SIZE;
+          if (barLeft < selection.right && barRight > selection.left && barTop < selection.bottom && barBottom > selection.top) {
+            selectedIds.add(Number(plan.planId));
+          }
+        }
+      }
+      setSelectedPlanIds(selectedIds);
+      setSelectedCell(null);
+      setContextMenu(null);
+      setRectSelect(null);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  }, [ipadOS, layoutGroups, startDate, colW]);
 
   const deleteDprPlan = useCallback((plan, confirmDelete = true, recordHistory = true) => {
     if (!plan || (confirmDelete && !window.confirm('このDPR予定を削除しますか？'))) return null;
@@ -588,40 +664,63 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     return historyAction;
   }, [onDirtyChange, pushHistory]);
 
-  const pasteDprPlan = useCallback((cell) => {
-    const source = clipboard.plan;
-    if (!source || !cell?.group) return;
-    const sourceStartCol = planToStartCol(source, startDate, DATE_WIDTH);
-    const sourceEndCol = planToEndCol(source, startDate, DATE_WIDTH);
-    const durationCols = Math.max(0, sourceEndCol - sourceStartCol);
-    const targetStartCol = Math.max(0, Math.min(cell.col, totalCols - 1));
-    const targetEndCol = Math.max(targetStartCol, Math.min(targetStartCol + durationCols, totalCols - 1));
-    const payload = {
-      dprNo: cell.group.dprNo,
-      userNo: source.userNo || null,
-      taskId: Number(source.taskId),
-      startDate: `${addDays(startDate, targetStartCol)}T08:30:00`,
-      endDate: `${addDays(startDate, targetEndCol)}T21:25:00`,
-      remark: source.remark ?? '',
-    };
-    const planId = tempIdCounterRef.current--;
-    const plan = { ...source, ...payload, planId, updatedAtVersion: null };
-    pendingCreatesRef.current.set(planId, { payload, visual: plan });
-    setPlans(previous => [...previous, plan]);
-    const createAction = { type: 'create', plan, payload };
-    setSelectedPlanIds(new Set([planId]));
+  const deleteDprPlans = useCallback((targetPlans, confirmDelete = true) => {
+    const uniquePlans = [...new Map((targetPlans || []).filter(Boolean).map(plan => [Number(plan.planId), plan])).values()];
+    if (uniquePlans.length === 0) return;
+    const message = uniquePlans.length > 1
+      ? `選択した${uniquePlans.length}件のDPR予定を削除しますか？`
+      : 'このDPR予定を削除しますか？';
+    if (confirmDelete && !window.confirm(message)) return;
+    const actions = uniquePlans.map(plan => deleteDprPlan(plan, false, false)).filter(Boolean);
+    if (actions.length === 1) pushHistory(actions[0]);
+    else if (actions.length > 1) pushHistory({ type: 'batch', actions });
+    setSelectedPlanIds(new Set());
+  }, [deleteDprPlan, pushHistory]);
+
+  const pasteDprPlans = useCallback((cell) => {
+    const sources = clipboard.plans || [];
+    if (sources.length === 0 || !cell?.group) return;
+    // 複数予定の最も早い開始日を、右クリックで選択したセルの日付へ合わせる。
+    const anchorStartCol = Math.min(...sources.map(source => planToStartCol(source, startDate, DATE_WIDTH)));
+    const offset = cell.col - anchorStartCol;
+    const newPlans = sources.map(source => {
+      const sourceStartCol = planToStartCol(source, startDate, DATE_WIDTH);
+      const sourceEndCol = planToEndCol(source, startDate, DATE_WIDTH);
+      const durationCols = Math.max(0, sourceEndCol - sourceStartCol);
+      const targetStartCol = sourceStartCol + offset;
+      // 表示期間の右端を超えても切り詰めず、元予定の日数を維持する。
+      const targetEndCol = targetStartCol + durationCols;
+      const payload = {
+        dprNo: cell.group.dprNo,
+        userNo: source.userNo || null,
+        taskId: Number(source.taskId),
+        startDate: `${addDays(startDate, targetStartCol)}T08:30:00`,
+        endDate: `${addDays(startDate, targetEndCol)}T21:25:00`,
+        remark: source.remark ?? '',
+      };
+      const planId = tempIdCounterRef.current--;
+      const plan = { ...source, ...payload, planId, updatedAtVersion: null };
+      pendingCreatesRef.current.set(planId, { payload, visual: plan });
+      return { plan, payload };
+    });
+    setPlans(previous => [...previous, ...newPlans.map(item => item.plan)]);
+    const createActions = newPlans.map(item => ({ type: 'create', plan: item.plan, payload: item.payload }));
+    setSelectedPlanIds(new Set(newPlans.map(item => item.plan.planId)));
     setSelectedCell(null);
     if (clipboard.action === 'cut') {
-      const currentSource = plansRef.current.find(item => Number(item.planId) === Number(source.planId));
-      const deleteAction = currentSource ? deleteDprPlan(currentSource, false, false) : null;
-      pushHistory(deleteAction ? { type: 'batch', actions: [createAction, deleteAction] } : createAction);
-      setClipboard({ plan: null, action: 'copy' });
+      const deleteActions = sources
+        .map(source => plansRef.current.find(item => Number(item.planId) === Number(source.planId)))
+        .filter(Boolean)
+        .map(source => deleteDprPlan(source, false, false))
+        .filter(Boolean);
+      pushHistory({ type: 'batch', actions: [...createActions, ...deleteActions] });
+      setClipboard({ plans: [], action: 'copy' });
     } else {
-      pushHistory(createAction);
+      pushHistory(createActions.length === 1 ? createActions[0] : { type: 'batch', actions: createActions });
     }
     setContextMenu(null);
     onDirtyChange?.(true);
-  }, [clipboard, startDate, totalCols, pushHistory, deleteDprPlan, onDirtyChange]);
+  }, [clipboard, startDate, pushHistory, deleteDprPlan, onDirtyChange]);
 
   const openCellContextMenu = useCallback((event) => {
     event.preventDefault();
@@ -647,10 +746,10 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         endDate: date,
       }),
     }];
-    if (clipboard.plan) {
+    if (clipboard.plans.length > 0) {
       items.push('separator', {
-        label: '貼り付け',
-        onClick: () => pasteDprPlan(cell),
+        label: `貼り付け（${clipboard.plans.length}件）`,
+        onClick: () => pasteDprPlans(cell),
       });
     }
     setContextMenu({
@@ -658,13 +757,18 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       y: event.clientY,
       items,
     });
-  }, [ipadOS, pointerCell, startDate, clipboard.plan, pasteDprPlan]);
+  }, [ipadOS, pointerCell, startDate, clipboard.plans, pasteDprPlans]);
 
   const handleBarRightClick = useCallback((event, plan, group) => {
     event.preventDefault();
     event.stopPropagation();
     setSelectedCell(null);
-    setSelectedPlanIds(previous => previous.has(Number(plan.planId)) ? previous : new Set([Number(plan.planId)]));
+    const planId = Number(plan.planId);
+    const isMultiSelection = selectedPlanIds.size > 1 && selectedPlanIds.has(planId);
+    const targetPlans = isMultiSelection
+      ? [...selectedPlanIds].map(id => plansRef.current.find(item => Number(item.planId) === Number(id))).filter(Boolean)
+      : [plan];
+    if (!isMultiSelection) setSelectedPlanIds(new Set([planId]));
     if (ipadOS) {
       const x = event.clientX;
       const y = event.clientY;
@@ -675,6 +779,19 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           label: '詳細表示',
           onClick: () => setTooltip({ plan: { ...plan, machine: group.machine }, x, y }),
         }],
+      });
+      return;
+    }
+    if (isMultiSelection) {
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { label: `${targetPlans.length}件コピー`, onClick: () => setClipboard({ plans: targetPlans.map(item => ({ ...item })), action: 'copy' }) },
+          { label: `${targetPlans.length}件切り取り`, onClick: () => setClipboard({ plans: targetPlans.map(item => ({ ...item })), action: 'cut' }) },
+          'separator',
+          { label: `${targetPlans.length}件削除`, danger: true, onClick: () => deleteDprPlans(targetPlans) },
+        ],
       });
       return;
     }
@@ -695,13 +812,13 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
             },
           }),
         },
-        { label: 'コピー', onClick: () => setClipboard({ plan: { ...plan }, action: 'copy' }) },
-        { label: '切り取り', onClick: () => setClipboard({ plan: { ...plan }, action: 'cut' }) },
+        { label: 'コピー', onClick: () => setClipboard({ plans: [{ ...plan }], action: 'copy' }) },
+        { label: '切り取り', onClick: () => setClipboard({ plans: [{ ...plan }], action: 'cut' }) },
         'separator',
-        { label: '削除', danger: true, onClick: () => deleteDprPlan(plan) },
+        { label: '削除', danger: true, onClick: () => deleteDprPlans([plan]) },
       ],
     });
-  }, [ipadOS, deleteDprPlan]);
+  }, [ipadOS, selectedPlanIds, deleteDprPlans]);
 
   const saveDialogPlan = useCallback((data) => {
     const dialog = scheduleDialog;
@@ -1124,12 +1241,23 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           }}
           style={{ position: 'absolute', left: leftWidth, right: 0, top: TOTAL_HDR_H, bottom: 0, overflow: 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch', cursor: 'cell' }}
         >
-          <div style={{ position: 'relative', width: contentWidth, height: contentHeight }}>
+          <div onPointerDown={handleContentPointerDown} style={{ position: 'relative', width: contentWidth, height: contentHeight }}>
             {selectedCell && (
               <div style={{
                 position: 'absolute', left: selectedCell.col * colW, top: selectedCell.row * CELL_SIZE,
                 width: colW, height: CELL_SIZE, outline: '2px solid #2563eb', outlineOffset: '-1px',
                 boxSizing: 'border-box', pointerEvents: 'none', zIndex: 3,
+              }} />
+            )}
+            {rectSelect && (
+              <div style={{
+                position: 'absolute',
+                left: Math.min(rectSelect.x1, rectSelect.x2),
+                top: Math.min(rectSelect.y1, rectSelect.y2),
+                width: Math.abs(rectSelect.x2 - rectSelect.x1),
+                height: Math.abs(rectSelect.y2 - rectSelect.y1),
+                border: '1px dashed #2563eb', background: 'rgba(37,99,235,0.10)',
+                boxSizing: 'border-box', pointerEvents: 'none', zIndex: 8,
               }} />
             )}
             <div style={{ position: 'absolute', left: scroll.left, top: scroll.top, width: viewport.width, height: viewport.height }}>
@@ -1185,7 +1313,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         dayCount={daysBetween(startDate, endDate)}
         planCount={plans.length}
         selectedCount={selectedPlanIds.size}
-        copiedCount={clipboard.plan ? 1 : 0}
+        copiedCount={clipboard.plans.length}
         clipboardAction={clipboard.action}
         cutApplied={false}
         loading={loading}

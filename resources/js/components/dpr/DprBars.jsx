@@ -44,6 +44,9 @@ export default function DprBars({ layoutGroups, startDate, dateWidth, colW, tota
       const row = group.startRow + plan.rowIdx + (ghost && ghostDrag.type === 'move' ? ghostDrag.deltaRow : 0);
       const left = drawStartCol * colW;
       const width = Math.min(Math.max(colW, (drawEndCol - drawStartCol + 1) * colW), contentRight - left);
+      // 表示開始日より前から続く予定は、予定名だけを表示開始日の位置までずらす。
+      // バー自体の開始位置は維持し、リサイズ対象の開始日は変えない。
+      const labelOffset = drawStartCol < 0 ? -left : 0;
       if (left + width < scrollLeft || left > scrollLeft + viewportWidth || row < visRowStart || row > visRowEnd) continue;
       const label = `${plan.taskName || ''}${plan.remark ? `＜${plan.remark}＞` : ''}`;
       const isSelected = selected.has(plan.planId);
@@ -80,7 +83,7 @@ export default function DprBars({ layoutGroups, startDate, dateWidth, colW, tota
               if (!interactionReadOnly && event.button === 0) onBarPointerDown?.(event, plan, 'resize-left');
             }}
           />
-          <span style={{ overflow: 'hidden', textOverflow: 'clip', pointerEvents: 'none' }}>{label}</span>
+          <span style={{ marginLeft: labelOffset, overflow: 'hidden', textOverflow: 'clip', pointerEvents: 'none' }}>{label}</span>
           <div
             style={{ position: 'absolute', right: 0, top: 0, width: HANDLE_W, height: '100%', cursor: interactionReadOnly ? 'inherit' : 'ew-resize', zIndex: 3 }}
             onPointerDown={event => {
@@ -107,12 +110,46 @@ export function DprSerialPlanBars({ layoutGroups, startDate, dateWidth, colW, to
   const contentRight = totalCols * colW;
   const bars = [];
   for (const group of layoutGroups) {
-    for (const plan of group.serialPlans || []) {
+    const serialPlans = group.serialPlans || [];
+    const latestPastPlanBySerial = new Map();
+    for (const plan of serialPlans) {
+      if (planToEndCol(plan, startDate, dateWidth) >= 0) continue;
+      const serialNo = String(plan.serialNo);
+      const current = latestPastPlanBySerial.get(serialNo);
+      const isLater = !current
+        || String(plan.endDate).localeCompare(String(current.endDate)) > 0
+        || (String(plan.endDate) === String(current.endDate) && Number(plan.sortNo) > Number(current.sortNo));
+      if (isLater) latestPastPlanBySerial.set(serialNo, plan);
+    }
+
+    for (const plan of serialPlans) {
       const startCol = planToStartCol(plan, startDate, dateWidth);
       const endCol = planToEndCol(plan, startDate, dateWidth);
       const row = group.startRow + group.serialPlanRowIdx + plan.rowIdx;
-      // 表示期間外の予定もレイアウト行には残すが、バーと予定名は描画しない。
-      if (endCol < 0 || startCol >= totalCols) continue;
+      if (endCol < 0) {
+        // 表示開始日より前に終了した予定は、製番ごとに終了日時が最も遅い
+        // 仕掛だけを表示開始日の位置へ繰越表示する。
+        if (latestPastPlanBySerial.get(String(plan.serialNo)) !== plan || row < visRowStart || row > visRowEnd) continue;
+        const pastLabel = `${plan.serialNo}:${plan.shikakariTypeName}`;
+        bars.push(
+          <div
+            key={`${group.dprNo}:${plan.serialNo}:past-label`}
+            data-dpr-serial-plan-past-label="1"
+            title={pastLabel}
+            style={{
+              position: 'absolute', left: 0, top: row * CELL_SIZE, height: CELL_SIZE,
+              display: 'flex', alignItems: 'center', padding: '0 4px', boxSizing: 'border-box',
+              color: '#000', whiteSpace: 'nowrap', fontSize: 16, zIndex: 3,
+              pointerEvents: 'none', userSelect: 'none',
+            }}
+          >
+            {pastLabel}
+          </div>
+        );
+        continue;
+      }
+      // 表示終了日より後の予定はレイアウト行だけを維持し、描画しない。
+      if (startCol >= totalCols) continue;
       // 表示開始日より前から続く予定は0列目で切り取り、予定名を画面左端へ表示する。
       const visibleStartCol = Math.max(0, startCol);
       const visibleEndCol = Math.min(totalCols - 1, endCol);
