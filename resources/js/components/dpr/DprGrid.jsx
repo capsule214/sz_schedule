@@ -973,7 +973,9 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       const updateVersions = [...changedPlanIds].map(planId => ({
         id: planId,
         updatedAt: plansRef.current.find(plan => Number(plan.planId) === Number(planId))?.updatedAtVersion
+          ?? plansRef.current.find(plan => Number(plan.planId) === Number(planId))?.updatedAt
           ?? pendingDeletesRef.current.get(planId)?.updatedAtVersion
+          ?? pendingDeletesRef.current.get(planId)?.updatedAt
           ?? null,
       }));
       if (updateVersions.length > 0) {
@@ -1279,7 +1281,6 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
               onBarPointerDown={handleBarPointerDown}
               onBarRightClick={handleBarRightClick}
               interactionReadOnly={ipadOS}
-              colorMode={displaySettings?.dprcolor ?? 0}
             />
             {showSerialPlans && (
               <DprSerialPlanBars

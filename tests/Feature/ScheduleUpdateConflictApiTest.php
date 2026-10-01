@@ -18,7 +18,7 @@ class ScheduleUpdateConflictApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_plan_update_check_detects_a_newer_database_version(): void
+    public function test_plan_update_check_accepts_equivalent_timestamp_formats_and_detects_a_newer_version(): void
     {
         $user = $this->createUser();
         [$serial, $task] = $this->createSerialAndTask();
@@ -30,7 +30,7 @@ class ScheduleUpdateConflictApiTest extends TestCase
             'start_date' => '2026-07-01',
             'end_date' => '2026-07-02',
         ]);
-        $loadedVersion = $plan->updated_at?->format('Y-m-d H:i:s.u');
+        $loadedVersion = $plan->updated_at?->toISOString();
 
         $this->actingAs($user)
             ->postJson('/api/plan/check-updates', [
@@ -51,7 +51,7 @@ class ScheduleUpdateConflictApiTest extends TestCase
             ->assertExactJson(['conflictIds' => [$plan->plan_id]]);
     }
 
-    public function test_reserve_update_check_detects_a_newer_database_version(): void
+    public function test_reserve_update_check_accepts_equivalent_timestamp_formats_and_detects_a_newer_version(): void
     {
         $user = $this->createUser();
         [$serial] = $this->createSerialAndTask();
@@ -63,7 +63,14 @@ class ScheduleUpdateConflictApiTest extends TestCase
             'start_date' => '2026-07-01',
             'end_date' => '2026-07-02',
         ]);
-        $loadedVersion = $reserve->updated_at?->format('Y-m-d H:i:s.u');
+        $loadedVersion = $reserve->updated_at?->toISOString();
+
+        $this->actingAs($user)
+            ->postJson('/api/reserve/check-updates', [
+                'updates' => [['id' => $reserve->reserve_id, 'updatedAt' => $loadedVersion]],
+            ])
+            ->assertOk()
+            ->assertExactJson(['conflictIds' => []]);
 
         DB::table('kd_reserve')->where('reserve_id', $reserve->reserve_id)->update([
             'updated_at' => '2026-07-26 12:34:56',
@@ -75,6 +82,40 @@ class ScheduleUpdateConflictApiTest extends TestCase
             ])
             ->assertOk()
             ->assertExactJson(['conflictIds' => [$reserve->reserve_id]]);
+    }
+
+    public function test_dpr_update_check_accepts_equivalent_timestamp_formats_and_detects_a_newer_version(): void
+    {
+        $user = $this->createUser();
+        [, $task] = $this->createSerialAndTask();
+        $plan = KdPlan::create([
+            'serial_id' => -1,
+            'morder_id' => -1,
+            'dpr_no' => 'CH26000001',
+            'task_id' => $task->task_id,
+            'deleted' => 0,
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-02',
+        ]);
+        $loadedVersionIso = $plan->updated_at?->toISOString();
+
+        $this->actingAs($user)
+            ->postJson('/api/dpr/plans/check-updates', [
+                'updates' => [['id' => $plan->plan_id, 'updatedAt' => $loadedVersionIso]],
+            ])
+            ->assertOk()
+            ->assertExactJson(['conflictIds' => []]);
+
+        DB::table('kd_plan')->where('plan_id', $plan->plan_id)->update([
+            'updated_at' => '2026-07-26 12:34:56',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/dpr/plans/check-updates', [
+                'updates' => [['id' => $plan->plan_id, 'updatedAt' => $loadedVersionIso]],
+            ])
+            ->assertOk()
+            ->assertExactJson(['conflictIds' => [$plan->plan_id]]);
     }
 
     private function createUser(): User

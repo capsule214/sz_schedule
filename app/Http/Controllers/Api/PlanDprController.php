@@ -340,12 +340,24 @@ class PlanDprController extends Controller
       ->where('dpr_no', '<>', '')
       ->whereIn('plan_id', collect($data['updates'])->pluck('id'))
       ->get(['plan_id', 'updated_at'])
-      ->mapWithKeys(fn (KdPlan $plan) => [(int) $plan->plan_id => $plan->updated_at?->format('Y-m-d H:i:s.u')]);
+      ->mapWithKeys(fn (KdPlan $plan) => [(int) $plan->plan_id => $this->normalizeVersion($plan->updated_at)]);
     $conflictIds = collect($data['updates'])
-      ->filter(fn (array $update) => ! $versions->has((int) $update['id']) || $versions->get((int) $update['id']) !== ($update['updatedAt'] ?? null))
+      ->filter(fn (array $update) => ! $versions->has((int) $update['id'])
+        || $versions->get((int) $update['id']) !== $this->normalizeVersion($update['updatedAt'] ?? null))
       ->pluck('id')->map(fn ($id) => (int) $id)->values();
 
     return response()->json(['conflictIds' => $conflictIds]);
+  }
+
+  private function normalizeVersion(mixed $value): ?string
+  {
+    if ($value === null || $value === '') return null;
+
+    try {
+      return Carbon::parse($value)->utc()->format('Y-m-d H:i:s.u');
+    } catch (\Throwable) {
+      return null;
+    }
   }
 
   public function store(Request $request)

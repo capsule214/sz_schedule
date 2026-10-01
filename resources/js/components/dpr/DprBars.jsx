@@ -1,24 +1,7 @@
 import { getColor } from '../../lib/colors';
 import { CELL_SIZE, HANDLE_W, planToEndCol, planToStartCol } from '../../lib/spreadsheet';
 
-const DELIVERY_TYPE_BACKGROUNDS = {
-  1: '#f9a8d4', // 客先直送: ピンク
-  2: '#bef264', // 機械組込: 黄緑
-};
-
-function planBackground(plan, group, colorMode) {
-  if (Number(colorMode) !== 2) return getColor(plan.taskBackColor);
-  const deliveryTypes = String(group.deliveryType || '')
-    .split('/')
-    .map(value => Number(value.trim()))
-    .filter(Number.isFinite);
-  // 同じDPR Noに両方が含まれる場合は、客先直送を優先する。
-  if (deliveryTypes.includes(1)) return DELIVERY_TYPE_BACKGROUNDS[1];
-  if (deliveryTypes.includes(2)) return DELIVERY_TYPE_BACKGROUNDS[2];
-  return getColor(plan.taskBackColor);
-}
-
-export default function DprBars({ layoutGroups, startDate, dateWidth, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarPointerDown, onBarRightClick, selected = new Set(), editedPlanIds = new Set(), dragRef, ghostDrag, interactionReadOnly = false, colorMode = 0 }) {
+export default function DprBars({ layoutGroups, startDate, dateWidth, colW, totalCols, scrollLeft, viewportWidth, visRowStart, visRowEnd, onBarPointerDown, onBarRightClick, selected = new Set(), editedPlanIds = new Set(), dragRef, ghostDrag, interactionReadOnly = false }) {
   const contentRight = totalCols * colW;
   const bars = [];
   for (const group of layoutGroups) {
@@ -69,8 +52,8 @@ export default function DprBars({ layoutGroups, startDate, dateWidth, colW, tota
             boxSizing: 'border-box', border: isSelected ? '1px solid transparent' : '1px solid rgba(0,0,0,0.15)',
             boxShadow: isSelected ? '0 0 0 2px #ef4444' : 'none',
             outline: isEdited ? '2px dashed #2563eb' : 'none', outlineOffset: '-2px',
-            background: planBackground(plan, group, colorMode),
-            color: Number(colorMode) === 2 ? '#000' : getColor(plan.taskFontColor),
+            background: getColor(plan.taskBackColor),
+            color: getColor(plan.taskFontColor),
             display: 'flex', alignItems: 'center', padding: '0 4px', overflow: 'hidden',
             whiteSpace: 'nowrap', fontSize: 13, zIndex: isSelected || isEdited || ghost ? 4 : 2,
             opacity: ghost ? 0.55 : 1, cursor: interactionReadOnly ? 'pointer' : 'grab', userSelect: 'none',

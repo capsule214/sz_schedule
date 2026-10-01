@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\KdReserve;
 use App\Models\KdSerial;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ReserveController extends Controller
@@ -126,20 +127,31 @@ class ReserveController extends Controller
     $currentVersions = KdReserve::whereIn('reserve_id', collect($data['updates'])->pluck('id'))
       ->get(['reserve_id', 'updated_at'])
       ->mapWithKeys(fn (KdReserve $reserve) => [
-        (int) $reserve->reserve_id => $reserve->updated_at?->format('Y-m-d H:i:s.u'),
+        (int) $reserve->reserve_id => $this->normalizeVersion($reserve->updated_at),
       ]);
 
     $conflictIds = collect($data['updates'])
       ->filter(function (array $update) use ($currentVersions): bool {
         $id = (int) $update['id'];
         return ! $currentVersions->has($id)
-          || $currentVersions->get($id) !== ($update['updatedAt'] ?? null);
+          || $currentVersions->get($id) !== $this->normalizeVersion($update['updatedAt'] ?? null);
       })
       ->pluck('id')
       ->map(fn ($id) => (int) $id)
       ->values();
 
     return response()->json(['conflictIds' => $conflictIds]);
+  }
+
+  private function normalizeVersion(mixed $value): ?string
+  {
+    if ($value === null || $value === '') return null;
+
+    try {
+      return Carbon::parse($value)->utc()->format('Y-m-d H:i:s.u');
+    } catch (\Throwable) {
+      return null;
+    }
   }
 
   public function update(Request $request, int $id)

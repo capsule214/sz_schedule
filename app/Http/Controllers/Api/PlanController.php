@@ -9,6 +9,7 @@ use App\Models\KdSerial;
 use App\Models\KmQualification;
 use App\Models\KmSkillmap;
 use App\Models\KsSystemLog;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -325,20 +326,31 @@ class PlanController extends Controller
       ->whereIn('plan_id', collect($data['updates'])->pluck('id'))
       ->get(['plan_id', 'updated_at'])
       ->mapWithKeys(fn (KdPlan $plan) => [
-        (int) $plan->plan_id => $plan->updated_at?->format('Y-m-d H:i:s.u'),
+        (int) $plan->plan_id => $this->normalizeVersion($plan->updated_at),
       ]);
 
     $conflictIds = collect($data['updates'])
       ->filter(function (array $update) use ($currentVersions): bool {
         $id = (int) $update['id'];
         return ! $currentVersions->has($id)
-          || $currentVersions->get($id) !== ($update['updatedAt'] ?? null);
+          || $currentVersions->get($id) !== $this->normalizeVersion($update['updatedAt'] ?? null);
       })
       ->pluck('id')
       ->map(fn ($id) => (int) $id)
       ->values();
 
     return response()->json(['conflictIds' => $conflictIds]);
+  }
+
+  private function normalizeVersion(mixed $value): ?string
+  {
+    if ($value === null || $value === '') return null;
+
+    try {
+      return Carbon::parse($value)->utc()->format('Y-m-d H:i:s.u');
+    } catch (\Throwable) {
+      return null;
+    }
   }
 
   private function searchForMode(Request $request, ?string $mode = null)
