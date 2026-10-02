@@ -7,8 +7,10 @@ use App\Models\KdPlan;
 use App\Models\KmTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DprGroupsApiTest extends TestCase
@@ -137,6 +139,14 @@ class DprGroupsApiTest extends TestCase
 
     public function test_it_filters_dpr_groups_by_related_serial_seizo_group(): void
     {
+        Schema::create('r_dprno_serialno2', function (Blueprint $table): void {
+            $table->string('dprno');
+            $table->string('receno');
+        });
+        Schema::create('dk_equip_group', function (Blueprint $table): void {
+            $table->integer('equip_group_id')->primary();
+        });
+
         $user = User::create([
             'name' => 'DPR equip group user',
             'email' => 'dpr-equip-group@example.com',
@@ -149,8 +159,16 @@ class DprGroupsApiTest extends TestCase
             $this->dprRow('CH26000002', '機種B', '設計中'),
         ]);
         DB::table('kd_serial')->insert([
-            ['serial_no' => 'GROUP-1', 'kisyu_id' => $machineA->kisyu_id, 'seizo_group_id' => 1, 'deleted' => 0],
-            ['serial_no' => 'GROUP-2', 'kisyu_id' => $machineB->kisyu_id, 'seizo_group_id' => 2, 'deleted' => 0],
+            ['serial_no' => 'GROUP-1', 'order_no' => 'RECEIPT-1', 'kisyu_id' => $machineB->kisyu_id, 'seizo_group_id' => 1, 'deleted' => 0],
+            ['serial_no' => 'GROUP-2', 'order_no' => 'RECEIPT-2', 'kisyu_id' => $machineA->kisyu_id, 'seizo_group_id' => 2, 'deleted' => 0],
+        ]);
+        DB::table('dk_equip_group')->insert([
+            ['equip_group_id' => 1],
+            ['equip_group_id' => 2],
+        ]);
+        DB::table('r_dprno_serialno2')->insert([
+            ['dprno' => 'CH26000001', 'receno' => 'RECEIPT-1'],
+            ['dprno' => 'CH26000002', 'receno' => 'RECEIPT-2'],
         ]);
 
         $payload = [

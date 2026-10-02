@@ -55,13 +55,12 @@ class PlanDprController extends Controller
     $query->whereExists(function ($relatedSerials) use ($seizoGroupIds) {
       $relatedSerials
         ->selectRaw('1')
-        ->from('m_dpr as related_dpr')
-        ->join('dm_kisyu', 'dm_kisyu.kisyu_name', '=', 'related_dpr.machine')
-        ->join('kd_serial', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
-        ->whereColumn('related_dpr.dprno', 'm_dpr.dprno')
-        ->where('dm_kisyu.deleted', 0)
-        ->where('kd_serial.deleted', 0)
-        ->whereIn('kd_serial.seizo_group_id', $seizoGroupIds);
+        ->from('r_dprno_serialno2 as related_dpr_serial')
+        ->leftJoin('kd_serial as related_serial', 'related_serial.order_no', '=', 'related_dpr_serial.receno')
+        ->leftJoin('dk_equip_group as related_equip_group', 'related_equip_group.equip_group_id', '=', 'related_serial.seizo_group_id')
+        ->whereColumn('related_dpr_serial.dprno', 'm_dpr.dprno')
+        ->whereNotNull('related_serial.serial_id')
+        ->whereIn('related_equip_group.equip_group_id', $seizoGroupIds);
     });
   }
 
