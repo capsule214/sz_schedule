@@ -36,6 +36,7 @@ class ReserveController extends Controller
   {
     $resource = $reserve->km_resource;
     $serial = $reserve->kd_serial;
+    $kisyu = $serial?->dm_kisyu;
 
     return [
       'reserveId' => $reserve->reserve_id,
@@ -46,8 +47,8 @@ class ReserveController extends Controller
       'serialNo' => $serial ? $serial->serial_no : '',
       'kisyuId' => $serial ? $serial->kisyu_id : null,
       'kisyuName' => $serial && $serial->dm_kisyu ? $serial->dm_kisyu->kisyu_name : '',
-      'backColor' => $serial ? $serial->back_color : 1,
-      'fontColor' => $serial ? $serial->font_color : 6,
+      'backColor' => $kisyu?->back_color ?? 1,
+      'fontColor' => $kisyu?->font_color ?? 6,
       'startDate' => $reserve->start_date,
       'endDate' => $reserve->end_date,
       'remark' => $reserve->remark ?? '',

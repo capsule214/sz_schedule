@@ -54,6 +54,23 @@ class ReserveDateValidationApiTest extends TestCase
         ]);
     }
 
+    public function test_reserve_response_uses_kisyu_master_colors(): void
+    {
+        [$user, $resource, $serial] = $this->createFixtures();
+        $serial->dm_kisyu()->update(['back_color' => 3, 'font_color' => 5]);
+        $serial->update(['back_color' => 2, 'font_color' => 6]);
+
+        $this->actingAs($user)->postJson('/api/reserve', [
+            'resourceId' => $resource->resource_id,
+            'serialId' => $serial->serial_id,
+            'startDate' => '2026-08-04T08:30:00',
+            'endDate' => '2026-08-04T10:30:00',
+            'remark' => '',
+        ])->assertCreated()
+            ->assertJsonPath('backColor', 3)
+            ->assertJsonPath('fontColor', 5);
+    }
+
     public function test_reserve_store_rejects_unix_epoch_datetime(): void
     {
         [$user, $resource, $serial] = $this->createFixtures();

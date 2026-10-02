@@ -181,8 +181,28 @@ export default function PlaceScheduleDialog({ plan, resources = [], initialData,
       return;
     }
 
+    const selectedSerial = selectedSerialId > 0
+      ? serials.find(s => Number(s.serialId) === selectedSerialId)
+      : null;
+    const selectedKisyu = selectedSerial
+      ? kisyuList.find(k => Number(k.kisyuId) === Number(selectedSerial.kisyuId))
+      : null;
     setError('');
-    onSave({ resourceId: Number(resourceMatch.resourceId), serialId: selectedSerialId, startDate: sd2, endDate: ed2, remark });
+    onSave({
+      resourceId: Number(resourceMatch.resourceId),
+      resourceName: resourceMatch.resourceName ?? '',
+      serialId: selectedSerialId,
+      serialNo: selectedSerial?.serialNo ?? '',
+      kisyuId: selectedSerial?.kisyuId ?? null,
+      kisyuName: selectedSerial?.kisyuName ?? '',
+      backColor: selectedKisyu?.backColor ?? 1,
+      fontColor: selectedKisyu?.fontColor ?? 6,
+      kisyuBackColor: selectedKisyu?.backColor ?? null,
+      kisyuFontColor: selectedKisyu?.fontColor ?? null,
+      startDate: sd2,
+      endDate: ed2,
+      remark,
+    });
   }
 
   const rangeStart = startDate <= endDate ? startDate : endDate;
