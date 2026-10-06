@@ -83,7 +83,8 @@ class DprGroupsApiTest extends TestCase
             ->assertJsonPath('plans.0.planId', $visiblePlan->plan_id)
             ->assertJsonPath('plans.0.userNo', '00123')
             ->assertJsonPath('hasMore', true)
-            ->assertJsonPath('nextCursor', 'CH26000001');
+            ->assertJsonPath('nextCursor.dprNo', 'CH26000001')
+            ->assertJsonPath('nextCursor.minShipDate', null);
         $response->assertJsonCount(1, 'plans');
 
         $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
@@ -196,6 +197,67 @@ class DprGroupsApiTest extends TestCase
             'dprNo' => 'CH26000001',
             'seizo_group_ids' => [2],
         ])->assertOk()->assertJsonPath('inDisplaySettings', false);
+    }
+
+    public function test_it_orders_dpr_groups_by_the_first_machine_shipping_date(): void
+    {
+        Schema::create('r_dprno_serialno2', function (Blueprint $table): void {
+            $table->string('dprno');
+            $table->string('receno');
+        });
+        Schema::create('vd_all_order', function (Blueprint $table): void {
+            $table->string('order_no');
+            $table->date('shipping_date')->nullable();
+            $table->boolean('deleted')->default(false);
+        });
+
+        $user = User::create([
+            'name' => 'DPR shipping order user',
+            'email' => 'dpr-shipping-order@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        DB::table('m_dpr')->insert([
+            $this->dprRow('CH26000001', '機種A', '設計中'),
+            $this->dprRow('CH26000002', '機種A', '設計中'),
+            $this->dprRow('CH26000003', '機種A', '設計中'),
+        ]);
+        DB::table('r_dprno_serialno2')->insert([
+            ['dprno' => 'CH26000001', 'receno' => 'ORDER-1A'],
+            ['dprno' => 'CH26000001', 'receno' => 'ORDER-1B'],
+            ['dprno' => 'CH26000002', 'receno' => 'ORDER-2'],
+            ['dprno' => 'CH26000003', 'receno' => 'ORDER-3'],
+        ]);
+        DB::table('vd_all_order')->insert([
+            ['order_no' => 'ORDER-1A', 'shipping_date' => '2026-10-20', 'deleted' => 0],
+            ['order_no' => 'ORDER-1B', 'shipping_date' => '2026-10-10', 'deleted' => 0],
+            ['order_no' => 'ORDER-2', 'shipping_date' => '2026-10-05', 'deleted' => 0],
+            ['order_no' => 'ORDER-3', 'shipping_date' => '2026-10-01', 'deleted' => 1],
+        ]);
+
+        $payload = [
+            'machines' => ['機種A'],
+            'from' => '2026-10-01',
+            'to' => '2026-10-31',
+            'display_order' => 1,
+        ];
+        $response = $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            ...$payload,
+            'limit' => 1,
+        ])->assertOk()
+            ->assertJsonPath('groups.0.dprNo', 'CH26000002')
+            ->assertJsonPath('nextCursor.dprNo', 'CH26000002')
+            ->assertJsonPath('nextCursor.minShipDate', '2026-10-05');
+
+        $cursor = $response->json('nextCursor');
+        $this->actingAs($user)->postJson('/api/dpr/plans/groups', [
+            ...$payload,
+            'limit' => 10,
+            'after_dpr_no' => $cursor['dprNo'],
+            'after_ship_date' => $cursor['minShipDate'],
+            'after_ship_date_null' => false,
+        ])->assertOk()
+            ->assertJsonPath('groups.0.dprNo', 'CH26000001')
+            ->assertJsonPath('groups.1.dprNo', 'CH26000003');
     }
 
     public function test_it_returns_all_non_deleted_serials_related_by_dpr_machine_ids(): void

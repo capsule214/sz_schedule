@@ -17,17 +17,35 @@ class PlanDprController extends Controller
   private function dprSalesExpression(): string
   {
     return DB::connection()->getDriverName() === 'sqlite'
-      ? 'substr(dprno, 1, 2)'
-      : 'LEFT(dprno, 2)';
+      ? 'substr(m_dpr.dprno, 1, 2)'
+      : 'LEFT(m_dpr.dprno, 2)';
   }
 
   private function dprPublishExpression(): string
   {
     return match (DB::connection()->getDriverName()) {
-      'pgsql' => 'SUBSTRING(dprno FROM 3 FOR 2)',
-      'sqlite' => 'substr(dprno, 3, 2)',
-      default => 'SUBSTRING(dprno, 3, 2)',
+      'pgsql' => 'SUBSTRING(m_dpr.dprno FROM 3 FOR 2)',
+      'sqlite' => 'substr(m_dpr.dprno, 3, 2)',
+      default => 'SUBSTRING(m_dpr.dprno, 3, 2)',
     };
+  }
+
+  private function minShipDatesQuery()
+  {
+    return DB::table('r_dprno_serialno2 as related_ship_serial')
+      ->leftJoin('vd_all_order as related_order', 'related_order.order_no', '=', 'related_ship_serial.receno')
+      ->where('related_order.deleted', 0)
+      ->groupBy('related_ship_serial.dprno', 'related_order.deleted')
+      ->selectRaw('related_ship_serial.dprno, MIN(related_order.shipping_date) as min_date');
+  }
+
+  private function minShipDateForDpr(string $dprNo): mixed
+  {
+    return DB::table('r_dprno_serialno2 as related_ship_serial')
+      ->leftJoin('vd_all_order as related_order', 'related_order.order_no', '=', 'related_ship_serial.receno')
+      ->where('related_order.deleted', 0)
+      ->where('related_ship_serial.dprno', $dprNo)
+      ->min('related_order.shipping_date');
   }
 
   private function applyCategoryFilters($query, array $data): void
@@ -87,6 +105,7 @@ class PlanDprController extends Controller
       'publication_years.*' => ['string', 'regex:/^\d{2}$/'],
       'seizo_group_ids' => 'nullable|array|max:3',
       'seizo_group_ids.*' => 'integer|in:1,2,3',
+      'display_order' => 'nullable|integer|in:0,1',
       'include_serial_plans' => 'nullable|boolean',
     ];
   }
@@ -234,29 +253,79 @@ class PlanDprController extends Controller
       ...$this->displayRules(),
       'machines' => 'required|array|min:1|max:500',
       'after_dpr_no' => 'nullable|string|max:255',
+      'after_ship_date' => 'nullable|date',
+      'after_ship_date_null' => 'nullable|boolean',
       'at_or_after_dpr_no' => 'nullable|string|max:255',
       'limit' => 'nullable|integer|min:1|max:500',
     ]);
     $limit = (int) ($data['limit'] ?? 200);
+    $displayOrder = (int) ($data['display_order'] ?? 0);
 
     $query = DB::table('m_dpr')
-      ->whereIn('machine', $data['machines'])
-      ->whereNotNull('dprno')
-      ->where('dprno', '<>', '');
+      ->whereIn('m_dpr.machine', $data['machines'])
+      ->whereNotNull('m_dpr.dprno')
+      ->where('m_dpr.dprno', '<>', '');
+    if ($displayOrder === 1) {
+      $query->leftJoinSub($this->minShipDatesQuery(), 'min_ship_date', function ($join) {
+        $join->on('min_ship_date.dprno', '=', 'm_dpr.dprno');
+      });
+    }
     $this->applyCategoryFilters($query, $data);
     $this->applySeizoGroupFilters($query, $data);
     if (! empty($data['leader_user_nos'])) $query->whereIn('dprleader_sytx', $data['leader_user_nos']);
     if (! empty($data['sales_locations'])) $query->whereIn(DB::raw($this->dprSalesExpression()), $data['sales_locations']);
     if (! empty($data['publication_years'])) $query->whereIn(DB::raw($this->dprPublishExpression()), $data['publication_years']);
-    if (! empty($data['after_dpr_no'])) {
-      $query->where('dprno', '>', $data['after_dpr_no']);
+    if ($displayOrder === 1 && ! empty($data['after_dpr_no'])) {
+      $afterDprNo = $data['after_dpr_no'];
+      if (! empty($data['after_ship_date_null'])) {
+        $query->whereNull('min_ship_date.min_date')->where('m_dpr.dprno', '>', $afterDprNo);
+      } else {
+        $afterShipDate = $data['after_ship_date'];
+        $query->where(function ($cursor) use ($afterShipDate, $afterDprNo) {
+          $cursor->where('min_ship_date.min_date', '>', $afterShipDate)
+            ->orWhere(function ($sameDate) use ($afterShipDate, $afterDprNo) {
+              $sameDate->where('min_ship_date.min_date', $afterShipDate)
+                ->where('m_dpr.dprno', '>', $afterDprNo);
+            })
+            ->orWhereNull('min_ship_date.min_date');
+        });
+      }
+    } elseif ($displayOrder === 1 && ! empty($data['at_or_after_dpr_no'])) {
+      $targetDprNo = $data['at_or_after_dpr_no'];
+      $targetShipDate = $this->minShipDateForDpr($targetDprNo);
+      if ($targetShipDate === null) {
+        $query->whereNull('min_ship_date.min_date')->where('m_dpr.dprno', '>=', $targetDprNo);
+      } else {
+        $query->where(function ($cursor) use ($targetShipDate, $targetDprNo) {
+          $cursor->where('min_ship_date.min_date', '>', $targetShipDate)
+            ->orWhere(function ($sameDate) use ($targetShipDate, $targetDprNo) {
+              $sameDate->where('min_ship_date.min_date', $targetShipDate)
+                ->where('m_dpr.dprno', '>=', $targetDprNo);
+            })
+            ->orWhereNull('min_ship_date.min_date');
+        });
+      }
+    } elseif (! empty($data['after_dpr_no'])) {
+      $query->where('m_dpr.dprno', '>', $data['after_dpr_no']);
     } elseif (! empty($data['at_or_after_dpr_no'])) {
-      $query->where('dprno', '>=', $data['at_or_after_dpr_no']);
+      $query->where('m_dpr.dprno', '>=', $data['at_or_after_dpr_no']);
     }
 
-    $dprNos = $query->select('dprno')->distinct()->orderBy('dprno')->limit($limit + 1)->pluck('dprno');
-    $hasMore = $dprNos->count() > $limit;
-    $pageDprNos = $dprNos->take($limit)->values();
+    if ($displayOrder === 1) {
+      $dprRows = $query
+        ->selectRaw('m_dpr.dprno, min_ship_date.min_date, CASE WHEN min_ship_date.min_date IS NULL THEN 1 ELSE 0 END as ship_date_missing')
+        ->distinct()
+        ->orderBy('ship_date_missing')
+        ->orderBy('min_ship_date.min_date')
+        ->orderBy('m_dpr.dprno')
+        ->limit($limit + 1)
+        ->get();
+    } else {
+      $dprRows = $query->select('m_dpr.dprno')->distinct()->orderBy('m_dpr.dprno')->limit($limit + 1)->get();
+    }
+    $hasMore = $dprRows->count() > $limit;
+    $pageRows = $dprRows->take($limit)->values();
+    $pageDprNos = $pageRows->pluck('dprno');
     if ($pageDprNos->isEmpty()) {
       return response()->json(['groups' => [], 'plans' => [], 'serialPlans' => [], 'hasMore' => false, 'nextCursor' => null]);
     }
@@ -295,7 +364,10 @@ class PlanDprController extends Controller
         ? $this->serialPlansForDprNos($pageDprNos, $data['seizo_group_ids'] ?? [])
         : [],
       'hasMore' => $hasMore,
-      'nextCursor' => $hasMore ? $pageDprNos->last() : null,
+      'nextCursor' => $hasMore ? [
+        'dprNo' => $pageRows->last()->dprno,
+        'minShipDate' => $displayOrder === 1 ? $pageRows->last()->min_date : null,
+      ] : null,
     ]);
   }
 

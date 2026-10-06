@@ -208,6 +208,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     sales_locations: displaySettings?.dprsaleslocationlist || [],
     publication_years: displaySettings?.dprpublicationyearlist || [],
     seizo_group_ids: displaySettings?.dprszgrouplist || [],
+    display_order: Number(displaySettings?.dprorder ?? 0) === 0 ? 0 : 1,
   });
   const duration = Math.max(1, Number(displaySettings?.dprduration ?? 4));
   const showSerialPlans = !!displaySettings?.dprflgseiban;
@@ -284,7 +285,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
           ...categoryFilters,
           ...(atOrAfterDprNo
             ? { at_or_after_dpr_no: atOrAfterDprNo }
-            : reset || !cursorRef.current ? {} : { after_dpr_no: cursorRef.current }),
+            : reset || !cursorRef.current ? {} : {
+              after_dpr_no: cursorRef.current.dprNo,
+              after_ship_date: cursorRef.current.minShipDate,
+              after_ship_date_null: cursorRef.current.minShipDate == null,
+            }),
         }),
       });
       if (requestId !== requestIdRef.current) return;

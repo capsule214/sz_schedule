@@ -29,7 +29,7 @@ export function normalizeSettings(s = {}) {
     tktasklist:     (s.tktasklist  || []).map(Number),
     // DPR タブ
     dprduration:           Math.max(1, Number(s.dprduration           ?? 4)),
-    dprorder:              Number(s.dprorder              ?? 0),
+    dprorder:              Number(s.dprorder ?? 0) === 0 ? 0 : 1,
     dprcolor:              Number(s.dprcolor              ?? 0),
     dprflgseiban:          !!s.dprflgseiban,
     dprmodellist:          (s.dprmodellist           || []).map(String),

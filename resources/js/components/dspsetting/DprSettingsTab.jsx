@@ -303,9 +303,8 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
               onChange={e => setField('dprorder', Number(e.target.value))}
               style={{ flex: 1, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
             >
-              <option value={0}>製番順</option>
-              <option value={1}>着工日順</option>
-              <option value={2}>出荷日順</option>
+              <option value={0}>DPR No順</option>
+              <option value={1}>装置先頭出荷日順</option>
             </select>
           </div>
 
