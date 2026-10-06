@@ -124,6 +124,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const colWidthsRef = useRef(colWidths);
   const colResizeRef = useRef(null);
   const pendingSonarDprNoRef = useRef(null);
+  const outOfScopeDprNoRef = useRef(null);
   const sonarClearTimerRef = useRef(null);
   const sonarRafRef = useRef(null);
   const pendingCreatesRef = useRef(new Map());
@@ -342,6 +343,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setTooltip(null);
     setScheduleDialog(null);
     pendingSonarDprNoRef.current = null;
+    outOfScopeDprNoRef.current = null;
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
     setSonar(null);
@@ -1042,7 +1044,13 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         clearHistory();
         setSelectedPlanIds(new Set());
         onDirtyChange?.(false);
-        setReloadTick(value => value + 1);
+        if (outOfScopeDprNoRef.current) {
+          // 表示設定外のDPRは検索APIの結果だけを単独表示している。
+          // 保存APIの応答は既にplansへ反映済みなので、通常一覧を再取得して検索状態を消さない。
+          setLastUpdatedAt(new Date());
+        } else {
+          setReloadTick(value => value + 1);
+        }
       } else {
         onDirtyChange?.(true);
       }
@@ -1110,6 +1118,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const handleDprSearch = useCallback(async () => {
     const dprNo = dprSearchText.trim().toUpperCase();
     if (!dprNo) {
+      outOfScopeDprNoRef.current = null;
       setReloadTick(value => value + 1);
       return;
     }
@@ -1133,6 +1142,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       }
 
       if (result.inDisplaySettings) {
+        outOfScopeDprNoRef.current = null;
         pendingSonarDprNoRef.current = result.dprNo;
         await loadPage(true, result.dprNo);
         return;
@@ -1140,6 +1150,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
 
       // 表示設定外のDPR Noは、検索APIが返した1グループだけを表示する。
       requestIdRef.current += 1;
+      outOfScopeDprNoRef.current = result.dprNo;
       pendingSonarDprNoRef.current = result.dprNo;
       loadingRef.current = false;
       cursorRef.current = null;
@@ -1165,6 +1176,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     if (!dprSearchText) return;
     setDprSearchText('');
     pendingSonarDprNoRef.current = null;
+    outOfScopeDprNoRef.current = null;
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
     setSonar(null);
@@ -1174,6 +1186,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const redraw = useCallback(() => {
     setDprSearchText('');
     pendingSonarDprNoRef.current = null;
+    outOfScopeDprNoRef.current = null;
     setReloadTick(value => value + 1);
   }, []);
 
