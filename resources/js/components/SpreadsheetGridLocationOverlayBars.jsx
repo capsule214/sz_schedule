@@ -107,7 +107,7 @@ export default function SpreadsheetGridLocationOverlayBars({
             position: 'absolute', left: locLabelLeft, top: y,
             width: locLabelWidth, height: CELL_SIZE,
             display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap',
-            fontSize: 13, color: '#1e3a5f', pointerEvents: 'none', zIndex: 5, userSelect: 'none',
+            fontSize: 13, color: '#1e3a5f', pointerEvents: 'none', zIndex: ghost ? 11 : 5, userSelect: 'none',
           }}
         >
           {plan.resourceName}

@@ -122,7 +122,9 @@ export default function SpreadsheetGridBars({
       const myIdx = rowArr.findIndex(r => r.planId === plan.planId);
       const nextBarX = (myIdx >= 0 && myIdx + 1 < rowArr.length) ? rowArr[myIdx + 1].startX : null;
       const labelLeft = Math.max(barX + 1);
-      const maxWToNextBar = nextBarX !== null ? Math.max(0, nextBarX - labelLeft) : Infinity;
+      // ドラッグ中は移動前の行・開始位置を基準にした隣接バー制限を使わない。
+      // 移動先が元の次予定を越えると幅が0になり、ラベルだけ消えるため。
+      const maxWToNextBar = !ghost && nextBarX !== null ? Math.max(0, nextBarX - labelLeft) : Infinity;
       const maxWToContent = Math.max(0, contentRight - labelLeft);
       const labelWidth = Math.min(maxWToNextBar, maxWToContent);
 
@@ -138,7 +140,7 @@ export default function SpreadsheetGridBars({
             outlineOffset: isEdited ? '-2px' : 0,
             animation: isEdited ? 'unsaved-plan-outline-blink 1s steps(1, end) infinite' : 'none',
             boxShadow: isGroupMoveHighlighted ? '0 0 0 4px #dc2626' : isSel ? '0 0 0 2px #ef4444' : 'none',
-            boxSizing: 'border-box', zIndex: isGroupMoveHighlighted ? 6 : isSel || isEdited ? 4 : ghost ? 10 : 2,
+            boxSizing: 'border-box', zIndex: ghost ? 10 : isGroupMoveHighlighted ? 6 : isSel || isEdited ? 4 : 2,
             opacity: ghost ? 0.5 : 1, cursor: isLocked || interactionReadOnly ? 'pointer' : 'grab', overflow: 'hidden', userSelect: 'none',
           }}
           onPointerDown={e => { if (!interactionReadOnly && e.button === 0) onBarPointerDown(e, plan, 'move'); }}
@@ -181,7 +183,7 @@ export default function SpreadsheetGridBars({
           style={{
             position: 'absolute', left: labelLeft, top: barY, width: labelWidth, height: CELL_SIZE,
             display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap',
-            fontSize: 13, color: fg, pointerEvents: 'none', zIndex: 5, paddingLeft: 1, userSelect: 'none',
+            fontSize: 13, color: fg, pointerEvents: 'none', zIndex: ghost ? 11 : 5, paddingLeft: 1, userSelect: 'none',
           }}
         >
           {label}
