@@ -19,7 +19,7 @@ function getVisualViewport() {
 
 export default function DisplaySettingsDrawer({
   open, onClose, activeTab,
-  tasks, kisyus = [], teams = [], dprMachines = [], dprSalesLocations = [], dprPublicationYears = [],
+  tasks, kisyus = [], teams = [],
   settings, settingsList = [],
   onEnsureMasters, onSave,
 }) {
@@ -165,7 +165,7 @@ export default function DisplaySettingsDrawer({
           {tab === 'device' && <DeviceSettingsTab scrollable={scrollable} form={form} setField={setField} kisyus={kisyus} />}
           {tab === 'worker' && <WorkerSettingsTab scrollable={scrollable} form={form} setField={setField} teams={teams} tasks={tasks} />}
           {tab === 'task'   && <TaskSettingsTab   scrollable={scrollable} form={form} setField={setField} tasks={tasks} />}
-          {tab === 'dpr'    && <DprSettingsTab    scrollable={scrollable} form={form} setField={setField} machines={dprMachines} salesLocations={dprSalesLocations} publicationYears={dprPublicationYears} />}
+          {tab === 'dpr'    && <DprSettingsTab    scrollable={scrollable} form={form} setField={setField} />}
         </div>
 
         {/* フッター */}

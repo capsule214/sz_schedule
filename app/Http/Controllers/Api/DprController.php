@@ -72,6 +72,12 @@ class DprController extends Controller
       'status' => 'nullable|array',
       'status.*' => 'string|max:100',
     ]);
+    if (empty($data['formtype'])
+      || empty($data['deliverytype'])
+      || empty($data['classification'])
+      || empty($data['status'])) {
+      return response()->json(['machines' => [], 'locations' => [], 'years' => []]);
+    }
     $salesExpression = $this->dprSalesExpression();
     $publishExpression = $this->dprPublishExpression();
 

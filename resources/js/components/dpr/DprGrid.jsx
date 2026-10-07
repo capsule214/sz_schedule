@@ -315,9 +315,49 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     }
   }, [active, machineKey, categoryFilterKey, startDate, endDate, hasMore, mergePendingPlans, showSerialPlans]);
 
+  const reloadOutOfScopeDpr = useCallback(async (dprNo) => {
+    const selectedMachines = JSON.parse(machineKey);
+    const categoryFilters = JSON.parse(categoryFilterKey);
+    if (!active || !dprNo || selectedMachines.length === 0) return;
+    const requestId = ++requestIdRef.current;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      const result = await apiJson('/dpr/plans/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          dprNo,
+          machines: selectedMachines,
+          from: startDate,
+          to: endDate,
+          include_serial_plans: showSerialPlans,
+          ...categoryFilters,
+        }),
+      });
+      if (requestId !== requestIdRef.current) return;
+      if (!result?.group) {
+        errorRef.current?.('該当するDPR Noがありません');
+        return;
+      }
+      outOfScopeDprNoRef.current = result.dprNo;
+      setGroups([result.group]);
+      setPlans(mergePendingPlans(result.plans || []));
+      setSerialPlans(result.serialPlans || []);
+      setHasMore(false);
+      setLastUpdatedAt(new Date());
+    } catch {
+      if (requestId === requestIdRef.current) errorRef.current?.('DPR Noの検索に失敗しました');
+    } finally {
+      if (requestId === requestIdRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, mergePendingPlans]);
+
   useEffect(() => {
     if (!active) return;
-    const autoLoadKey = JSON.stringify({
+    const autoLoadParams = {
       machineKey,
       categoryFilterKey,
       startDate,
@@ -325,9 +365,20 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       showSerialPlans,
       displaySettingsApplyVersion,
       reloadTick,
-    });
+    };
+    const autoLoadKey = JSON.stringify(autoLoadParams);
     // タブを非表示から表示へ戻しただけなら、取得済みデータ・検索状態・スクロール位置を維持する。
     if (lastAutoLoadKeyRef.current === autoLoadKey) return;
+    const previousParams = lastAutoLoadKeyRef.current ? JSON.parse(lastAutoLoadKeyRef.current) : null;
+    const preserveOutOfScopeSearch = !!outOfScopeDprNoRef.current
+      && previousParams
+      && previousParams.machineKey === machineKey
+      && previousParams.categoryFilterKey === categoryFilterKey
+      && previousParams.showSerialPlans === showSerialPlans
+      && previousParams.displaySettingsApplyVersion === displaySettingsApplyVersion
+      && previousParams.reloadTick === reloadTick
+      && (previousParams.startDate !== startDate || previousParams.endDate !== endDate);
+    const searchedDprNo = preserveOutOfScopeSearch ? outOfScopeDprNoRef.current : null;
     lastAutoLoadKeyRef.current = autoLoadKey;
     requestIdRef.current += 1;
     cursorRef.current = null;
@@ -343,11 +394,11 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setTooltip(null);
     setScheduleDialog(null);
     pendingSonarDprNoRef.current = null;
-    outOfScopeDprNoRef.current = null;
+    if (!preserveOutOfScopeSearch) outOfScopeDprNoRef.current = null;
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
     setSonar(null);
-    setDprSearchText('');
+    if (!preserveOutOfScopeSearch) setDprSearchText('');
     setGroups([]);
     setPlans(mergePendingPlans([]));
     setSerialPlans([]);
@@ -364,7 +415,8 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       return;
     }
     initialMachineSelectionCheckedRef.current = true;
-    loadPage(true);
+    if (preserveOutOfScopeSearch) reloadOutOfScopeDpr(searchedDprNo);
+    else loadPage(true);
   }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

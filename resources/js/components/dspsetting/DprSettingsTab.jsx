@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AdaptiveMultiSelect from './AdaptiveMultiSelect';
-import { loadDprMasterOptions } from '../../lib/dprMasterOptions';
+import { apiJson } from '../../lib/api';
 
 const BTN = {
   fontSize: 13, padding: '3px 8px', border: '1px solid #d1d5db',
@@ -77,9 +77,9 @@ function TagSection({ label, values, onAdd, onRemove, placeholder }) {
   );
 }
 
-export default function DprSettingsTab({ form, setField, machines = [], salesLocations = [], publicationYears = [], scrollable = false }) {
-  const [options, setOptions] = useState({ machines, locations: salesLocations, years: publicationYears });
-  const [optionsLoading, setOptionsLoading] = useState(true);
+export default function DprSettingsTab({ form, setField, scrollable = false }) {
+  const [options, setOptions] = useState({ machines: [], locations: [], years: [] });
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const optionsRequestIdRef = useRef(0);
   const categoryFilterKey = useMemo(() => JSON.stringify({
     formtype: [...form.dprformtypelist].sort((a, b) => a - b),
@@ -91,8 +91,20 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
   useEffect(() => {
     const requestId = ++optionsRequestIdRef.current;
     const filters = JSON.parse(categoryFilterKey);
+    const allCategoriesChecked = Object.values(filters).every(values => values.length > 0);
+    if (!allCategoriesChecked) {
+      setOptions({ machines: [], locations: [], years: [] });
+      setOptionsLoading(false);
+      if (form.dprmodellist.length > 0) setField('dprmodellist', []);
+      if (form.dprsaleslocationlist.length > 0) setField('dprsaleslocationlist', []);
+      if (form.dprpublicationyearlist.length > 0) setField('dprpublicationyearlist', []);
+      return undefined;
+    }
     setOptionsLoading(true);
-    loadDprMasterOptions(filters)
+    apiJson('/dpr/options', {
+      method: 'POST',
+      body: JSON.stringify(filters),
+    })
       .then(nextOptions => {
         if (requestId !== optionsRequestIdRef.current) return;
         setOptions(nextOptions);
@@ -100,7 +112,9 @@ export default function DprSettingsTab({ form, setField, machines = [], salesLoc
         setField('dprsaleslocationlist', form.dprsaleslocationlist.filter(value => nextOptions.locations.includes(String(value))));
         setField('dprpublicationyearlist', form.dprpublicationyearlist.filter(value => nextOptions.years.includes(String(value))));
       })
-      .catch(() => {})
+      .catch(() => {
+        if (requestId === optionsRequestIdRef.current) setOptions({ machines: [], locations: [], years: [] });
+      })
       .finally(() => {
         if (requestId === optionsRequestIdRef.current) setOptionsLoading(false);
       });

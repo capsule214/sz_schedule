@@ -13,7 +13,7 @@ class DprFilterOptionsApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_returns_all_machine_location_and_year_options_in_one_response(): void
+    public function test_it_returns_empty_options_without_querying_dpr_when_no_category_is_checked(): void
     {
         $user = User::create([
             'name' => 'DPR filter user',
@@ -38,12 +38,12 @@ class DprFilterOptionsApiTest extends TestCase
             ->postJson('/api/dpr/options', [])
             ->assertOk()
             ->assertExactJson([
-                'machines' => ['機種A', '機種B', '機種C'],
-                'locations' => ['CH', 'KR', 'OS'],
-                'years' => ['26', '25', '24'],
+                'machines' => [],
+                'locations' => [],
+                'years' => [],
             ]);
 
-        $this->assertCount(1, $dprQueries, 'm_dprの表示設定用集約は1回のDBクエリで取得すること');
+        $this->assertCount(0, $dprQueries, 'チェック未選択時はm_dprへ問い合わせないこと');
     }
 
     public function test_it_filters_all_option_lists_by_dpr_category_selections(): void
@@ -72,6 +72,35 @@ class DprFilterOptionsApiTest extends TestCase
                 'locations' => ['OS'],
                 'years' => ['26'],
             ]);
+    }
+
+    public function test_it_returns_empty_options_when_any_category_has_no_selection(): void
+    {
+        $user = User::create([
+            'name' => 'DPR incomplete filter user',
+            'email' => 'dpr-incomplete-filter@example.com',
+            'password' => Hash::make('password'),
+        ]);
+        DB::table('m_dpr')->insert($this->row('OS260001-00', '機種A', 1, 1, 'A', '設計中'));
+
+        foreach (['formtype', 'deliverytype', 'classification', 'status'] as $emptyKey) {
+            $filters = [
+                'formtype' => [1],
+                'deliverytype' => [1],
+                'classification' => ['A'],
+                'status' => ['設計中'],
+            ];
+            $filters[$emptyKey] = [];
+
+            $this->actingAs($user)
+                ->postJson('/api/dpr/options', $filters)
+                ->assertOk()
+                ->assertExactJson([
+                    'machines' => [],
+                    'locations' => [],
+                    'years' => [],
+                ]);
+        }
     }
 
     private function row(string $dprNo, string $machine, int $formType, int $deliveryType, string $classification, string $status): array
