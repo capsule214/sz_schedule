@@ -201,15 +201,40 @@ class DisplaySettingsStore
   private function parseList(mixed $value): array
   {
     if (is_array($value)) {
-      return $value;
+      $result = [];
+      foreach ($value as $item) {
+        if (! is_string($item)) {
+          if ($item !== null) $result[] = $item;
+          continue;
+        }
+        $trimmed = trim($item);
+        $isEncodedList = str_starts_with($trimmed, '{')
+          || str_starts_with($trimmed, '[')
+          || str_starts_with($trimmed, '"');
+        $parsed = $this->parseEncodedListString($item);
+        array_push($result, ...($isEncodedList ? $parsed : [$item]));
+      }
+
+      return array_values(array_filter($result, fn ($item) => $item !== null && $item !== ''));
     }
     if (! is_string($value)) {
       return [];
     }
 
+    return $this->parseEncodedListString($value);
+  }
+
+  private function parseEncodedListString(string $value): array
+  {
     $trimmed = trim($value);
     if ($trimmed === '') {
       return [];
+    }
+    if (str_starts_with($trimmed, '"')) {
+      $decoded = json_decode($trimmed, true);
+      if (is_string($decoded) && $decoded !== $trimmed) {
+        return $this->parseEncodedListString($decoded);
+      }
     }
     if (str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}')) {
       $body = substr($trimmed, 1, -1);
@@ -239,12 +264,20 @@ class DisplaySettingsStore
   {
     $values = array_values(array_unique(array_map('strval', $values)));
     if (DB::connection()->getDriverName() === 'pgsql') {
-      $escaped = array_map(fn ($v) => '"'.str_replace('"', '\\"', $v).'"', $values);
-
-      return '{'.implode(',', $escaped).'}';
+      return $this->postgresTextArrayLiteral($values);
     }
 
     return json_encode($values);
+  }
+
+  private function postgresTextArrayLiteral(array $values): string
+  {
+    $escaped = array_map(
+      fn ($value) => '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], (string) $value).'"',
+      $values,
+    );
+
+    return '{'.implode(',', $escaped).'}';
   }
 
   private function settingsFromRow(object $row): array

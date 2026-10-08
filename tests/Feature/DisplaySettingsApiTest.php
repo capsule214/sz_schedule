@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\DisplaySettingsStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -34,6 +35,7 @@ class DisplaySettingsApiTest extends TestCase
                 'settingNo' => 3,
                 'settingName' => '工程確認用',
                 'sbmodellist' => ['10', '20'],
+                'dprclassificationlist' => ['A', 'B', 'AtoB'],
                 'sbdspplplan' => true,
                 'sydspnobody' => true,
                 'flgdspcustomer' => true,
@@ -42,6 +44,7 @@ class DisplaySettingsApiTest extends TestCase
             ->assertJsonPath('settingNo', 3)
             ->assertJsonPath('settingName', '工程確認用')
             ->assertJsonPath('sbmodellist', [10, 20])
+            ->assertJsonPath('dprclassificationlist', ['A', 'B', 'AtoB'])
             ->assertJsonPath('sbdspplplan', true)
             ->assertJsonPath('sydspnobody', true)
             ->assertJsonPath('flgdspcustomer', true)
@@ -75,6 +78,26 @@ class DisplaySettingsApiTest extends TestCase
         $this->actingAs($user)
             ->putJson('/api/display-settings/active', ['settingNo' => 4])
             ->assertStatus(405);
+    }
+
+    public function test_postgres_text_array_literal_is_encoded_without_extra_backslashes(): void
+    {
+        $store = app(DisplaySettingsStore::class);
+        $literalMethod = new \ReflectionMethod($store, 'postgresTextArrayLiteral');
+        $literalMethod->setAccessible(true);
+        $parseMethod = new \ReflectionMethod($store, 'parseList');
+        $parseMethod->setAccessible(true);
+
+        $this->assertSame('{"A","B","AtoB"}', $literalMethod->invoke($store, ['A', 'B', 'AtoB']));
+        $this->assertSame('{"A\\"B","C\\\\D","E,F"}', $literalMethod->invoke($store, ['A"B', 'C\\D', 'E,F']));
+        $this->assertSame(
+            ['A', 'B', 'AtoB'],
+            $parseMethod->invoke($store, '"{\\"A\\",\\"B\\",\\"AtoB\\"}"'),
+        );
+        $this->assertSame(
+            ['A', 'B', 'AtoB'],
+            $parseMethod->invoke($store, ['"{\\"A\\",\\"B\\",\\"AtoB\\"}"']),
+        );
     }
 
     private function createUser(string $email): User
