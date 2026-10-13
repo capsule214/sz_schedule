@@ -98,6 +98,25 @@ class DisplaySettingsApiTest extends TestCase
             ['A', 'B', 'AtoB'],
             $parseMethod->invoke($store, ['"{\\"A\\",\\"B\\",\\"AtoB\\"}"']),
         );
+        $this->assertSame(
+            ['B', 'A'],
+            $parseMethod->invoke($store, '{"",B," ",A}'),
+        );
+    }
+
+    public function test_empty_dpr_classification_and_status_values_are_removed_when_saved(): void
+    {
+        $user = $this->createUser('empty-dpr-filter-values');
+
+        $this->actingAs($user)
+            ->putJson('/api/display-settings', [
+                'settingNo' => 0,
+                'dprclassificationlist' => ['', ' A ', ' ', 'B', 'A'],
+                'dprstatuslist' => ['', ' 設計中 ', '   ', '中止', '設計中'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('dprclassificationlist', ['A', 'B'])
+            ->assertJsonPath('dprstatuslist', ['設計中', '中止']);
     }
 
     private function createUser(string $email): User

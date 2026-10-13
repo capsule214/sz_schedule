@@ -1,5 +1,12 @@
 import { useState, useCallback } from 'react';
 
+const stringList = value => Array.from(new Set(
+  (Array.isArray(value) ? value : [])
+    .filter(item => item != null)
+    .map(item => String(item).trim())
+    .filter(item => item !== ''),
+));
+
 /**
  * API / Cookie から渡される settings オブジェクトを正規化する純粋関数。
  * undefined / null / 型違いを吸収し、常に一定の shape を返す。
@@ -16,7 +23,7 @@ export function normalizeSettings(s = {}) {
     sbsbmb:         Number(s.sbsbmb        ?? 0),
     sbequiptype:    Number(s.sbequiptype   ?? -1),
     sbstatuslist:   (s.sbstatuslist   || []).map(Number),
-    sbinchargelist: (s.sbinchargelist || []).map(String),
+    sbinchargelist: stringList(s.sbinchargelist),
     sbszgrouplist:  (s.sbszgrouplist  || []).map(Number),
     sbmodellist:    (s.sbmodellist    || []).map(Number),
     // 担当者タブ
@@ -32,14 +39,14 @@ export function normalizeSettings(s = {}) {
     dprorder:              Number(s.dprorder ?? 0) === 0 ? 0 : 1,
     dprcolor:              Number(s.dprcolor              ?? 0),
     dprflgseiban:          !!s.dprflgseiban,
-    dprmodellist:          (s.dprmodellist           || []).map(String),
-    dprsaleslocationlist:  (s.dprsaleslocationlist   || []).map(String),
-    dprpublicationyearlist:(s.dprpublicationyearlist || []).map(String),
+    dprmodellist:          stringList(s.dprmodellist),
+    dprsaleslocationlist:  stringList(s.dprsaleslocationlist),
+    dprpublicationyearlist:stringList(s.dprpublicationyearlist),
     dprdeliverytypelist:   (s.dprdeliverytypelist    || []).map(Number),
     dprformtypelist:       (s.dprformtypelist        || []).map(Number),
-    dprclassificationlist: (s.dprclassificationlist  || []).map(String),
-    dprstatuslist:         (s.dprstatuslist          || []).map(String),
-    dprinchargelist:       (s.dprinchargelist        || []).map(String),
+    dprclassificationlist: stringList(s.dprclassificationlist),
+    dprstatuslist:         stringList(s.dprstatuslist),
+    dprinchargelist:       stringList(s.dprinchargelist),
     dprszgrouplist:        (s.dprszgrouplist         || []).map(Number),
     // 表示オプション2（全タブ共通）
     sboption:       !!s.sboption,

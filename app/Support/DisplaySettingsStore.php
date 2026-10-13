@@ -194,8 +194,9 @@ class DisplaySettingsStore
   private function strList(mixed $value): array
   {
     $arr = $this->parseList($value);
+    $strings = array_map(fn ($item) => trim((string) $item), $arr);
 
-    return array_values(array_unique(array_map('strval', $arr)));
+    return array_values(array_unique(array_filter($strings, fn ($item) => $item !== '')));
   }
 
   private function parseList(mixed $value): array
@@ -214,14 +215,16 @@ class DisplaySettingsStore
         $parsed = $this->parseEncodedListString($item);
         array_push($result, ...($isEncodedList ? $parsed : [$item]));
       }
-
-      return array_values(array_filter($result, fn ($item) => $item !== null && $item !== ''));
+    } elseif (is_string($value)) {
+      $result = $this->parseEncodedListString($value);
+    } else {
+      $result = [];
     }
-    if (! is_string($value)) {
-      return [];
-    }
 
-    return $this->parseEncodedListString($value);
+    return array_values(array_filter(
+      $result,
+      fn ($item) => $item !== null && (! is_string($item) || trim($item) !== ''),
+    ));
   }
 
   private function parseEncodedListString(string $value): array
