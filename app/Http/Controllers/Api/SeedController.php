@@ -23,6 +23,7 @@ use App\Models\Mdpr;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SeedController extends Controller
 {
@@ -822,6 +823,58 @@ class SeedController extends Controller
       Mdpr::insert($chunk);
     }
 
+    $this->syncSqliteDprReferences();
+
     return response()->json(['ok' => true, 'inserted' => count($rows)]);
+  }
+
+  /** SQLiteのDPRサンプルと、製造グループ・出荷日絞り込み用の参照表を同期する。 */
+  private function syncSqliteDprReferences(): void
+  {
+    if (DB::connection()->getDriverName() !== 'sqlite'
+      || ! Schema::hasTable('r_dprno_serialno2')
+      || ! Schema::hasTable('vd_all_order')
+      || ! Schema::hasTable('kd_serial')
+      || ! Schema::hasTable('dm_kisyu')) {
+      return;
+    }
+
+    DB::table('r_dprno_serialno2')->delete();
+
+    DB::table('m_dpr')
+      ->join('dm_kisyu', 'dm_kisyu.kisyu_name', '=', 'm_dpr.machine')
+      ->join('kd_serial', 'kd_serial.kisyu_id', '=', 'dm_kisyu.kisyu_id')
+      ->where('kd_serial.deleted', 0)
+      ->whereNotNull('m_dpr.dprno')
+      ->where('m_dpr.dprno', '<>', '')
+      ->whereNotNull('kd_serial.order_no')
+      ->where('kd_serial.order_no', '<>', '')
+      ->select('m_dpr.dprno', 'kd_serial.order_no as receno')
+      ->distinct()
+      ->orderBy('m_dpr.dprno')
+      ->chunk(500, function ($references): void {
+        DB::table('r_dprno_serialno2')->insertOrIgnore(
+          $references->map(fn ($reference) => (array) $reference)->all()
+        );
+      });
+
+    DB::table('kd_serial')
+      ->where('deleted', 0)
+      ->whereNotNull('order_no')
+      ->where('order_no', '<>', '')
+      ->selectRaw('order_no, MIN(shipping_date) as shipping_date')
+      ->groupBy('order_no')
+      ->orderBy('order_no')
+      ->chunk(500, function ($orders): void {
+        DB::table('vd_all_order')->upsert(
+          $orders->map(fn ($order) => [
+            'order_no' => $order->order_no,
+            'shipping_date' => $order->shipping_date,
+            'deleted' => 0,
+          ])->all(),
+          ['order_no'],
+          ['shipping_date', 'deleted'],
+        );
+      });
   }
 }

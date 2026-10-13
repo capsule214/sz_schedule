@@ -7,10 +7,8 @@ use App\Models\KdPlan;
 use App\Models\KmTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DprGroupsApiTest extends TestCase
@@ -140,14 +138,6 @@ class DprGroupsApiTest extends TestCase
 
     public function test_it_filters_dpr_groups_by_related_serial_seizo_group(): void
     {
-        Schema::create('r_dprno_serialno2', function (Blueprint $table): void {
-            $table->string('dprno');
-            $table->string('receno');
-        });
-        Schema::create('dk_equip_group', function (Blueprint $table): void {
-            $table->integer('equip_group_id')->primary();
-        });
-
         $user = User::create([
             'name' => 'DPR equip group user',
             'email' => 'dpr-equip-group@example.com',
@@ -162,10 +152,6 @@ class DprGroupsApiTest extends TestCase
         DB::table('kd_serial')->insert([
             ['serial_no' => 'GROUP-1', 'order_no' => 'RECEIPT-1', 'kisyu_id' => $machineB->kisyu_id, 'seizo_group_id' => 1, 'deleted' => 0],
             ['serial_no' => 'GROUP-2', 'order_no' => 'RECEIPT-2', 'kisyu_id' => $machineA->kisyu_id, 'seizo_group_id' => 2, 'deleted' => 0],
-        ]);
-        DB::table('dk_equip_group')->insert([
-            ['equip_group_id' => 1],
-            ['equip_group_id' => 2],
         ]);
         DB::table('r_dprno_serialno2')->insert([
             ['dprno' => 'CH26000001', 'receno' => 'RECEIPT-1'],
@@ -201,16 +187,6 @@ class DprGroupsApiTest extends TestCase
 
     public function test_it_orders_dpr_groups_by_the_first_machine_shipping_date(): void
     {
-        Schema::create('r_dprno_serialno2', function (Blueprint $table): void {
-            $table->string('dprno');
-            $table->string('receno');
-        });
-        Schema::create('vd_all_order', function (Blueprint $table): void {
-            $table->string('order_no');
-            $table->date('shipping_date')->nullable();
-            $table->boolean('deleted')->default(false);
-        });
-
         $user = User::create([
             'name' => 'DPR shipping order user',
             'email' => 'dpr-shipping-order@example.com',

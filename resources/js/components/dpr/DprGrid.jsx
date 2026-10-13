@@ -124,6 +124,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const colWidthsRef = useRef(colWidths);
   const colResizeRef = useRef(null);
   const pendingSonarDprNoRef = useRef(null);
+  const searchedDprNoRef = useRef(null);
   const outOfScopeDprNoRef = useRef(null);
   const sonarClearTimerRef = useRef(null);
   const sonarRafRef = useRef(null);
@@ -315,7 +316,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     }
   }, [active, machineKey, categoryFilterKey, startDate, endDate, hasMore, mergePendingPlans, showSerialPlans]);
 
-  const reloadOutOfScopeDpr = useCallback(async (dprNo) => {
+  const reloadSearchedDpr = useCallback(async (dprNo) => {
     const selectedMachines = JSON.parse(machineKey);
     const categoryFilters = JSON.parse(categoryFilterKey);
     if (!active || !dprNo || selectedMachines.length === 0) return;
@@ -339,6 +340,12 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         errorRef.current?.('該当するDPR Noがありません');
         return;
       }
+      searchedDprNoRef.current = result.dprNo;
+      if (result.inDisplaySettings) {
+        outOfScopeDprNoRef.current = null;
+        await loadPage(true, result.dprNo);
+        return;
+      }
       outOfScopeDprNoRef.current = result.dprNo;
       setGroups([result.group]);
       setPlans(mergePendingPlans(result.plans || []));
@@ -353,7 +360,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         setLoading(false);
       }
     }
-  }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, mergePendingPlans]);
+  }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, mergePendingPlans, loadPage]);
 
   useEffect(() => {
     if (!active) return;
@@ -370,15 +377,16 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     // タブを非表示から表示へ戻しただけなら、取得済みデータ・検索状態・スクロール位置を維持する。
     if (lastAutoLoadKeyRef.current === autoLoadKey) return;
     const previousParams = lastAutoLoadKeyRef.current ? JSON.parse(lastAutoLoadKeyRef.current) : null;
-    const preserveOutOfScopeSearch = !!outOfScopeDprNoRef.current
+    const preserveSearch = !!searchedDprNoRef.current
       && previousParams
       && previousParams.machineKey === machineKey
       && previousParams.categoryFilterKey === categoryFilterKey
       && previousParams.showSerialPlans === showSerialPlans
       && previousParams.displaySettingsApplyVersion === displaySettingsApplyVersion
-      && previousParams.reloadTick === reloadTick
-      && (previousParams.startDate !== startDate || previousParams.endDate !== endDate);
-    const searchedDprNo = preserveOutOfScopeSearch ? outOfScopeDprNoRef.current : null;
+      && (previousParams.startDate !== startDate
+        || previousParams.endDate !== endDate
+        || previousParams.reloadTick !== reloadTick);
+    const searchedDprNo = preserveSearch ? searchedDprNoRef.current : null;
     lastAutoLoadKeyRef.current = autoLoadKey;
     requestIdRef.current += 1;
     cursorRef.current = null;
@@ -394,11 +402,14 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     setTooltip(null);
     setScheduleDialog(null);
     pendingSonarDprNoRef.current = null;
-    if (!preserveOutOfScopeSearch) outOfScopeDprNoRef.current = null;
+    if (!preserveSearch) {
+      searchedDprNoRef.current = null;
+      outOfScopeDprNoRef.current = null;
+    }
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
     setSonar(null);
-    if (!preserveOutOfScopeSearch) setDprSearchText('');
+    if (!preserveSearch) setDprSearchText('');
     setGroups([]);
     setPlans(mergePendingPlans([]));
     setSerialPlans([]);
@@ -415,7 +426,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
       return;
     }
     initialMachineSelectionCheckedRef.current = true;
-    if (preserveOutOfScopeSearch) reloadOutOfScopeDpr(searchedDprNo);
+    if (preserveSearch) reloadSearchedDpr(searchedDprNo);
     else loadPage(true);
   }, [active, machineKey, categoryFilterKey, startDate, endDate, showSerialPlans, displaySettingsApplyVersion, reloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1170,12 +1181,16 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   const handleDprSearch = useCallback(async () => {
     const dprNo = dprSearchText.trim().toUpperCase();
     if (!dprNo) {
+      searchedDprNoRef.current = null;
       outOfScopeDprNoRef.current = null;
       setReloadTick(value => value + 1);
       return;
     }
     setDprSearchText(dprNo);
-    if (scrollToDpr(dprNo)) return;
+    if (scrollToDpr(dprNo)) {
+      searchedDprNoRef.current = dprNo;
+      return;
+    }
 
     setLoading(true);
     try {
@@ -1192,6 +1207,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
         errorRef.current?.('該当するDPR Noがありません');
         return;
       }
+      searchedDprNoRef.current = result.dprNo;
 
       if (result.inDisplaySettings) {
         outOfScopeDprNoRef.current = null;
@@ -1228,6 +1244,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
     if (!dprSearchText) return;
     setDprSearchText('');
     pendingSonarDprNoRef.current = null;
+    searchedDprNoRef.current = null;
     outOfScopeDprNoRef.current = null;
     if (sonarRafRef.current) cancelAnimationFrame(sonarRafRef.current);
     if (sonarClearTimerRef.current) clearTimeout(sonarClearTimerRef.current);
@@ -1236,9 +1253,7 @@ const DprGrid = forwardRef(function DprGrid({ active = false, displaySettings, d
   }, [dprSearchText]);
 
   const redraw = useCallback(() => {
-    setDprSearchText('');
     pendingSonarDprNoRef.current = null;
-    outOfScopeDprNoRef.current = null;
     setReloadTick(value => value + 1);
   }, []);
 
