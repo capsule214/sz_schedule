@@ -11,6 +11,7 @@ import GridTabPane from './GridTabPane';
 import AlertToast from './AlertToast';
 import UnsavedChangesDialog from './UnsavedChangesDialog';
 import DprGrid from './dpr/DprGrid';
+import MapTab from './map/MapTab';
 
 function getCookie(name) {
   const value = `; ${document.cookie}`;
@@ -24,7 +25,7 @@ function setCookie(name, value, days = 365) {
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
 }
 
-const GRID_TABS = ['device', 'worker', 'place', 'task', 'dpr'];
+const GRID_TABS = ['device', 'worker', 'place', 'task', 'dpr', 'map'];
 
 function displaySettingsCookieName(user) {
   return `active_display_setting_no_${encodeURIComponent(user?.email || 'default')}`;
@@ -112,6 +113,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     place: { canUndo: false, canRedo: false },
     task: { canUndo: false, canRedo: false },
     dpr: { canUndo: false, canRedo: false },
+    map: { canUndo: false, canRedo: false },
   });
 
   const locationRangeRef = useRef(null);
@@ -125,6 +127,7 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
     task: ['tasks'],
     place: ['resources'],
     dpr: [],
+    map: [],
   }), []);
 
   const hasMastersForMode = useCallback((mode) => (
@@ -596,6 +599,10 @@ export default function SpreadsheetGridClient({ user, onLogout }) {
             onBeforeRedraw={handleBeforeRedraw}
             onHistoryChange={(mode, state) => setHistoryState(prev => ({ ...prev, [mode]: state }))}
           />
+        </GridTabPane>
+
+        <GridTabPane active={tab === 'map'}>
+          <MapTab active={tab === 'map'} onError={showAlert} />
         </GridTabPane>
 
         <AlertToast message={alertMessage} onClose={() => setAlertMessage(null)} />

@@ -12,7 +12,7 @@ export default function GridTabBar({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box', background: '#fff', borderBottom: '2px solid #e5e7eb', padding: '0 12px', flexShrink: 0 }}>
-      {[['device', '装置'], ['worker', '担当者'], ['task', 'タスク'], ['place', '場所'], ['dpr', 'DPR']].map(([key, label]) => (
+      {[['device', '装置'], ['worker', '担当者'], ['task', 'タスク'], ['place', '場所'], ['dpr', 'DPR'], ['map', 'マップ']].map(([key, label]) => (
         <button
           key={key}
           onClick={() => setTab(key)}

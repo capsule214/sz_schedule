@@ -306,6 +306,11 @@ class SeedController extends Controller
         'resource_name' => $name,
         'sort_no' => $i + 1,
         'location_type_id' => $locationTypeIds[$i],
+        'resource_type_id' => 1,
+        'x1' => 120 + $i * 480,
+        'y1' => 150,
+        'x2' => 520 + $i * 480,
+        'y2' => 260,
         'back_color' => $i + 1,
         'font_color' => 6,
       ]);
@@ -503,6 +508,11 @@ class SeedController extends Controller
         'resource_name' => '場所'.str_pad($i, 3, '0', STR_PAD_LEFT),
         'sort_no' => $i,
         'location_type_id' => $locationTypeIds[(($i - 1) % count($locationTypeIds))],
+        'resource_type_id' => 1,
+        'x1' => 120 + (($i - 1) % 10) * 480,
+        'y1' => 150 + intdiv($i - 1, 10) * 150,
+        'x2' => 520 + (($i - 1) % 10) * 480,
+        'y2' => 260 + intdiv($i - 1, 10) * 150,
         'back_color' => (($i - 1) % 5) + 1,
         'font_color' => 6,
       ]);

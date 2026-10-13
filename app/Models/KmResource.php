@@ -12,7 +12,27 @@ class KmResource extends Model
   protected $table = 'km_resource';
   protected $primaryKey = 'resource_id';
   public $timestamps = false;
-  protected $fillable = ['resource_name', 'sort_no', 'location_type_id', 'back_color', 'font_color', 'deleted'];
+  protected $fillable = [
+    'resource_name',
+    'sort_no',
+    'location_type_id',
+    'resource_type_id',
+    'x1',
+    'y1',
+    'x2',
+    'y2',
+    'back_color',
+    'font_color',
+    'deleted',
+  ];
+
+  protected $casts = [
+    'resource_type_id' => 'integer',
+    'x1' => 'integer',
+    'y1' => 'integer',
+    'x2' => 'integer',
+    'y2' => 'integer',
+  ];
 
   public function reserves()
   {

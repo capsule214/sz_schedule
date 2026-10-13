@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\DisplaySettingsController;
 use App\Http\Controllers\Api\DprController;
 use App\Http\Controllers\Api\MorderController;
+use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\PlanDprController;
 use App\Http\Controllers\Api\QualificationController;
@@ -36,6 +37,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/task', [TaskController::class, 'index']);
   Route::get('/qualification/status', [QualificationController::class, 'status']);
   Route::get('/resource', [ResourceController::class, 'index']);
+  Route::post('/map/data', [MapController::class, 'data']);
   Route::get('/morder', [MorderController::class, 'index']);
   Route::post('/morder/groups', [MorderController::class, 'groups']);
   Route::get('/morder/{morderId}/plans', [MorderController::class, 'plans']);
