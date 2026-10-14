@@ -109,6 +109,7 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
   }
 
   function handleWheel(event) {
+    if (event.target instanceof Element && event.target.closest('[data-map-zoom-controls]')) return;
     event.preventDefault();
     const now = performance.now();
     if (now - wheelAtRef.current < 120) return;
@@ -118,6 +119,15 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
     wheelAtRef.current = now;
     changeZoom(nextIndex, { x: event.clientX, y: event.clientY });
   }
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return undefined;
+
+    const wheelListener = event => handleWheel(event);
+    viewport.addEventListener('wheel', wheelListener, { passive: false });
+    return () => viewport.removeEventListener('wheel', wheelListener);
+  }, [zoomIndex, pan, clampPan]);
 
   const scale = ZOOM_LEVELS[zoomIndex];
   const backgroundInfo = background?.[0];
@@ -134,7 +144,6 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
-      onWheel={handleWheel}
       style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#cbd5e1', cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
     >
       <style>{`
@@ -202,6 +211,7 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
       </div>
       <div
         aria-label="マップズーム目盛り"
+        data-map-zoom-controls
         onPointerDown={event => event.stopPropagation()}
         onWheel={event => event.stopPropagation()}
         style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: 74, borderRadius: 7, overflow: 'hidden', background: 'rgba(255,255,255,0.96)', border: '1px solid #94a3b8', boxShadow: '0 2px 8px rgba(15,23,42,0.3)' }}
