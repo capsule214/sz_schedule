@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MapZoomControls from './MapZoomControls';
 
 export const MAP_WIDTH = 5318;
 export const MAP_HEIGHT = 1860;
@@ -11,8 +12,6 @@ const FLOOR_IMAGES = {
   'A棟4F': '/images/map/a-building-4f.svg',
   'A棟5F': '/images/map/a-building-5f.svg',
 };
-
-const zoomPercent = level => Number((level * 100).toFixed(2));
 
 function resourceStyle(resource) {
   const type = Number(resource.resourceTypeId);
@@ -157,22 +156,6 @@ export default function MapCanvas({ resources, floor, highlightSearch = '', sear
       onPointerCancel={endDrag}
       style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#cbd5e1', cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
     >
-      <style>{`
-        @keyframes map-sonar-wave {
-          0% { transform: scale(0.82); opacity: 0.95; }
-          75%, 100% { transform: scale(1.42); opacity: 0; }
-        }
-        .map-sonar-ring {
-          position: absolute;
-          inset: -18px;
-          border: 8px solid #0284c7;
-          border-radius: 14px;
-          box-shadow: 0 0 18px rgba(2, 132, 199, 0.8);
-          pointer-events: none;
-          animation: map-sonar-wave 1.6s ease-out 3;
-        }
-        .map-sonar-ring.map-sonar-ring-delayed { animation-delay: 0.8s; }
-      `}</style>
       <div style={{ position: 'absolute', left: 0, top: 0, width: MAP_WIDTH, height: MAP_HEIGHT, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: '0 0', willChange: 'transform' }}>
         <img
           key={backgroundImage}
@@ -220,45 +203,7 @@ export default function MapCanvas({ resources, floor, highlightSearch = '', sear
           );
         })}
       </div>
-      <div
-        aria-label="マップズーム目盛り"
-        data-map-zoom-controls
-        onPointerDown={event => event.stopPropagation()}
-        onWheel={event => event.stopPropagation()}
-        style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: 74, borderRadius: 7, overflow: 'hidden', background: 'rgba(255,255,255,0.96)', border: '1px solid #94a3b8', boxShadow: '0 2px 8px rgba(15,23,42,0.3)' }}
-      >
-        <button
-          type="button"
-          aria-label="ズームイン"
-          disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-          onClick={() => changeZoom(zoomIndex + 1)}
-          style={{ height: 38, border: 'none', borderBottom: '1px solid #cbd5e1', background: '#fff', color: zoomIndex === ZOOM_LEVELS.length - 1 ? '#cbd5e1' : '#0f172a', fontSize: 26, lineHeight: 1, cursor: zoomIndex === ZOOM_LEVELS.length - 1 ? 'default' : 'pointer' }}
-        >＋</button>
-        {[...ZOOM_LEVELS].reverse().map((level, reversedIndex) => {
-          const index = ZOOM_LEVELS.length - 1 - reversedIndex;
-          const selected = index === zoomIndex;
-          return (
-            <button
-              type="button"
-              key={level}
-              aria-label={`ズーム${zoomPercent(level)}%`}
-              aria-pressed={selected}
-              onClick={() => changeZoom(index)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, height: 25, padding: '0 6px', border: 'none', borderBottom: '1px solid #e2e8f0', background: selected ? '#dbeafe' : '#fff', color: selected ? '#1d4ed8' : '#475569', cursor: 'pointer', fontSize: 10, fontWeight: selected ? 700 : 400 }}
-            >
-              <span style={{ width: selected ? 20 : 12, height: selected ? 3 : 1, background: selected ? '#2563eb' : '#64748b' }} />
-              <span>{zoomPercent(level)}%</span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          aria-label="ズームアウト"
-          disabled={zoomIndex === 0}
-          onClick={() => changeZoom(zoomIndex - 1)}
-          style={{ height: 38, border: 'none', background: '#fff', color: zoomIndex === 0 ? '#cbd5e1' : '#0f172a', fontSize: 26, lineHeight: 1, cursor: zoomIndex === 0 ? 'default' : 'pointer' }}
-        >−</button>
-      </div>
+      <MapZoomControls levels={ZOOM_LEVELS} zoomIndex={zoomIndex} onZoomChange={changeZoom} />
     </div>
   );
 }
