@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export const MAP_WIDTH = 5318;
 export const MAP_HEIGHT = 1860;
+export const RESOURCE_ORIGIN_X = 3000;
+export const RESOURCE_ORIGIN_Y = 0;
 const ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.25];
 const DEFAULT_ZOOM_INDEX = 4;
 const FLOOR_IMAGES = {
@@ -23,32 +25,46 @@ function resourceStyle(resource) {
   return { background: 'rgba(148, 163, 184, 0.24)', border: '2px solid #64748b', color: '#334155' };
 }
 
-export default function MapCanvas({ resources, background, floor, highlightSearch = '', searchVersion = 0 }) {
+export default function MapCanvas({ resources, floor, highlightSearch = '', searchVersion = 0 }) {
   const viewportRef = useRef(null);
   const dragRef = useRef(null);
   const wheelAtRef = useRef(0);
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
+  const sceneBounds = useMemo(() => resources.reduce((bounds, resource) => {
+    const x1 = RESOURCE_ORIGIN_X + Number(resource.x1 || 0);
+    const x2 = RESOURCE_ORIGIN_X + Number(resource.x2 || 0);
+    const y1 = RESOURCE_ORIGIN_Y + Number(resource.y1 || 0);
+    const y2 = RESOURCE_ORIGIN_Y + Number(resource.y2 || 0);
+    return {
+      minX: Math.min(bounds.minX, x1, x2),
+      minY: Math.min(bounds.minY, y1, y2),
+      maxX: Math.max(bounds.maxX, x1, x2),
+      maxY: Math.max(bounds.maxY, y1, y2),
+    };
+  }, { minX: 0, minY: 0, maxX: MAP_WIDTH, maxY: MAP_HEIGHT }), [resources]);
+
   const clampPan = useCallback((next, scale = ZOOM_LEVELS[zoomIndex]) => {
     const viewport = viewportRef.current;
     if (!viewport) return next;
-    const scaledWidth = MAP_WIDTH * scale;
-    const scaledHeight = MAP_HEIGHT * scale;
+    const scaledWidth = (sceneBounds.maxX - sceneBounds.minX) * scale;
+    const scaledHeight = (sceneBounds.maxY - sceneBounds.minY) * scale;
     const x = scaledWidth <= viewport.clientWidth
-      ? (viewport.clientWidth - scaledWidth) / 2
-      : Math.max(viewport.clientWidth - scaledWidth, Math.min(0, next.x));
+      ? (viewport.clientWidth - scaledWidth) / 2 - sceneBounds.minX * scale
+      : Math.max(viewport.clientWidth - sceneBounds.maxX * scale, Math.min(-sceneBounds.minX * scale, next.x));
     const y = scaledHeight <= viewport.clientHeight
-      ? (viewport.clientHeight - scaledHeight) / 2
-      : Math.max(viewport.clientHeight - scaledHeight, Math.min(0, next.y));
+      ? (viewport.clientHeight - scaledHeight) / 2 - sceneBounds.minY * scale
+      : Math.max(viewport.clientHeight - sceneBounds.maxY * scale, Math.min(-sceneBounds.minY * scale, next.y));
     return {
       x,
       y,
     };
-  }, [zoomIndex]);
+  }, [sceneBounds, zoomIndex]);
 
   useEffect(() => {
     const handleResize = () => setPan(current => clampPan(current));
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [clampPan]);
@@ -60,8 +76,8 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
     if (!target || !viewport) return;
 
     const scale = ZOOM_LEVELS[zoomIndex];
-    const centerX = (Number(target.x1) + Number(target.x2)) / 2;
-    const centerY = (Number(target.y1) + Number(target.y2)) / 2;
+    const centerX = RESOURCE_ORIGIN_X + (Number(target.x1) + Number(target.x2)) / 2;
+    const centerY = RESOURCE_ORIGIN_Y + (Number(target.y1) + Number(target.y2)) / 2;
     setPan(clampPan({
       x: viewport.clientWidth / 2 - centerX * scale,
       y: viewport.clientHeight / 2 - centerY * scale,
@@ -130,11 +146,6 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
   }, [zoomIndex, pan, clampPan]);
 
   const scale = ZOOM_LEVELS[zoomIndex];
-  const backgroundInfo = background?.[0];
-  const backgroundX = Number(backgroundInfo?.x1 ?? 0);
-  const backgroundY = Number(backgroundInfo?.y1 ?? 0);
-  const backgroundWidth = Math.max(1, Number(backgroundInfo?.x2 ?? MAP_WIDTH) - backgroundX);
-  const backgroundHeight = Math.max(1, Number(backgroundInfo?.y2 ?? MAP_HEIGHT) - backgroundY);
   const backgroundImage = FLOOR_IMAGES[floor] ?? FLOOR_IMAGES['A棟3F'];
 
   return (
@@ -170,7 +181,7 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
           draggable={false}
           width={MAP_WIDTH}
           height={MAP_HEIGHT}
-          style={{ position: 'absolute', left: backgroundX, top: backgroundY, width: backgroundWidth, height: backgroundHeight, userSelect: 'none', pointerEvents: 'none' }}
+          style={{ position: 'absolute', left: 0, top: 0, width: MAP_WIDTH, height: MAP_HEIGHT, maxWidth: 'none', maxHeight: 'none', userSelect: 'none', pointerEvents: 'none' }}
         />
         <div style={{ position: 'absolute', top: 28, left: 40, padding: '10px 18px', borderRadius: 8, background: 'rgba(255,255,255,0.88)', border: '2px solid #475569', color: '#0f172a', fontSize: 28, fontWeight: 700 }}>{floor}</div>
         {resources.map(resource => {
@@ -185,7 +196,7 @@ export default function MapCanvas({ resources, background, floor, highlightSearc
               key={resource.resourceId}
               title={[resource.resourceName, ...reserves.map(item => `${item.serialNo} ${item.kisyuName}`)].filter(Boolean).join('\n')}
               style={{
-                position: 'absolute', left: Number(resource.x1), top: Number(resource.y1), width, height,
+                position: 'absolute', left: RESOURCE_ORIGIN_X + Number(resource.x1), top: RESOURCE_ORIGIN_Y + Number(resource.y1), width, height,
                 boxSizing: 'border-box', overflow: 'visible', borderRadius: 5,
               }}
             >

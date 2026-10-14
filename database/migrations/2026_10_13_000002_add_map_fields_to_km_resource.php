@@ -34,9 +34,9 @@ return new class extends Migration
 
                     DB::table('km_resource')->where('resource_id', $resource->resource_id)->update([
                         'resource_type_id' => 1,
-                        'x1' => 120 + $column * 480,
+                        'x1' => -2880 + $column * 480,
                         'y1' => 150 + $row * 150,
-                        'x2' => 520 + $column * 480,
+                        'x2' => -2480 + $column * 480,
                         'y2' => 260 + $row * 150,
                     ]);
                 });

@@ -20,7 +20,6 @@ export default function MapTab({ active, onError }) {
   const [floor, setFloor] = useState('A棟3F');
   const [serialSearchText, setSerialSearchText] = useState('');
   const [resources, setResources] = useState([]);
-  const [background, setBackground] = useState([]);
   const [appliedSerialSearch, setAppliedSerialSearch] = useState('');
   const [searchVersion, setSearchVersion] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -41,7 +40,6 @@ export default function MapTab({ active, onError }) {
       });
       if (requestId !== requestIdRef.current) return;
       setResources(result.resources || []);
-      setBackground(result.background || []);
       setAppliedSerialSearch((overrides.serialSearchText ?? serialSearchText).trim());
       setSearchVersion(version => version + 1);
       loadedRef.current = true;
@@ -90,7 +88,6 @@ export default function MapTab({ active, onError }) {
       />
       <MapCanvas
         resources={resources}
-        background={background}
         floor={floor}
         highlightSearch={appliedSerialSearch}
         searchVersion={searchVersion}
