@@ -8,10 +8,15 @@ export const RESOURCE_ORIGIN_Y = 0;
 const ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.25];
 const DEFAULT_ZOOM_INDEX = 4;
 const FLOOR_IMAGES = {
-  'A棟3F': '/images/map/a-building-3f.svg',
-  'A棟4F': '/images/map/a-building-4f.svg',
-  'A棟5F': '/images/map/a-building-5f.svg',
+  '3F': '/images/map/a-building-3f.svg',
+  '4F': '/images/map/a-building-4f.svg',
+  '5F': '/images/map/a-building-5f.svg',
 };
+
+function floorImage(locationTypeName) {
+  const floorKey = Object.keys(FLOOR_IMAGES).find(key => String(locationTypeName).endsWith(key));
+  return FLOOR_IMAGES[floorKey] ?? FLOOR_IMAGES['3F'];
+}
 
 function resourceStyle(resource) {
   const type = Number(resource.resourceTypeId);
@@ -24,7 +29,7 @@ function resourceStyle(resource) {
   return { background: 'rgba(148, 163, 184, 0.24)', border: '2px solid #64748b', color: '#334155' };
 }
 
-export default function MapCanvas({ resources, floor, highlightSearch = '', searchVersion = 0 }) {
+export default function MapCanvas({ resources, locationTypeName, highlightSearch = '', searchVersion = 0 }) {
   const viewportRef = useRef(null);
   const dragRef = useRef(null);
   const wheelAtRef = useRef(0);
@@ -145,7 +150,7 @@ export default function MapCanvas({ resources, floor, highlightSearch = '', sear
   }, [zoomIndex, pan, clampPan]);
 
   const scale = ZOOM_LEVELS[zoomIndex];
-  const backgroundImage = FLOOR_IMAGES[floor] ?? FLOOR_IMAGES['A棟3F'];
+  const backgroundImage = floorImage(locationTypeName);
 
   return (
     <div
@@ -160,13 +165,13 @@ export default function MapCanvas({ resources, floor, highlightSearch = '', sear
         <img
           key={backgroundImage}
           src={backgroundImage}
-          alt={`${floor} 建物図面`}
+          alt={`${locationTypeName} 建物図面`}
           draggable={false}
           width={MAP_WIDTH}
           height={MAP_HEIGHT}
           style={{ position: 'absolute', left: 0, top: 0, width: MAP_WIDTH, height: MAP_HEIGHT, maxWidth: 'none', maxHeight: 'none', userSelect: 'none', pointerEvents: 'none' }}
         />
-        <div style={{ position: 'absolute', top: 28, left: 40, padding: '10px 18px', borderRadius: 8, background: 'rgba(255,255,255,0.88)', border: '2px solid #475569', color: '#0f172a', fontSize: 28, fontWeight: 700 }}>{floor}</div>
+        <div style={{ position: 'absolute', top: 28, left: 40, padding: '10px 18px', borderRadius: 8, background: 'rgba(255,255,255,0.88)', border: '2px solid #475569', color: '#0f172a', fontSize: 28, fontWeight: 700 }}>{locationTypeName}</div>
         {resources.map(resource => {
           const width = Math.max(0, Number(resource.x2) - Number(resource.x1));
           const height = Math.max(0, Number(resource.y2) - Number(resource.y1));

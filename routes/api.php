@@ -37,6 +37,7 @@ Route::middleware('auth:web')->group(function () {
   Route::get('/task', [TaskController::class, 'index']);
   Route::get('/qualification/status', [QualificationController::class, 'status']);
   Route::get('/resource', [ResourceController::class, 'index']);
+  Route::get('/map/location-types', [MapController::class, 'locationTypes']);
   Route::post('/map/data', [MapController::class, 'data']);
   Route::get('/morder', [MorderController::class, 'index']);
   Route::post('/morder/groups', [MorderController::class, 'groups']);

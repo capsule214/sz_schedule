@@ -70,12 +70,21 @@ class MapDataApiTest extends TestCase
             'deleted' => 0,
         ]);
 
+        $this->actingAs($user)->getJson('/api/map/location-types')
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.locationTypeId', $floor3->location_type_id)
+            ->assertJsonPath('0.locationTypeName', '3F')
+            ->assertJsonPath('1.locationTypeId', $floor4->location_type_id)
+            ->assertJsonPath('1.locationTypeName', '4F');
+
         $this->actingAs($user)->postJson('/api/map/data', [
             'display_date' => '2026-10-13',
-            'floor' => 'A棟3F',
+            'location_type_id' => $floor3->location_type_id,
             'serial_no' => 'PX1001',
         ])->assertOk()
-            ->assertJsonPath('floor', 'A棟3F')
+            ->assertJsonPath('locationTypeId', $floor3->location_type_id)
+            ->assertJsonPath('locationTypeName', '3F')
             ->assertJsonPath('displayDate', '2026-10-13')
             ->assertJsonCount(1, 'resources')
             ->assertJsonPath('resources.0.resourceName', '設置場所A')
@@ -87,13 +96,13 @@ class MapDataApiTest extends TestCase
 
         $this->actingAs($user)->postJson('/api/map/data', [
             'display_date' => '2026-11-01',
-            'floor' => 'A棟3F',
+            'location_type_id' => $floor3->location_type_id,
             'serial_no' => 'PX1001',
         ])->assertOk()
             ->assertJsonCount(0, 'resources.0.reserves');
     }
 
-    public function test_map_data_rejects_an_unknown_floor(): void
+    public function test_map_data_rejects_an_unknown_location_type(): void
     {
         $user = User::create([
             'name' => 'Map validation user',
@@ -103,7 +112,7 @@ class MapDataApiTest extends TestCase
 
         $this->actingAs($user)->postJson('/api/map/data', [
             'display_date' => '2026-10-13',
-            'floor' => 'B棟1F',
-        ])->assertUnprocessable()->assertJsonValidationErrors('floor');
+            'location_type_id' => 999,
+        ])->assertUnprocessable()->assertJsonValidationErrors('location_type_id');
     }
 }

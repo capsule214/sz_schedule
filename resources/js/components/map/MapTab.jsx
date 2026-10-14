@@ -17,16 +17,20 @@ function shiftMonth(dateText, amount) {
 
 export default function MapTab({ active, onError }) {
   const [startDate, setStartDate] = useState(todayIso);
-  const [floor, setFloor] = useState('A棟3F');
+  const [locationTypes, setLocationTypes] = useState([]);
+  const [locationTypeId, setLocationTypeId] = useState('');
+  const [locationTypeName, setLocationTypeName] = useState('');
   const [serialSearchText, setSerialSearchText] = useState('');
   const [resources, setResources] = useState([]);
   const [appliedSerialSearch, setAppliedSerialSearch] = useState('');
   const [searchVersion, setSearchVersion] = useState(0);
   const [loading, setLoading] = useState(false);
-  const loadedRef = useRef(false);
+  const initializedRef = useRef(false);
   const requestIdRef = useRef(0);
 
   const loadData = useCallback(async (overrides = {}) => {
+    const selectedLocationTypeId = Number(overrides.locationTypeId ?? locationTypeId);
+    if (!selectedLocationTypeId) return;
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
@@ -34,24 +38,45 @@ export default function MapTab({ active, onError }) {
         method: 'POST',
         body: JSON.stringify({
           display_date: overrides.startDate ?? startDate,
-          floor: overrides.floor ?? floor,
+          location_type_id: selectedLocationTypeId,
           serial_no: overrides.serialSearchText ?? serialSearchText,
         }),
       });
       if (requestId !== requestIdRef.current) return;
       setResources(result.resources || []);
+      setLocationTypeName(result.locationTypeName || '');
       setAppliedSerialSearch((overrides.serialSearchText ?? serialSearchText).trim());
       setSearchVersion(version => version + 1);
-      loadedRef.current = true;
     } catch {
       if (requestId === requestIdRef.current) onError?.('マップデータの取得に失敗しました');
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [floor, onError, serialSearchText, startDate]);
+  }, [locationTypeId, onError, serialSearchText, startDate]);
 
   useEffect(() => {
-    if (active && !loadedRef.current) loadData();
+    if (!active || initializedRef.current) return;
+    initializedRef.current = true;
+    setLoading(true);
+    apiJson('/map/location-types')
+      .then(async types => {
+        const nextTypes = Array.isArray(types) ? types : [];
+        setLocationTypes(nextTypes);
+        const first = nextTypes[0];
+        if (!first) {
+          setResources([]);
+          setLoading(false);
+          return;
+        }
+        setLocationTypeId(first.locationTypeId);
+        setLocationTypeName(first.locationTypeName);
+        await loadData({ locationTypeId: first.locationTypeId });
+      })
+      .catch(() => {
+        initializedRef.current = false;
+        setLoading(false);
+        onError?.('フロアリストの取得に失敗しました');
+      });
   }, [active, loadData]);
 
   function changeStartDate(value) {
@@ -60,9 +85,12 @@ export default function MapTab({ active, onError }) {
     loadData({ startDate: value });
   }
 
-  function changeFloor(value) {
-    setFloor(value);
-    loadData({ floor: value });
+  function changeLocationType(value) {
+    const nextId = Number(value);
+    const nextType = locationTypes.find(type => Number(type.locationTypeId) === nextId);
+    setLocationTypeId(nextId);
+    setLocationTypeName(nextType?.locationTypeName || '');
+    loadData({ locationTypeId: nextId });
   }
 
   function clearSerialSearch() {
@@ -77,8 +105,9 @@ export default function MapTab({ active, onError }) {
         startDate={startDate}
         onStartDateChange={changeStartDate}
         onShiftMonth={amount => changeStartDate(shiftMonth(startDate, amount))}
-        floor={floor}
-        onFloorChange={changeFloor}
+        locationTypes={locationTypes}
+        locationTypeId={locationTypeId}
+        onLocationTypeChange={changeLocationType}
         serialSearchText={serialSearchText}
         onSerialSearchTextChange={setSerialSearchText}
         onSearch={() => loadData()}
@@ -88,7 +117,7 @@ export default function MapTab({ active, onError }) {
       />
       <MapCanvas
         resources={resources}
-        floor={floor}
+        locationTypeName={locationTypeName}
         highlightSearch={appliedSerialSearch}
         searchVersion={searchVersion}
       />

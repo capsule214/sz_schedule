@@ -11,8 +11,9 @@ export default function MapToolbar({
   startDate,
   onStartDateChange,
   onShiftMonth,
-  floor,
-  onFloorChange,
+  locationTypes,
+  locationTypeId,
+  onLocationTypeChange,
   serialSearchText,
   onSerialSearchTextChange,
   onSearch,
@@ -34,8 +35,9 @@ export default function MapToolbar({
       <button type="button" onClick={() => onShiftMonth(1)} style={{ ...CONTROL_STYLE, cursor: 'pointer', flexShrink: 0 }}>1ヶ月後</button>
       <button type="button" onClick={() => onShiftMonth(2)} style={{ ...CONTROL_STYLE, cursor: 'pointer', flexShrink: 0 }}>2ヶ月後</button>
 
-      <select value={floor} onChange={event => onFloorChange(event.target.value)} aria-label="マップ表示フロア" style={{ ...CONTROL_STYLE, marginLeft: 4, flexShrink: 0 }}>
-        {['A棟3F', 'A棟4F', 'A棟5F'].map(value => <option key={value} value={value}>{value}</option>)}
+      <select value={locationTypeId} onChange={event => onLocationTypeChange(event.target.value)} aria-label="マップ表示フロア" disabled={locationTypes.length === 0} style={{ ...CONTROL_STYLE, marginLeft: 4, flexShrink: 0 }}>
+        {locationTypes.length === 0 && <option value="">フロアなし</option>}
+        {locationTypes.map(type => <option key={type.locationTypeId} value={type.locationTypeId}>{type.locationTypeName}</option>)}
       </select>
 
       <div style={{ position: 'relative', width: 150, marginLeft: 4, flexShrink: 0 }}>

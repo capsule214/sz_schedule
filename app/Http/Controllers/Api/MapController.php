@@ -4,31 +4,38 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\KdReserve;
+use App\Models\KkLocationType;
 use App\Models\KmResource;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class MapController extends Controller
 {
-  private const FLOORS = [
-    'A棟3F' => '3F',
-    'A棟4F' => '4F',
-    'A棟5F' => '5F',
-  ];
+  public function locationTypes()
+  {
+    return response()->json(
+      KkLocationType::query()
+        ->orderBy('location_type_id')
+        ->get(['location_type_id', 'location_type_name'])
+        ->map(fn (KkLocationType $type) => [
+          'locationTypeId' => (int) $type->location_type_id,
+          'locationTypeName' => (string) $type->location_type_name,
+        ])
+    );
+  }
 
   public function data(Request $request)
   {
     $data = $request->validate([
       'display_date' => 'required|date',
-      'floor' => ['required', Rule::in(array_keys(self::FLOORS))],
+      'location_type_id' => 'required|integer|exists:kk_location_type,location_type_id',
       'serial_no' => 'nullable|string|max:120',
     ]);
 
-    $floorName = self::FLOORS[$data['floor']];
+    $locationType = KkLocationType::findOrFail($data['location_type_id']);
     $resources = KmResource::with('locationType')
       ->where('deleted', 0)
-      ->whereHas('locationType', fn ($query) => $query->where('location_type_name', $floorName))
+      ->where('location_type_id', $locationType->location_type_id)
       ->orderBy('sort_no')
       ->orderBy('resource_id')
       ->get();
@@ -83,7 +90,8 @@ class MapController extends Controller
     })->values();
 
     return response()->json([
-      'floor' => $data['floor'],
+      'locationTypeId' => (int) $locationType->location_type_id,
+      'locationTypeName' => (string) $locationType->location_type_name,
       'displayDate' => $date->format('Y-m-d'),
       'background' => $formatted->where('resourceTypeId', 99)->values()->all(),
       'resources' => $formatted->where('resourceTypeId', '<>', 99)->values()->all(),
