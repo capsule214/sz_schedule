@@ -117,6 +117,14 @@ export default function SpreadsheetGridBars({
       const barY = ghost && ghostDrag.type === 'move' ? y + verticalDeltaRow * CELL_SIZE : y;
       // 保存済みの当日更新に加え、保存前のローカル編集も当日変更として表示する。
       const showStar = flgdiff && (plan.updatedAt === TODAY_STR || isEdited);
+      // DPR予定と同じく備考をタスク名の直後へ置き、短いバーでも優先して表示する。
+      const remarkSuffix = plan.remark ? `＜${plan.remark}＞` : '';
+      const taskLabel = `${plan.taskName || ''}${remarkSuffix}`;
+      const currentLabel = plan.workerName ? `${taskLabel} ${plan.workerName}` : taskLabel;
+      const customerPrefix = showCustomer && plan.customerName ? `${plan.customerName} ` : '';
+      const label = mode === 'place'
+        ? (plan.serialNo ? `${plan.kisyuName} ${plan.serialNo}` : '')
+        : `${customerPrefix}${currentLabel}`;
 
       const rowArr = rowStartXMap.get(absRow) || [];
       const myIdx = rowArr.findIndex(r => r.planId === plan.planId);
@@ -131,6 +139,7 @@ export default function SpreadsheetGridBars({
       bars.push(
         <div
           key={plan.planId}
+          title={label}
           style={{
             position: 'absolute', left: barX, top: barY, width: w, height: CELL_SIZE, background: bg,
             display: 'flex', alignItems: 'center',
@@ -169,13 +178,6 @@ export default function SpreadsheetGridBars({
           )}
         </div>
       );
-
-      const currentLabel = plan.workerName ? `${plan.taskName} ${plan.workerName}` : plan.taskName;
-      const remarkSuffix = plan.remark ? `＜${plan.remark}＞` : '';
-      const customerPrefix = showCustomer && plan.customerName ? `${plan.customerName} ` : '';
-      const label = mode === 'place'
-        ? (plan.serialNo ? `${plan.kisyuName} ${plan.serialNo}` : '')
-        : `${customerPrefix}${currentLabel}${remarkSuffix}`;
 
       labels.push(
         <div
