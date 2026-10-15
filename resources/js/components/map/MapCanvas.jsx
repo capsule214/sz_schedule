@@ -90,6 +90,8 @@ export default function MapCanvas({ resources, locationTypeName, highlightSearch
 
   function handlePointerDown(event) {
     if (event.button !== 0) return;
+    // マップ移動中にリソース名などがブラウザの文字選択対象になるのを防ぐ。
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, pan };
   }
@@ -159,9 +161,10 @@ export default function MapCanvas({ resources, locationTypeName, highlightSearch
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
-      style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#cbd5e1', cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
+      onDragStart={event => event.preventDefault()}
+      style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#cbd5e1', cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
     >
-      <div style={{ position: 'absolute', left: 0, top: 0, width: MAP_WIDTH, height: MAP_HEIGHT, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: '0 0', willChange: 'transform' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, width: MAP_WIDTH, height: MAP_HEIGHT, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: '0 0', willChange: 'transform', userSelect: 'none', WebkitUserSelect: 'none' }}>
         <img
           key={backgroundImage}
           src={backgroundImage}
